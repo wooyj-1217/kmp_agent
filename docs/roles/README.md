@@ -9,7 +9,7 @@
 | 오케스트레이터 | [orchestrator](orchestrator.md) | 작업·인계·완료 권고 |
 | 기획 | [planning](planning.md) | 문제·범위·정책·시나리오·수용 기준 |
 | 디자인 | [design](design.md) | 디자인 명세·필수 HTML/CSS 시안·별도 시각 검토 근거 |
-| 개발 | [development](development.md) | 백엔드·Android·iOS 담당 범위별 구현·계약·커밋·PR·자체 검증 |
+| 개발 | [development](development.md) | 선택된 백엔드·Android·iOS·웹 담당 범위별 구현·계약·커밋·PR·자체 검증 |
 | 검증 | [verification](verification.md) | PASS / FAIL / NOT_RUN과 증거 |
 | 개선 | [improvement](improvement.md) | 재작업·하네스 개선 평가 |
 

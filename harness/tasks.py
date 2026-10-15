@@ -22,6 +22,7 @@ class Tasks:
         self.root = Path(root).resolve()
         self.run_id = run_id
         self.logger = logging.Logger(root)
+        self.context = self.logger.execution_context(run_id)
         self.directory = self.root / ".harness" / "tasks"
         self.directory.mkdir(parents=True, exist_ok=True)
         self.directory.chmod(0o700)
@@ -110,6 +111,7 @@ class Tasks:
                 raise ValueError("dependencies must exist within the feature")
             refs = [self.artifact(p) for p in inputs]
             task = {"feature_id": feature_id, "task_id": task_id, "role": role, "title": title,
+                    "project_id": self.context["project_id"], "verification_scope": self.context["verification_scope"],
                     "scope": scope, "work_type": work_type, "state": "TODO", "dependencies": dependencies_list,
                     "criteria": criteria, "inputs": refs, "outputs": [], "blocked_reason": None,
                     "max_attempts": max_attempts, "executions": [], "reviews": [], "handoffs": [],
@@ -154,6 +156,7 @@ class Tasks:
             if any(r["ended_at"] is None for r in task["executions"]):
                 raise ValueError("an execution is already active")
             run = {"agent_run_id": str(uuid.uuid4()), "run_id": self.run_id,
+                   "execution_context": copy.deepcopy(self.context),
                    "feature_id": task["feature_id"], "task_id": task_id, "role": role,
                    "kind": "review" if review else "work", "execution_mode": execution_mode,
                    "started_at": logging.now(), "ended_at": None, "inputs": copy.deepcopy(task["outputs"] if review else task["inputs"]),
@@ -245,6 +248,20 @@ class Tasks:
             return copy.deepcopy(record)
         return self._mutate("handoff", operation, source_id)
 
+    def intervention(self, task_id, agent_run_id, session_id, turn_id, classification, basis, evidence,
+                     message_id=UNKNOWN, request_item="1"):
+        task = self.read()["tasks"][task_id]
+        matches = [e for e in task["executions"] if e["agent_run_id"] == agent_run_id]
+        if len(matches) != 1:
+            raise ValueError("explicit existing agent_run_id required")
+        execution = matches[0]
+        context = {"feature_id": task["feature_id"], "task_id": task_id,
+                   "agent_run_id": agent_run_id, "run_id": execution["run_id"],
+                   "role": execution["role"], "stage": execution["kind"], "work_type": task["work_type"],
+                   "task_state": task["state"], "design_status": copy.deepcopy(task.get("design_status", UNKNOWN))}
+        return self.logger.record_intervention(context, session_id, turn_id, classification, basis,
+                                               evidence, message_id, request_item)
+
     def bind_usage(self, task_id, agent_run_id, session_id, response_id, reason):
         def operation(state):
             task = state["tasks"][task_id]
@@ -274,6 +291,7 @@ class Tasks:
         state = self.read()
         events = self.logger.read()
         report = copy.deepcopy(state)
+        report["execution_context"] = copy.deepcopy(self.context)
         report["features"] = {}
         for task in report["tasks"].values():
             for run in task["executions"]:
@@ -304,7 +322,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["register", "ready", "begin", "submit", "review", "handoff", "bind-usage", "show"])
+    parser.add_argument("action", choices=["register", "ready", "begin", "submit", "review", "handoff", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)

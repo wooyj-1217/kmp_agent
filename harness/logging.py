@@ -1,5 +1,6 @@
 """Local, stdlib-only JSONL logger. No model or external service calls."""
 import argparse
+import importlib.util
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -13,6 +14,7 @@ import uuid
 
 UNKNOWN = "UNKNOWN"
 KINDS = ("HARNESS_BUILD", "HARNESS_IMPROVEMENT", "PRODUCT")
+INTERVENTION_CLASSES = {"REQUIREMENT_CHANGE", "CORRECTION", "STATUS_OR_EXPLANATION", UNKNOWN}
 ROOT = Path(__file__).resolve().parents[1]
 SENSITIVE_KEY = re.compile(r"^(api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|password|passwd|client[_-]?secret|secret|cookie|set-cookie)$", re.I)
 
@@ -61,6 +63,8 @@ def snapshot(root):
     result = {}
     for path in root.rglob("*"):
         relative = path.relative_to(root)
+        if relative.parts[:2] == (".kmp-agent", "releases"):
+            continue
         if any(p in (".git", ".harness", "__pycache__") for p in relative.parts):
             continue
         if path.is_symlink() or not path.is_file() or path.name == ".DS_Store":
@@ -82,11 +86,25 @@ class Logger:
         self.directory.mkdir(parents=True, exist_ok=True)
         self.directory.chmod(0o700)
         self.path = self.directory / "events.jsonl"
+        spec = importlib.util.spec_from_file_location("harness_runtime_version", Path(__file__).with_name("version.py"))
+        runtime = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runtime)
+        self.harness = runtime.identity(self.root)
+        spec = importlib.util.spec_from_file_location("harness_execution_context", Path(__file__).with_name("context.py"))
+        context = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(context)
+        self.context = context.identify(self.root)
 
     def read(self):
         if not self.path.exists():
             return []
-        return [json.loads(line) for line in self.path.read_text().splitlines()]
+        with self.path.open(encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_SH)
+            return [json.loads(line) for line in handle if line.strip()]
+
+    def execution_context(self, run_id):
+        start = next((e for e in self.read() if e.get("event_type") == "run_started" and e.get("run_id") == run_id), {})
+        return dict(start.get("execution_context", self.context))
 
     def append(self, event_type, run_id=UNKNOWN, work_type=UNKNOWN, observed=None,
                summary=None, source=None, source_key=None, feature_id=UNKNOWN,
@@ -96,14 +114,32 @@ class Logger:
             fcntl.flock(handle, fcntl.LOCK_EX)
             handle.seek(0)
             existing = [json.loads(line) for line in handle if line.strip()]
+            if event_type == "human_intervention":
+                details = summary or {}
+                required = ("source_session_id", "source_message_id", "source_event_id", "basis", "role", "stage")
+                if (any(not details.get(k) or details[k] == UNKNOWN for k in required)
+                        or any(v in (None, "", UNKNOWN) for v in (feature_id, task_id, run_id, agent_run_id))
+                        or details.get("classification") not in INTERVENTION_CLASSES):
+                    raise ValueError("human_intervention requires linked source, execution context, classification and basis")
+                message = next((e for e in existing if e["event_id"] == details["source_event_id"]), None)
+                if (not message or message["event_type"] != "session_message"
+                        or message["observed"].get("role") != "user"
+                        or message["source"].get("session_id") != details["source_session_id"]
+                        or message["observed"].get("message_id") != details["source_message_id"]):
+                    raise ValueError("intervention source must be an imported user message")
             if source_key and any(e.get("source_key") == source_key for e in existing):
                 return None
+            start = next((e for e in existing if e.get("event_type") == "run_started" and e.get("run_id") == run_id), {})
+            context = start.get("execution_context", self.context)
             event = {
                 "schema_version": 2, "redaction_version": 1, "event_id": str(uuid.uuid4()),
                 "sequence": len(existing) + 1, "recorded_at": now(),
                 "event_type": event_type, "work_type": work_type,
                 "run_id": run_id, "feature_id": feature_id, "task_id": task_id,
                 "agent_run_id": agent_run_id,
+                "harness": self.harness,
+                "project_id": context["project_id"], "verification_scope": context["verification_scope"],
+                "execution_context": context,
                 "observed": observed or {}, "agent_summary": summary or {},
                 "source": source or {"kind": "logger_runtime"},
                 "source_key": source_key,
@@ -117,6 +153,81 @@ class Logger:
             os.fsync(handle.fileno())
             os.fchmod(handle.fileno(), 0o600)
             return event
+
+    def record_intervention(self, context, session_id, turn_id, classification, basis, evidence,
+                            message_id=UNKNOWN, request_item="1"):
+        if (classification not in INTERVENTION_CLASSES or not basis.strip() or not evidence
+                or any(not v or v == UNKNOWN for v in (session_id, turn_id, request_item))):
+            raise ValueError("explicit source session/turn, classification, basis and evidence required")
+        # Context comes from Tasks.intervention, never from the latest message/time guess.
+        for key in ("feature_id", "task_id", "run_id", "agent_run_id", "role", "stage", "work_type"):
+            if not context.get(key) or context[key] == UNKNOWN:
+                raise ValueError("explicit task execution context required")
+        summary = redact({"source_session_id": session_id, "source_turn_id": turn_id,
+                          "source_message_id": message_id, "request_item": request_item,
+                          "classification": classification, "basis": basis, "evidence": evidence,
+                          "role": context["role"], "stage": context["stage"],
+                          "task_state_at_declaration": context.get("task_state", UNKNOWN),
+                          "design_status_at_declaration": context.get("design_status", UNKNOWN),
+                          "classification_source": "agent_declared"})
+        identity = [session_id, turn_id, request_item, context["task_id"], context["agent_run_id"]]
+        key = "intervention-pending:" + digest(json.dumps(identity).encode())
+        previous = next((e for e in self.read() if e.get("source_key") == key), None)
+        if previous and previous["agent_summary"] != summary:
+            raise ValueError("existing declaration differs; do not overwrite its classification or basis")
+        event = self.append("human_intervention_pending", context["run_id"], context["work_type"],
+                            feature_id=context["feature_id"], task_id=context["task_id"],
+                            agent_run_id=context["agent_run_id"], summary=summary,
+                            source={"kind": "agent_declared_intervention"}, source_key=key)
+        pending = event or next(e for e in self.read() if e.get("source_key") == key)
+        self.resolve_interventions()
+        return {"pending_event_id": pending["event_id"], **self.intervention_status()}
+
+    def resolve_interventions(self):
+        # Only new pending declarations participate; historical free-text events stay untouched.
+        events = self.read()
+        linked = {e.get("agent_summary", {}).get("pending_event_id") for e in events
+                  if e["event_type"] == "human_intervention"}
+        resolved = 0
+        for pending in events:
+            if pending["event_type"] != "human_intervention_pending" or pending["event_id"] in linked:
+                continue
+            details = pending["agent_summary"]
+            candidates = [e for e in events if e["event_type"] == "session_message"
+                          and e["observed"].get("role") == "user"
+                          and e["source"].get("session_id") == details["source_session_id"]
+                          and e["observed"].get("session_turn_id") == details["source_turn_id"]
+                          and e["observed"].get("message_id") not in (None, "", UNKNOWN)
+                          and (details["source_message_id"] == UNKNOWN
+                               or e["observed"].get("message_id") == details["source_message_id"])]
+            if len(candidates) != 1:
+                continue  # Missing or ambiguous is pending, never "latest message".
+            source = candidates[0]
+            final = {**details, "pending_event_id": pending["event_id"],
+                     "source_message_id": source["observed"]["message_id"],
+                     "source_event_id": source["event_id"], "request_source": source["source"]}
+            result = self.append("human_intervention", pending["run_id"], pending["work_type"],
+                                 feature_id=pending["feature_id"], task_id=pending["task_id"],
+                                 agent_run_id=pending["agent_run_id"], summary=final,
+                                 observed={"source_message_id": final["source_message_id"],
+                                           "source_event_id": source["event_id"],
+                                           "source_session_id": details["source_session_id"],
+                                           "source_turn_id": details["source_turn_id"],
+                                           "occurred_at": source["observed"].get("occurred_at", UNKNOWN)},
+                                 source={"kind": "intervention_linker"},
+                                 source_key="intervention-linked:" + pending["event_id"])
+            resolved += result is not None
+        return resolved
+
+    def intervention_status(self):
+        events = self.read()
+        pending = [e["event_id"] for e in events if e["event_type"] == "human_intervention_pending"]
+        linked = {e.get("agent_summary", {}).get("pending_event_id") for e in events
+                  if e["event_type"] == "human_intervention" and e["source"].get("kind") == "intervention_linker"}
+        return {"linked_interventions": len(linked),
+                "pending_intervention_ids": [p for p in pending if p not in linked],
+                "legacy_unlinked_interventions": sum(e["event_type"] == "human_intervention"
+                                                     and e["source"].get("kind") != "intervention_linker" for e in events)}
 
     def migrate(self):
         """Redact existing local logs and add identities verified against source lines."""
@@ -294,6 +405,7 @@ class Logger:
                             "snapshot_bytes": len(data), "complete_records": len(records),
                             "last_source_timestamp": records[-1][2].get("timestamp", UNKNOWN) if records else UNKNOWN,
                             "imported": imported})
+        self.resolve_interventions()
         return imported
 
     def write_metadata(self, name, value):
@@ -303,6 +415,10 @@ class Logger:
 
     def status(self):
         events = self.read()
+        groups = {}
+        for event in events:
+            key = (event.get("project_id", UNKNOWN), event.get("verification_scope", UNKNOWN))
+            groups[key] = groups.get(key, 0) + 1
         usage = {}
         duplicate_reports = 0
         conflicts = 0
@@ -328,7 +444,9 @@ class Logger:
                       if any(isinstance(v, dict) and isinstance(v.get(k), int) for v in values) else UNKNOWN) for k in fields}
         missing = {k: sum(not isinstance(v, dict) or not isinstance(v.get(k), int) for v in values) for k in fields}
         sync_path = self.directory / "last-sync.json"
-        return {"path": str(self.path), "events": len(events),
+        return {**self.context, "path": str(self.path), "events": len(events),
+                "event_identity_groups": [{"project_id": k[0], "verification_scope": k[1], "events": count} for k, count in groups.items()],
+                "legacy_events_without_project_id": sum("project_id" not in e for e in events),
                 "collection_started_at": events[0]["recorded_at"] if events else UNKNOWN,
                 "model_responses": len(usage), "reported_tokens": totals, "usage_missing_fields": missing,
                 "known_responses_missing_usage": sum(not isinstance(v, dict) or any(not isinstance(v.get(k), int) for k in ("input_tokens", "output_tokens")) for v in values),
@@ -336,6 +454,7 @@ class Logger:
                 "conflicting_usage_reports": conflicts,
                 "usage_events_missing_response_id": sum(e["event_type"] == "model_usage" and e["observed"].get("response_id", UNKNOWN) == UNKNOWN for e in events),
                 "cost": UNKNOWN, "usage_scope": "unique imported model response IDs; not user turns or full current-run usage",
+                "interventions": self.intervention_status(),
                 "last_sync": json.loads(sync_path.read_text()) if sync_path.exists() else UNKNOWN}
 
     def audit(self, session_path):
@@ -410,6 +529,7 @@ class Logger:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--session-path", type=Path, help="session source for lifecycle sync")
     sub = parser.add_subparsers(dest="action", required=True)
     start = sub.add_parser("start")
     start.add_argument("--work-type", choices=KINDS, required=True)
@@ -434,6 +554,13 @@ def main():
     sub.add_parser("status")
     args = parser.parse_args()
     logger = Logger(args.root)
+    if args.action in {"start", "checkpoint", "finish", "event", "command"}:
+        # Persist source messages before interpreting a request or reporting completion.
+        source = resolve_session(args.session_path)
+        if source is not None:
+            logger.sync(source)
+        else:
+            print("Source sync unavailable: no session id/path (offline execution).", file=sys.stderr)
     if args.action == "start":
         print(logger.start(args.work_type, args.role, args.request))
     elif args.action in ("checkpoint", "finish"):
@@ -451,6 +578,30 @@ def main():
         sys.exit(logger.command(args.run_id, args.argv))
     else:
         print(json.dumps(logger.status(), ensure_ascii=False))
+
+
+def resolve_session(explicit=None, session_id=None):
+    session_id = session_id or os.getenv("CODEX_THREAD_ID")
+    if explicit is not None:
+        path = Path(explicit).expanduser().resolve()
+        if not path.is_file():
+            raise ValueError("session source does not exist")
+    elif session_id:
+        home = Path(os.getenv("CODEX_HOME", str(Path.home() / ".codex")))
+        matches = list((home / "sessions").rglob("*" + session_id + "*.jsonl"))
+        if len(matches) != 1:
+            raise ValueError("session source missing or ambiguous; use --session-path")
+        path = matches[0].resolve()
+    else:
+        return None
+    # Never silently import a different conversation into the task log.
+    with path.open() as handle:
+        first = json.loads(next(handle))
+    meta = first.get("payload", {}) if first.get("type") == "session_meta" else {}
+    actual_id = meta.get("session_id", meta.get("id"))
+    if not actual_id or (session_id and actual_id != session_id):
+        raise ValueError("session source identity mismatch")
+    return path
 
 
 if __name__ == "__main__":
