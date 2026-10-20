@@ -1,0 +1,63 @@
+{
+  "api_contract": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "계약 문서 상대 경로; real / temporary / mock",
+    "mode": "temporary"
+  },
+  "code_ownership": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "타깃별 공유 로직/UI·플랫폼 책임·소유 모듈·담당"
+  },
+  "database": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "DB 기술·스키마 결정"
+  },
+  "implementation_targets": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "실제 구현 OS·웹 타깃 ID 배열; 디자인 타깃과 별개"
+  },
+  "integration_acceptance": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "REQ/AC·타깃별·전체 연결 기준 문서 상대 경로"
+  },
+  "migration_plan": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "DB 준비·마이그레이션 문서 상대 경로"
+  },
+  "policy_responsibility": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "정책 책임 문서 상대 경로; 요구사항/API 원본 재사용"
+  },
+  "runbook": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "실행 명령·환경변수 예시·실행 순서 문서 상대 경로"
+  },
+  "server_mode": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "none / existing / new"
+  },
+  "server_technology": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "신규 서버 기술·버전; 기존 서버 소유 경계"
+  },
+  "support_scope": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "OS·브라우저·너비·입력·접근성 지원 범위"
+  },
+  "ui_technology": {
+    "status": "UNDECIDED",
+    "value": null,
+    "reason": "타깃별 UI 기술·버전 결정 참조"
+  }
+}

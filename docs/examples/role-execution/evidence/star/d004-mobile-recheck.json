@@ -1,0 +1,63 @@
+{
+  "target": "web-mobile",
+  "accent": "#244fd3",
+  "active": {
+    "action": null,
+    "id": "saveStatus",
+    "memo": null
+  },
+  "bodyLength": 5,
+  "editor": {
+    "clientHeight": 735,
+    "height": 737.15625,
+    "scrollHeight": 735,
+    "visible": true,
+    "width": 358,
+    "x": 16,
+    "y": 16
+  },
+  "editorState": "ERROR",
+  "favorite": "FAV-ON",
+  "forbidden": false,
+  "height": 844,
+  "list": {
+    "clientHeight": 0,
+    "height": 0,
+    "scrollHeight": 0,
+    "visible": false,
+    "width": 0,
+    "x": 0,
+    "y": 0
+  },
+  "listState": "LIST-MIXED",
+  "rows": [
+    {
+      "id": "m-01",
+      "pressed": "true",
+      "visible": false
+    },
+    {
+      "id": "m-02",
+      "pressed": "false",
+      "visible": false
+    },
+    {
+      "id": "m-03",
+      "pressed": "false",
+      "visible": false
+    }
+  ],
+  "scrollWidth": 390,
+  "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+  "width": 390,
+  "result": "PASS",
+  "checks": [
+    "Enter/Space toggle",
+    "visible controls",
+    "favorite ordering",
+    "list/editor/reopen",
+    "empty/reset status cleared",
+    "EMPTY/EDITING/SAVING/SAVED/ERROR x OFF/ON"
+  ],
+  "method": "finalCheck completed without assertion failure at observed 390px"
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "contentCase": "regular",
+    "result": {
+      "focus": "status",
+      "height": 844,
+      "scrollWidth": 375,
+      "snapshotLength": 5,
+      "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+      "width": 390
+    }
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "contentCase": "long",
+    "result": {
+      "focus": "status",
+      "height": 844,
+      "scrollWidth": 375,
+      "snapshotLength": 1680,
+      "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+      "width": 390
+    }
+  },
+  {
+    "size": {
+      "width": 1280,
+      "height": 900
+    },
+    "contentCase": "regular",
+    "result": {
+      "focus": "status",
+      "height": 900,
+      "scrollWidth": 1265,
+      "snapshotLength": 5,
+      "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+      "width": 1280
+    }
+  },
+  {
+    "size": {
+      "width": 1280,
+      "height": 900
+    },
+    "contentCase": "long",
+    "result": {
+      "focus": "status",
+      "height": 900,
+      "scrollWidth": 1265,
+      "snapshotLength": 1680,
+      "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+      "width": 1280
+    }
+  }
+]

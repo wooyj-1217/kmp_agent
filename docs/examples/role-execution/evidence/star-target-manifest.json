@@ -1,0 +1,77 @@
+{
+  "app": {
+    "entry": "prototype/app-favorites.html",
+    "screens": [
+      "SCREEN-LIST",
+      "SCREEN-EDITOR"
+    ],
+    "requirements": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-FAV-001",
+      "REQ-FAV-002",
+      "REQ-FAV-003",
+      "REQ-FAV-004",
+      "REQ-FAV-005",
+      "REQ-FAV-006",
+      "REQ-FAV-007",
+      "REQ-TGT-001",
+      "REQ-TGT-002",
+      "REQ-TGT-003"
+    ]
+  },
+  "web-mobile": {
+    "entry": "prototype/web-favorites.html",
+    "screens": [
+      "SCREEN-LIST",
+      "SCREEN-EDITOR"
+    ],
+    "requirements": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-FAV-001",
+      "REQ-FAV-002",
+      "REQ-FAV-003",
+      "REQ-FAV-004",
+      "REQ-FAV-005",
+      "REQ-FAV-006",
+      "REQ-FAV-007",
+      "REQ-TGT-001",
+      "REQ-TGT-002",
+      "REQ-TGT-003"
+    ]
+  },
+  "web-desktop": {
+    "entry": "prototype/web-favorites.html",
+    "screens": [
+      "SCREEN-LIST",
+      "SCREEN-EDITOR"
+    ],
+    "requirements": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-FAV-001",
+      "REQ-FAV-002",
+      "REQ-FAV-003",
+      "REQ-FAV-004",
+      "REQ-FAV-005",
+      "REQ-FAV-006",
+      "REQ-FAV-007",
+      "REQ-TGT-001",
+      "REQ-TGT-002",
+      "REQ-TGT-003"
+    ]
+  }
+}

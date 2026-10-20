@@ -1,0 +1,147 @@
+[
+  {
+    "target": "app",
+    "name": "LIST-DEFAULT",
+    "file": "d004-app-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "app",
+    "name": "LIST-DEFAULT",
+    "file": "d004-app-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "app",
+    "name": "LIST-MIXED",
+    "file": "d004-app-LIST-MIXED.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITOR-UNFAVORITE",
+    "file": "d004-app-EDITOR-UNFAVORITE.jpg"
+  },
+  {
+    "target": "app",
+    "name": "LIST-EMPTY",
+    "file": "d004-app-LIST-EMPTY.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EMPTY-FAV-OFF",
+    "file": "d004-app-EMPTY-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITING-FAV-OFF",
+    "file": "d004-app-EDITING-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVING-FAV-OFF",
+    "file": "d004-app-SAVING-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVED-FAV-OFF",
+    "file": "d004-app-SAVED-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "ERROR-FAV-OFF",
+    "file": "d004-app-ERROR-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EMPTY-FAV-ON",
+    "file": "d004-app-EMPTY-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITING-FAV-ON",
+    "file": "d004-app-EDITING-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVING-FAV-ON",
+    "file": "d004-app-SAVING-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVED-FAV-ON",
+    "file": "d004-app-SAVED-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "ERROR-FAV-ON",
+    "file": "d004-app-ERROR-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-DEFAULT",
+    "file": "d004-web-desktop-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-MIXED",
+    "file": "d004-web-desktop-LIST-MIXED.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITOR-UNFAVORITE",
+    "file": "d004-web-desktop-EDITOR-UNFAVORITE.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-EMPTY",
+    "file": "d004-web-desktop-LIST-EMPTY.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EMPTY-FAV-OFF",
+    "file": "d004-web-desktop-EMPTY-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITING-FAV-OFF",
+    "file": "d004-web-desktop-EDITING-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVING-FAV-OFF",
+    "file": "d004-web-desktop-SAVING-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVED-FAV-OFF",
+    "file": "d004-web-desktop-SAVED-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "ERROR-FAV-OFF",
+    "file": "d004-web-desktop-ERROR-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EMPTY-FAV-ON",
+    "file": "d004-web-desktop-EMPTY-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITING-FAV-ON",
+    "file": "d004-web-desktop-EDITING-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVING-FAV-ON",
+    "file": "d004-web-desktop-SAVING-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVED-FAV-ON",
+    "file": "d004-web-desktop-SAVED-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "ERROR-FAV-ON",
+    "file": "d004-web-desktop-ERROR-FAV-ON.jpg"
+  }
+]

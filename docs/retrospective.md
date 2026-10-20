@@ -50,7 +50,7 @@
 ### RETRO-H006 — 하네스 훅 검증이 데모 적용을 보장하지 않음
 
 - 문제·영향: 하네스 세션 자동 수집 PASS 이후에도 데모 디자인 질문은 데모 로그에 없었다. 데모의 훅 설정 누락과 공용 스크립트의 하네스 루트 전용 제한을 확인했다. 제품 세션 수집·개입 연결 검증이 지연됐으며 기존 디자인 세션의 메모리 내 훅 정의는 UNKNOWN이다.
-- 근거: 데모 [FB-002](../../kmp_agent_demo_app/docs/feedback.md#fb-002), [적용 조사](../.harness/logs/demo-hook-application.json). TASK-009 / eb283cb4-6e0f-4111-b6f6-5a194d1dbc86. 세션 01a134f9-20d2-79b1-b119-251857516530의 원문 메시지 msg_01a13ee2-443b-79e1-912d-58119d57638b와 수집 대상 차이를 확인했다.
+- 근거: 적용 프로젝트 자체 피드백과 로컬 적용 조사에서 원문과 수집 대상 차이를 확인했다. 제품 고유 참조·세션/메시지 대응표는 해당 프로젝트 및 로컬 기록에 보존하며 배포 문서에 복제하지 않는다. (2026-10-20 공개 범위 정리)
 - 대응·재검증: 호출 저장소 Git 루트로 이벤트·진단 경로를 결정하고 데모별 설정·훅 신뢰·실제 요청 검증을 분리했다. 내부 합성 테스트 34개 PASS. 데모 설정·신뢰 적용 뒤 기존 디자인 세션은 여전히 미호출이었으나 새 CLI 세션에서 일반 요청이 Stop 훅으로 정확히 1건 자동 수집되어 PASS다. 두 훅 종료 코드 0과 원본 세션·메시지 ID를 적용 조사 파일에 연결했다. 기존 vscode 세션의 미호출 원인은 UNKNOWN이며 새 세션의 성공으로 소급 해결하지 않는다. 수동 sync·새 커밋·PR 없음.
 
 ### RETRO-H007 — 복구 진입점이 손상된 현재 포인터에 의존
@@ -65,9 +65,30 @@
 - 근거: [검토 결과](../.harness/logs/prepublication-review.json), 검증 이벤트 2d2e49b0-3709-4d00-87d4-a5d4abd838da, [회귀 시험](../harness/test_installation.py)의 repeated_install_init_failure / standalone_init_failure.
 - 대응·재검증: 설정 적용·복구를 configure로 통합했다. 전체 69개 시험과 추가 단독 init 회귀 1개 PASS; 실제 원격 설치·설치본 Codex 훅은 NOT_RUN이다.
 
+### RETRO-H009 — 독립 역할 결과 경로 계약의 표기 차이
+
+- 작업·실행: TASK-ROLE-BUILD·TASK-ROLE-D1 / 3714570e-4ad2-40bb-9719-13fca11c8ed9.
+- 기대/실제·영향: 실제 디자인 프로세스가 유효한 소유 범위의 저장소 상대 경로를 반환했지만 실행기는 기능 폴더 상대 표기만 허용해 생성된 A/B·토큰 접수를 거부했다. 작업이 BLOCKED되어 기존 결과 복구와 새 역할 실행 ID가 필요했다.
+- 근거: [로컬 원본 결과](../.harness/roles/f39b512a-d18d-4322-9258-e8f499ac5d32/last-1.json), 기존 tasks.yaml의 실패 실행과 e5b30369-3e51-4110-b60a-d9af72ca7309의 recovered_response_from_agent_run_id·checkpoint·resume 기록.
+- 대응·재검증: 정확한 기능 폴더 접두어만 정규화하고 다른 역할·경로 탈출 거부는 유지했다. 모델 결과를 재생성하지 않고 보존해 합성 선택으로 같은 활성 실행을 재개했다. [경로 회귀 시험](../harness/test_roles.py)의 canonical_worker_paths와 output ownership 검사 PASS. 실제 디자인 토큰·컴포넌트·전체 상태를 생성하고 별도 브라우저 검토에 연결했다. 이는 프로토콜 경계 개선이며 모델의 제품·시각 품질 일반화 근거는 아니다.
+
+### RETRO-H010 — 합성 결함 생성기의 정적 DOM 가정
+
+- 작업·실행: TASK-STAR-RETURN / 18f82cb5-cda2-4d59-bb11-43a024bcad8f. 실제 시안의 즐겨찾기 버튼은 공유 JS에서 생성되는데 시험용 생성기는 HTML 안에서만 찾았다. 첫 시도 실패이며 모델의 자연 결함으로 취급하지 않는다.
+- 대응: HTML/JS 입력을 함께 확인하도록 생성기만 수정했다. 실패 기록과 두 번의 시도 상한을 유지하고 두 번째 실행의 검토 대기 checkpoint에 관측 결과를 반환했다. 같은 활성 실행을 재개해 실제 디자인 프로세스가 수정했다.
+- 근거·재검증: [연결 시험](examples/role-execution/connection-report.md)의 합성 결함 캡처·차단 인계·D-004 재검토, [회귀 시험](../harness/test_connections.py)의 checkpoint_return_keeps_active_run_inputs_and_attempt_budget. 동적 시안의 제어 요소를 정적 문서 검색만으로 판단하지 않는다.
+
 <!-- codex-retrospective:end -->
 
 ## 수동 메모
 
 <!-- manual-notes:start -->
 <!-- manual-notes:end -->
+
+
+### RETRO-DEVELOPMENT-GATES-001 — 선택 설정과 필수 실행 검사를 분리
+
+- 작업/실행: TASK-DEV-TRACKING-GATES / f131a7ad-7d43-4249-9eed-0529826caf41.
+- 기대/확인: 앞선 추적 기능은 명시 설정 작업에만 적용됐고, 이번 필수 게이트 요구와 대조한 결과 설정 누락 시 시작·제출·검증·인계가 기존 비추적 경로를 탈 수 있었다. 실제 제품 사고 여부는 UNKNOWN.
+- 원인/대응: 검사를 설정의 존재 조건 안에 둔 것이 원인이다. 작업의 구조화된 실행 범위로 코드 구현 여부를 먼저 판단하고 모든 생명주기 경계에 공통 게이트를 둔다. 자동 연결은 기존 frozen 기준으로만 하며, 과거 실행의 시작 증거는 사후 생성하지 않는다. 문서/입력 해석은 별도 면제로 유지한다.
+- 근거/재확인: [개발 게이트 시험](../harness/test_development_gates.py), [구현과 보장 범위](development-tracking.md), 상세 결과는 .harness/logs/development-gates-tests.json. 임시 Git 대상의 실제 실행과 설정/근거 누락 시험이며 제품 구현 시험과 구분한다.

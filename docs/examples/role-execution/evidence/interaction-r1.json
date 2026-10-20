@@ -1,0 +1,29 @@
+{
+  "tested_outputs": {
+    "docs/examples/role-execution/design.md": "d0860b1218124ccffaea160fb75b29ba933a50041e039f47785703e2c8933ad9",
+    "docs/examples/role-execution/prototype/tokens.css": "3ff1d2b6e92cecaf40c820c234f4e334980b794c87873b77074cf6bff970e3f8",
+    "docs/examples/role-execution/prototype/components.html": "dc203bcca3774ff78f0a97a1964717665f08a57a8c0bc582a0a3ac598ae1cbfd",
+    "docs/examples/role-execution/prototype/system.md": "ae431b415e9be527220438d637df5088a62aaadf2d775b9c60abcea11d89a78a",
+    "docs/examples/role-execution/prototype/index.html": "4a8c4dfcaf2152ed671ed79c557bbf0de790483dc034113f9d2a8ff2be86f8ef",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-A.html": "cdf6671be69e491b5f9cabbb805f277dd23c0e3a5ad8af50b88f8d830973dd4b",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-B.html": "f42930c91619f674f731b7e04452c015585352e6e8254efb270f604525ecd1c2",
+    "docs/examples/role-execution/prototype/components-final.html": "742f9f762353f141e8092f37335391ec63a9bd1d726f8526249656e88530457a",
+    "docs/examples/role-execution/prototype/memo-harness-draft-37efca4238102a9a92b059efc96bf3775c0af7428e18dbd82ed6e8aa5d096aad-A-final.html": "fded574907960e4f59945f7a89119a9711cead4a20573b786d93de3851bdbe57"
+  },
+  "environment": "Chrome extension / macOS / 1280x900 and 390x844 CSS px / 2026-10-19 / current Codex reviewer",
+  "coverage": [
+    "SCREEN-001 × EMPTY/EDITING/SAVING/SAVED/ERROR × 1280x900/390x844",
+    "긴 본문 1680자 × EDITING/SAVING/SAVED/ERROR × 두 크기",
+    "EX-FEAT-001-AC-001/002/003; ROLE-P1-AC-005/006"
+  ],
+  "result": "PASS",
+  "limitations": {
+    "product_policy": "빈 값·길이·이탈·처리 중 편집·영속 저장 UNKNOWN/NOT_RUN",
+    "zoom_200_percent": "NOT_RUN; 이번 필수 AC 범위 밖의 추가 제안 검토",
+    "language": "상단 選択 A 표기는 비차단 번역 개선 항목; 다음 디자인 수정에 연결"
+  },
+  "kind": "interaction",
+  "observations": "docs/examples/role-execution/evidence/interaction-observations-r1.json",
+  "reproduction": "본문 입력→Enter 저장→SAVING disabled·요청1→실패→동일 본문→Space 재시도·요청2→성공. 모바일 같은 경로와 긴 본문1680자 실제 실패·재시도·성공을 각각 실행",
+  "expected_actual": "입력 원문 동일, 중복 요청 disabled, 긴 원문1680자 보존, 결과 상태 포커스, Tab 3px outline 확인"
+}

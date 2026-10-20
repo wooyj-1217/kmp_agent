@@ -1,0 +1,31 @@
+{
+  "kind": "synthetic_test_defect",
+  "list": {
+    "buttons": [
+      {
+        "display": "none",
+        "memo": "m-01",
+        "visible": false
+      },
+      {
+        "display": "none",
+        "memo": "m-02",
+        "visible": false
+      },
+      {
+        "display": "none",
+        "memo": "m-03",
+        "visible": false
+      }
+    ],
+    "height": 844,
+    "rows": 3,
+    "screen": "SCREEN-LIST",
+    "state": "LIST-DEFAULT",
+    "width": 390
+  },
+  "editor": {
+    "display": "none",
+    "state": "EDITING"
+  }
+}

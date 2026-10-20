@@ -1,0 +1,313 @@
+{
+  "audit_started_at": "2026-10-20T02:50:52Z",
+  "scope": "kmp_agent capabilities only; no product goals or development state copied",
+  "tests_rerun": false,
+  "installation_or_roles_rerun": false,
+  "release": {
+    "version": "0.1.0",
+    "tag": "v0.1.0",
+    "tag_object": "4a7e5c1e6411b829791d2143823aa5d7af0ff0ab",
+    "commit": "b802d18b068d4a213946a0c7f3b5dee77b6c6621",
+    "remote_tag_checked": true,
+    "remote_ref_observation": [
+      "4a7e5c1e6411b829791d2143823aa5d7af0ff0ab refs/tags/v0.1.0",
+      "b802d18b068d4a213946a0c7f3b5dee77b6c6621 refs/tags/v0.1.0^{}"
+    ],
+    "observation_method": "successful read-only rtk proxy git ls-remote --tags origin tool result; a redundant subprocess recheck failed in sandbox, retried as direct approved command",
+    "direct_remote_recheck": "PASS; same tag object and peeled commit"
+  },
+  "working_tree": {
+    "base_head": "b802d18b068d4a213946a0c7f3b5dee77b6c6621",
+    "includes_uncommitted_changes": true,
+    "includes_untracked_files": true,
+    "source_manifest": [
+      {
+        "path": "VERSION",
+        "working_sha256": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67",
+        "tag_sha256": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "bootstrap.py",
+        "working_sha256": "fe6d7f1bff776aace5747407581cadc7a8a4e0b106856031d6c91e4f44b3af14",
+        "tag_sha256": "fe6d7f1bff776aace5747407581cadc7a8a4e0b106856031d6c91e4f44b3af14",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/cli.py",
+        "working_sha256": "9ab7a1c8565d1f333480a34f4c62bf604a31b731a512a114707949e352d6daed",
+        "tag_sha256": "94dcb3894e1cd95cba4e85ea368c4c4225c11fa5beeff48cc85a3c1e93eb7748",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/codex_sync.py",
+        "working_sha256": "cfa0ef4c8240193b9bd986a93e626e959a5ba920efb97ed4e1d6c9bfce7d4240",
+        "tag_sha256": "cfa0ef4c8240193b9bd986a93e626e959a5ba920efb97ed4e1d6c9bfce7d4240",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/context.py",
+        "working_sha256": "df40ff465f5775b94dece51ee22418758d9b1c1a49a4ae5da14e0a3b22f7d9c1",
+        "tag_sha256": "df40ff465f5775b94dece51ee22418758d9b1c1a49a4ae5da14e0a3b22f7d9c1",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/deliverables.py",
+        "working_sha256": "bd8693e297f42847495f8c6d4b65fb33106f7251ee408d5252c05982ebacdc7a",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/design_assets.py",
+        "working_sha256": "678c8e50bc40d934a035af683908e5e0bd0a7d39a5791fa195d3e633ab67ff86",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/development_tracking.py",
+        "working_sha256": "2fd589022bd8e07a32a148accefe08d9fd1dee9da1167373aede4f2026d93ac8",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/findings.py",
+        "working_sha256": "a03fc42866ba580c099baf3ce9bc8742aaded62c3400afae5438b442dc06594f",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/interruptions.py",
+        "working_sha256": "61706d7ff3054befd9a5acc008465d2e871063d77b9a0ebc8c03aecc0be90a30",
+        "tag_sha256": "61706d7ff3054befd9a5acc008465d2e871063d77b9a0ebc8c03aecc0be90a30",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/logging.py",
+        "working_sha256": "307e3d3409fc58e8b8dba66a286c4c83d974e2567d836b43e08c18c687f6a100",
+        "tag_sha256": "307e3d3409fc58e8b8dba66a286c4c83d974e2567d836b43e08c18c687f6a100",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/project_contract.py",
+        "working_sha256": "3bf7fcdf2c64c1d6f912f23e2af7838dc55615f1d55146ca0fd3b17b11a890bb",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/projects.py",
+        "working_sha256": "1402b4effd4d1c89f8d1ee1ca5ca106b0aebf0510559380605840f1cea8efecf",
+        "tag_sha256": "1402b4effd4d1c89f8d1ee1ca5ca106b0aebf0510559380605840f1cea8efecf",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/role_example_worker.py",
+        "working_sha256": "105aea310d664900bd2af005deab141a5befa1d3270e39b223e7701b453895b7",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/role_trial.py",
+        "working_sha256": "2ca3dfdac46257ad58ecb56b3816701aa1ba44a26971f2df7a4721bdeea9a55e",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/roles.py",
+        "working_sha256": "069b7a223b73ad7f0c45fdb65a70ebfae80685c989017d0ac2e373905acf5e61",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/star_trial.py",
+        "working_sha256": "afd94a8c540ce20bbe69356e12bf19f89f6dfe0395563909b03d1298021e578b",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/tasks.py",
+        "working_sha256": "808fe48fbdcf7bb0fa1c6ff5dedc1a7fefa18b2c30faab0d70698d06efa0f79e",
+        "tag_sha256": "3889b7ebd6b7710e4d1fd900daf2f8d64ed63a4f5fde58e8963273f5f9029fb4",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_connections.py",
+        "working_sha256": "df90ccce9ff0988ee9d38f18255fec5511b1e09d0da5a5ef44f85e982da5f585",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_development_gates.py",
+        "working_sha256": "25ef876c42d0a6bfc739c5cc554c6ca8a6b9994f281f86c12fe9023e52fafe8e",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_development_tracking.py",
+        "working_sha256": "ade9c3850c1c8a98dd7a7fa205b1b0dc26e89dad81cc5c82a7deecc9a43cd84b",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_installation.py",
+        "working_sha256": "1b5b44f7a727ce210830649f5cacd38a490953e2f5a15f95d6e3bccc892e6c96",
+        "tag_sha256": "1b5b44f7a727ce210830649f5cacd38a490953e2f5a15f95d6e3bccc892e6c96",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/test_interruptions.py",
+        "working_sha256": "b15a2a2b981f94ad0b4c513bd350c1e6414b97378db764b001c8990dd214435a",
+        "tag_sha256": "b15a2a2b981f94ad0b4c513bd350c1e6414b97378db764b001c8990dd214435a",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/test_interventions.py",
+        "working_sha256": "2dc2d4676037cadc778cefc9ec1bd8e9cf451768499665e6bdd08f914367efd6",
+        "tag_sha256": "2dc2d4676037cadc778cefc9ec1bd8e9cf451768499665e6bdd08f914367efd6",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/test_logging.py",
+        "working_sha256": "0e531accd3afdacb98dfd05926eae520e47e8c7773b15ad1324071be30da4000",
+        "tag_sha256": "0e531accd3afdacb98dfd05926eae520e47e8c7773b15ad1324071be30da4000",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/test_project_contract.py",
+        "working_sha256": "2b67faec82932adc890ec601f925b6a9c0971af53c916a6a7f810b663e7e5c37",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_projects.py",
+        "working_sha256": "ae798ea8c0937c356cca8879e41bad48549f40d046d2a7dfd1a6ab9c49678ebd",
+        "tag_sha256": "ae798ea8c0937c356cca8879e41bad48549f40d046d2a7dfd1a6ab9c49678ebd",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/test_roles.py",
+        "working_sha256": "5c2ca6bb1e5064ec3d6a9f5409baab8d318f2386106ca6f56241a9fb56dbbe66",
+        "tag_sha256": null,
+        "tag_contains_file": false,
+        "same_bytes_as_tag": false
+      },
+      {
+        "path": "harness/test_tasks.py",
+        "working_sha256": "086e3bad04ecb30a0ce6fd40b28ba601daf4fdb3275d44958acd7b43f1adf02d",
+        "tag_sha256": "086e3bad04ecb30a0ce6fd40b28ba601daf4fdb3275d44958acd7b43f1adf02d",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/trial.py",
+        "working_sha256": "67528e8f402548f60b24ddf18a2cb3b8a77814389f1ad1ac74e0acc7826ccd1a",
+        "tag_sha256": "67528e8f402548f60b24ddf18a2cb3b8a77814389f1ad1ac74e0acc7826ccd1a",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      },
+      {
+        "path": "harness/version.py",
+        "working_sha256": "d4b548d329c0e6a7bef46b1b717becc4f09db277ff77d69d28b1d467403e384c",
+        "tag_sha256": "d4b548d329c0e6a7bef46b1b717becc4f09db277ff77d69d28b1d467403e384c",
+        "tag_contains_file": true,
+        "same_bytes_as_tag": true
+      }
+    ]
+  },
+  "existing_evidence_references": [
+    {
+      "path": ".harness/logs/installation-trial.json",
+      "available_at_audit": true,
+      "sha256": "ee4de82113f72339e1f57bce720890f064d48b1a2e55c4eab23bee169c642a28"
+    },
+    {
+      "path": ".harness/logs/prepublication-review.json",
+      "available_at_audit": true,
+      "sha256": "17dab996642f16bf8d3a0baae7c7eaff59421758ca07446121483bc9e3dd4e88"
+    },
+    {
+      "path": ".harness/logs/task-trial.json",
+      "available_at_audit": true,
+      "sha256": "9df271aa60e4185d0daff57b93fdbfbdf7d9c9bc10d4424a69d778e7255af1f6"
+    },
+    {
+      "path": ".harness/logs/role-trial-report.json",
+      "available_at_audit": true,
+      "sha256": "ad0c0a58c37593b6d8527053945dbb88f1f1c9a4357da5d6ecf881b4b9e04509"
+    },
+    {
+      "path": ".harness/logs/development-tracking-tests.json",
+      "available_at_audit": true,
+      "sha256": "5369f98237e47a028660ebc86a80e0b7a834c7b0a28d9824ed4ca512a02cb1c6"
+    },
+    {
+      "path": "docs/examples/role-execution/connection-report.md",
+      "available_at_audit": true,
+      "sha256": "b0a61b3e0c11c2b88bcd5d750ad2996042025ca707b83b5bf83634ec7f04da90"
+    },
+    {
+      "path": "docs/examples/role-execution/evidence/star/d004-visual.json",
+      "available_at_audit": true,
+      "sha256": "7e9d44b4aa1eb5301af38dbfc473ddbc537e93e81f59846b443e45eeb093db49"
+    },
+    {
+      "path": "docs/examples/role-execution/evidence/star/development-interpretation.json",
+      "available_at_audit": true,
+      "sha256": "ba570df4e1bbce0f2c6ff6e83dec5bbbc0fd7f95fa1a5ca566fc733ce00b52a2"
+    },
+    {
+      "path": "docs/examples/role-execution/evidence/project-stages-tests.json",
+      "available_at_audit": true,
+      "sha256": "3d94572ec07fe3b69dacb5d1adc7d0cd616bc44d5da271ee6bc2130d13d385e9"
+    }
+  ],
+  "historical_application_evidence": {
+    "reference": ".harness/logs/demo-hook-application.json",
+    "scope": "past development direct-reference CLI hook collection only",
+    "version_exact_tag_match": "UNKNOWN",
+    "current_connection_revalidated": false,
+    "product_content_copied": false
+  },
+  "limitations": [
+    "Local records can be absent in new checkouts.",
+    "Past executions do not validate all later working-tree changes.",
+    "Remote tag existence is not a remote installation trial.",
+    "No implementation, tests, commit, tag, push, release or product development performed in this audit."
+  ],
+  "document_checks": {
+    "result": "PASS",
+    "checks": [
+      "two tables cover nine flows with allowed implementation states",
+      "local links resolve and pinned tag links exist in Git objects",
+      "audit source hashes still match inspected code/test files",
+      "audit JSON version and base identity consistent"
+    ],
+    "functional_tests_rerun": false
+  }
+}

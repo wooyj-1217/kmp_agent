@@ -1,6 +1,16 @@
 # 버전 고정 설치·init·update
 
-일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이며 초기 버전은 0.1.0이다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
+일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.2.0의 지원 계약과 v0.1.0을 구분하고 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.2.0)에서 실제 배포 SHA·원격 검증 결과를 확인한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
+
+## 공통 도구와 프로젝트 데이터의 경계
+
+현재 작업본의 [순차 개발 근거 수집](sequential-evidence.md)은 `init --tracking-settings <JSON>`으로 제품 모듈·명령을 한 번 등록해 재사용한다. 실제 기록·설정·충족도 보고서는 제품 `.harness/`에 저장한다. 기능이 포함된 릴리스로 명시적으로 업데이트한 뒤 초기화하며 기존 v0.1.0 지원으로 소급하지 않는다. 설정만으로 임의 명령을 감시하지 않으며 역할 선언·명령 래퍼가 필요한 항목을 안내에서 구분한다.
+
+설치 대상 프로젝트가 제품 목표·기능 범위·스택·기획/디자인 원본·인수 조건·테스트 명령을 소유한다. 제품 코드·산출물·작업 원장·실행 로그·검증 증거는 대상 프로젝트에 보관하며 설치된 도구 위치나 kmp_agent 원본 저장소로 옮기지 않는다. 제품 기록·문제의 자동 전송을 설치·업데이트 기능으로 제공하지 않는다.
+
+VERSION과 설치 태그/SHA는 하네스 배포 버전이다. 대상 프로젝트의 피처 기준(P/D·API·CR·Git/해시)과 제품 릴리스는 별도로 추적한다. 도구 버전의 명시적 update와 제품의 기획·디자인 변경 자동 반영 목표는 다르다. 후자의 감시 대상·변경 확정 조건은 프로젝트 설정 책임이며 전체 자동 대응은 PLANNED다.
+
+설치한 버전의 기능·실행 전제는 [배포 버전별 지원 현황](releases/README.md)을 참조한다. installation.json의 version 문자열뿐 아니라 requested_ref·commit과 실제 실행 코드의 dirty/mode를 대조한다. 과거 태그에 현황 파일이 없으면 원본 저장소의 현재 목록에서 해당 태그의 사후 기록을 찾는다. 지원 기록은 제품 실행 결과를 대신하지 않으며 제품의 검증·로그는 해당 프로젝트에 보관한다. 릴리스 준비 단계의 점검·기록 보존·오류 정정은 [운영 규칙](releases/README.md#릴리스-준비보존정정)을 따른다.
 
 ## 최초 설치
 
@@ -12,13 +22,13 @@ rtk proxy python3 --version
 rtk proxy git --version
 ```
 
-아래 원격·태그는 **이후 실제로 게시된 경우에만** 사용할 수 있다. 이번 작업은 원격 게시·태그 등록을 수행하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
+아래 명령은 `v0.2.0`을 명시적으로 선택한다([지원 범위](releases/v0.2.0.md)). 태그 존재·설치 성공은 설치본의 실제 Codex 세션 검증을 뜻하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
 
 ```sh
 rtk proxy git clone --no-checkout git@github.com:wooyj-1217/kmp_agent.git /tmp/kmp-agent-bootstrap
-rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.1.0
+rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.2.0
 rtk proxy git -C /tmp/kmp-agent-bootstrap checkout --detach FETCH_HEAD
-rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.1.0 --target /path/to/product
+rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.2.0 --target /path/to/product
 ```
 
 전체 커밋 SHA도 --ref에 지정할 수 있다. Git 인증은 기존 SSH/credential helper를 사용하고 인증값을 URL·설정에 넣지 않는다. 설치 시 태그를 커밋으로 해석해 SHA를 기록한다. 같은 source/ref의 install 재실행은 이미 고정한 정상 설치를 재사용하고 init을 반복하며, 이동한 태그를 조용히 다시 선택하지 않는다. 다른 버전은 update로 명시한다.
@@ -34,13 +44,21 @@ rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@git
 ```sh
 rtk proxy python3 .kmp-agent/agent.py init
 rtk proxy python3 .kmp-agent/agent.py status
-rtk proxy python3 .kmp-agent/agent.py update --ref v0.1.1
+rtk proxy python3 .kmp-agent/agent.py update --ref <실제-게시된-태그-또는-전체-SHA>
 rtk proxy python3 .kmp-agent/agent.py recover
 ```
 
 update의 태그는 실제 게시된 버전으로 바꾸며 --ref를 생략하면 실패한다. source 생략 시 설치 정보를 재사용하고 다른 저장소는 --source로 명시한다. 원격 최신 버전을 자동 적용하는 명령은 없다. 설치/init/update 종료 코드 0은 설치·정적 연결 성공, status 종료 코드 0은 현재 버전의 실제 대상 훅 수집 VERIFIED다. 미검증·재시작·복구 대기·실패 상태의 status는 1이다.
 
 최초 init 뒤 대상의 `/hooks`에서 두 정의를 검토·신뢰하고 새 Codex 세션에서 일반 요청을 보낸다. 업데이트의 공용 훅 명령은 같은 프로젝트 진입 파일을 사용하므로 보통 변하지 않지만 지침·스킬·시작 설정은 새 세션에서 검증한다. 파일 갱신만으로 적용 완료라 하지 않는다. 내부 테스트·모의 훅 성공과 실제 Codex 세션 PASS는 별개다.
+
+## 결함 수정 버전 적용과 작업 재개
+
+[하네스 결함 개선 PR 정책](harness-defect-pr.md)에 따라 설치 사본 대신 원본의 격리 작업에서 수정·검증·Draft PR을 준비한다. Draft PR·로컬 PASS만으로 설치를 덮어쓰거나 해결로 보고하지 않는다. 머지와 정식 버전 배포는 사용자 승인 후 진행한다.
+
+배포된 수정 버전은 적용 프로젝트의 업데이트 정책에 따라 선택한다. 현재 설치기는 실제 ref/SHA를 지정한 명시적 update만 지원하며 프로젝트 정책에 따른 자동 업데이트 실행기는 없다. 원본 최신 HEAD 자동 추적이나 무승인 정식 배포를 허용하는 정책이 아니다.
+
+설치/연결 확인 후 실제 사용 버전에서 원래 결함·영향 작업을 재검증하고 통과한 뒤 차단 해제·재개한다. 문제 ID·개선 TASK/실행·수정 PR·해결 버전·적용 ref·재검증/재개 실행을 기존 기록으로 연결한다. 과거 실패·버전·증거는 보존하며 하네스 배포 버전과 제품 피처 기준은 독립적으로 관리한다. 연결/원문 수집 PASS만으로 제품 작업 재개 검증을 대신하지 않는다.
 
 ## 파일 소유와 버전 근거
 
@@ -75,9 +93,13 @@ Logger는 프로젝트 설정에서 실행 컨텍스트를 읽으며 하위 이�
 
 ```sh
 rtk proxy python3 bootstrap.py install --dev-source . --target /path/to/test-product
-rtk proxy python3 -m unittest discover -s harness -p 'test_*.py'
+rtk proxy python3 -B -m harness.run_tests
 ```
 
-개발 모드는 원본을 복사하지 않으며 WORKTREE·당시 커밋·실제 dirty를 구분한다. 기존 데모의 원본 직접 참조 연결은 이번 작업에서 제거하거나 마이그레이션하지 않는다. 설치 대상의 설정 점검·최소 갱신·해시/재시작·실제 훅 증거 판정은 [연결 검증](harness-projects.md)을 재사용한다. 하네스 훅은 등록 대상을 읽기 점검할 뿐 설치 버전이나 설정을 자동 갱신하지 않는다.
+개발 모드는 원본을 복사하지 않으며 WORKTREE·당시 커밋·실제 dirty를 구분한다. 기존 데모의 원본 직접 참조 연결은 이번 작업에서 제거하거나 마이그레이션하지 않는다. 설치 대상의 설정 점검·최소 갱신·해시/재시작·실제 훅 증거 판정은 [연결 검증](harness-projects.md)을 재사용한다. 하네스 훅은 빠른 원본 수집만 수행한다. 등록 대상 검사·상태 집계는 [별도 명령](hook-collection.md)으로 실행하며 설치 버전이나 설정을 자동 갱신하지 않는다.
 
 로컬 검증은 임시 Git 원본·태그/커밋·bare 저장소·별도 대상에서 설치→init→update, 반복 실행·데이터 보존·실패/중단 복구·모의 훅과 프로젝트 식별을 검사한다. 기본 테스트는 임시 데이터만 쓴다. 필요 시 테스트 실행 환경의 KMP_AGENT_TEST_REPORT로 결과 파일을 지정하면 대상 fixture에서 관측한 project_id·범위·결과를 내보낸다. 식별 누락을 검증하는 fixture 결과도 UNKNOWN과 이유를 유지한다. 실제 프로젝트 원격에는 push·tag를 하지 않는다. 새 배포 경로에서의 실제 원격 설치·Codex 세션 훅 신뢰/호출·데모 설치는 별도 검증이며 이번에는 NOT_RUN이다.
+
+## 0.2.0 검증 근거 확인
+
+태그는 `v0.2.0`이다. 후보 파일 목록·내용 해시와 로컬 검증 범위는 [후보 준비서](releases/candidate-preparation.md)에, 최종 SHA와 실제 원격 태그 설치 결과는 해당 GitHub Release에 연결한다. 임시 로컬 Git 시험은 실제 원격 배포판 검증으로 대신하지 않는다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다.

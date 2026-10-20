@@ -262,8 +262,14 @@ def runtime(target, state, snapshot, session_id=None, message_id=None):
     if any(e.get("phase") == "hook_exited" and e.get("exit_code") != 0 for n, e in selected):
         return {"result": "FAIL", "state": "HOOK_FAILED", "session_id": chosen_session,
                 "recovery": "Inspect target hook-diagnostics.jsonl error_type/error_detail; fix path, permissions or source, then retry an ordinary request."}
+    def current_collector(entry):
+        if entry.get("integration_components_basis") != "approved_manifest_cache":
+            return True  # Historical diagnostics used a synchronous fingerprint.
+        return (entry.get("hook_script_sha256") == checksum((ROOT / "harness/codex_sync.py").read_bytes())
+                and entry.get("collector_script_sha256") == checksum((ROOT / "harness/incremental_sync.py").read_bytes()))
+
     current = [e for n, e in selected if e.get("phase") == "hook_entered"
-               and e.get("integration_components") == snapshot["components"]]
+               and e.get("integration_components") == snapshot["components"] and current_collector(e)]
     starts = [e for n, e in selected if e.get("phase") == "sync_started"]
     created = timestamp(starts[-1].get("session_created_at")) if starts else None
     activated = timestamp(state.get("activation_after"))

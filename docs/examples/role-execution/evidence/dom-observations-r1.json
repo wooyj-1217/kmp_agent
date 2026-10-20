@@ -1,0 +1,230 @@
+[
+  {
+    "revision": 1,
+    "state": "EMPTY",
+    "size": "1280x900",
+    "css": [
+      "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+      null
+    ],
+    "font": "system-ui, sans-serif",
+    "height": 900,
+    "scrollWidth": 1265,
+    "tokens": {
+      "--accent": "#244fd3",
+      "--bg": "#f4f5f7",
+      "--body": "16px",
+      "--ink": "#172033"
+    },
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "EDITING",
+    "size": "1280x900",
+    "css": [
+      "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+      null
+    ],
+    "font": "system-ui, sans-serif",
+    "height": 900,
+    "scrollWidth": 1265,
+    "tokens": {
+      "--accent": "#244fd3",
+      "--bg": "#f4f5f7",
+      "--body": "16px",
+      "--ink": "#172033"
+    },
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "SAVING",
+    "size": "1280x900",
+    "css": [
+      "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+      null
+    ],
+    "font": "system-ui, sans-serif",
+    "height": 900,
+    "scrollWidth": 1265,
+    "tokens": {
+      "--accent": "#244fd3",
+      "--bg": "#f4f5f7",
+      "--body": "16px",
+      "--ink": "#172033"
+    },
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "SAVED",
+    "size": "1280x900",
+    "css": [
+      "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+      null
+    ],
+    "font": "system-ui, sans-serif",
+    "height": 900,
+    "scrollWidth": 1265,
+    "tokens": {
+      "--accent": "#244fd3",
+      "--bg": "#f4f5f7",
+      "--body": "16px",
+      "--ink": "#172033"
+    },
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "ERROR",
+    "size": "1280x900",
+    "css": [
+      "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+      null
+    ],
+    "font": "system-ui, sans-serif",
+    "height": 900,
+    "scrollWidth": 1265,
+    "tokens": {
+      "--accent": "#244fd3",
+      "--bg": "#f4f5f7",
+      "--body": "16px",
+      "--ink": "#172033"
+    },
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "EMPTY",
+    "size": "390x844",
+    "height": 844,
+    "scrollWidth": 375,
+    "status": "본문을 입력하세요. 초기 EMPTY 표시입니다.",
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "EDITING",
+    "size": "390x844",
+    "height": 844,
+    "scrollWidth": 375,
+    "status": "본문을 입력 중입니다. 비어 있지 않은 본문으로 가상 저장을 시험할 수 있습니다.",
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "SAVING",
+    "size": "390x844",
+    "height": 844,
+    "scrollWidth": 375,
+    "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "SAVED",
+    "size": "390x844",
+    "height": 844,
+    "scrollWidth": 375,
+    "status": "가상 성공입니다. 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "ERROR",
+    "size": "390x844",
+    "height": 844,
+    "scrollWidth": 375,
+    "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "EDITING",
+    "size": "390x844",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": true,
+    "scrollWidth": 375,
+    "snapshotLength": 1680,
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "SAVING",
+    "size": "390x844",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": false,
+    "scrollWidth": 375,
+    "snapshotLength": 1680,
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "SAVED",
+    "size": "390x844",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": false,
+    "scrollWidth": 375,
+    "snapshotLength": 1680,
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "ERROR",
+    "size": "390x844",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": true,
+    "scrollWidth": 375,
+    "snapshotLength": 1680,
+    "width": 390
+  },
+  {
+    "revision": 1,
+    "state": "EDITING",
+    "size": "1280x900",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": true,
+    "scrollWidth": 1265,
+    "snapshotLength": 1680,
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "SAVING",
+    "size": "1280x900",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": false,
+    "scrollWidth": 1265,
+    "snapshotLength": 1680,
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "SAVED",
+    "size": "1280x900",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": false,
+    "scrollWidth": 1265,
+    "snapshotLength": 1680,
+    "width": 1280
+  },
+  {
+    "revision": 1,
+    "state": "ERROR",
+    "size": "1280x900",
+    "content": "long",
+    "bodyLength": 1680,
+    "bodyOverflow": true,
+    "scrollWidth": 1265,
+    "snapshotLength": 1680,
+    "width": 1280
+  }
+]

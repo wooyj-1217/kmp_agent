@@ -1,0 +1,10 @@
+{
+  "kind": "requirements",
+  "origin": "late_user_requirement",
+  "result": "FAIL",
+  "tested_outputs": {
+    "docs/examples/role-execution/requirements.md": "f7b7f9df541e7179d0970f8451020f668bd98f27ae039f12ef99f35c12a83643"
+  },
+  "observations": "P-003의 REQ-FAV-006/F06은 단일 HTML만 정의한다. 새 후속 요청의 REQ별 app/web·웹모바일/데스크톱 적용·플랫폼별 조작/지원 UNKNOWN은 아직 포함되지 않았다. 기존 실행의 자연 결함이 아닌 추가 범위 반영 반환이다.",
+  "expected": "기존즐겨찾기정책·원본을보존하고앱시뮬레이션/반응형웹·REQ타깃매핑·지원미정·네이티브NOT_RUN을분리"
+}

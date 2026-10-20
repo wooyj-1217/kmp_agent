@@ -1,0 +1,134 @@
+[
+  {
+    "target": "app",
+    "accent": "#244fd3",
+    "buttons": [
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "회의 메모"
+      },
+      {
+        "height": 44,
+        "pressed": "false",
+        "text": "☆ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "이번 주 할 일"
+      },
+      {
+        "height": 44,
+        "pressed": "true",
+        "text": "★ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 저장"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 응답 대기 중"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "재시도"
+      }
+    ],
+    "forbidden": false,
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "target": "web-mobile",
+    "accent": "#244fd3",
+    "buttons": [
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "회의 메모"
+      },
+      {
+        "height": 44,
+        "pressed": "false",
+        "text": "☆ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "이번 주 할 일"
+      },
+      {
+        "height": 44,
+        "pressed": "true",
+        "text": "★ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 저장"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 응답 대기 중"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "재시도"
+      }
+    ],
+    "forbidden": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "target": "web-desktop",
+    "accent": "#244fd3",
+    "buttons": [
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "회의 메모"
+      },
+      {
+        "height": 44,
+        "pressed": "false",
+        "text": "☆ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "이번 주 할 일"
+      },
+      {
+        "height": 44,
+        "pressed": "true",
+        "text": "★ 즐겨찾기"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 저장"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "가상 응답 대기 중"
+      },
+      {
+        "height": 44,
+        "pressed": null,
+        "text": "재시도"
+      }
+    ],
+    "forbidden": false,
+    "scrollWidth": 1265,
+    "width": 1280
+  }
+]

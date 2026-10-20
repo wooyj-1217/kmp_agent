@@ -1,0 +1,16 @@
+{
+  "bodySize": "16px",
+  "buttonBackground": "rgb(36, 79, 211)",
+  "buttonHeight": 44,
+  "css": [
+    "http://127.0.0.1:8765/docs/examples/role-execution/prototype/tokens.css",
+    null
+  ],
+  "overflow": false,
+  "tokens": {
+    "--accent": "#244fd3",
+    "--bg": "#f4f5f7",
+    "--body": "16px",
+    "--ink": "#172033"
+  }
+}

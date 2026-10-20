@@ -1,0 +1,30 @@
+[
+  {
+    "target": "app",
+    "result": "PASS",
+    "emptyStatus": "",
+    "resetStatus": "",
+    "checks": [
+      "visible toggles",
+      "Enter/Space toggle",
+      "favorite ordering",
+      "list/editor/reopen",
+      "empty/reset live status",
+      "five states x favorite OFF/ON"
+    ]
+  },
+  {
+    "target": "web-desktop",
+    "result": "PASS",
+    "emptyStatus": "",
+    "resetStatus": "",
+    "checks": [
+      "visible toggles",
+      "Enter/Space toggle",
+      "favorite ordering",
+      "list/editor/reopen",
+      "empty/reset live status",
+      "five states x favorite OFF/ON"
+    ]
+  }
+]

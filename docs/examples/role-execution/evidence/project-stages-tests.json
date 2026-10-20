@@ -1,0 +1,44 @@
+{
+  "result": "PASS",
+  "scope": "harness stage/state/evidence contract; synthetic fixtures based on retained memo requirements; no actual API/server/DB execution",
+  "commands": [
+    {
+      "command": "rtk proxy python3 -m unittest harness.test_project_contract -v",
+      "tests": 6,
+      "duration_seconds": 6.764,
+      "exit_code": 0
+    },
+    {
+      "command": "rtk proxy python3 -m unittest discover -s harness -p 'test_*.py'",
+      "tests": 93,
+      "duration_seconds": 177.287,
+      "exit_code": 0
+    },
+    {
+      "command": "rtk proxy git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "rtk proxy python3 -m py_compile harness/project_contract.py harness/tasks.py harness/roles.py",
+      "exit_code": 0
+    }
+  ],
+  "branches": {
+    "none": "UI READY; server/DB/API N/A enforced; server task rejected",
+    "existing": "client blocked on unknown API; confirmed real API permits READY without owned DB",
+    "new": "server blocked on proposed migration; confirmed plan permits READY despite unknown UI",
+    "unknown_api": "same source UI handoff READY; client handoff rejected with no partial handoff",
+    "mock": "frozen mock blocks actual integration until explicit reconfiguration",
+    "review": "mock/partial-target PASS rejected; complete synthetic evidence schema accepted"
+  },
+  "additional_checks": [
+    "template JSON validates",
+    "local document links resolve"
+  ],
+  "not_run": [
+    "product implementation",
+    "product stack selection",
+    "actual app/web/API/server/DB integration",
+    "build/native validation"
+  ]
+}

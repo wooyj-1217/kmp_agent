@@ -59,5 +59,5 @@ resume_plan은 완료 작업을 건너뛸 목록과 미완료 상태만 반환�
 
 ## 검증 범위·한계
 
-`rtk proxy python3 -m unittest discover -s harness -p test_interruptions.py`로 중단·재개 복구, 출처 구분, UNKNOWN, 마스킹, 반복·이동된 원본 동기화, 간격 겹침, 역순 거부, 완료 작업 보존만 확인한다.
+`rtk proxy python3 -B -m unittest harness.test_interruptions`로 중단·재개 복구, 출처 구분, UNKNOWN, 마스킹, 반복·이동된 원본 동기화, 간격 겹침, 역순 거부, 완료 작업 보존만 확인한다.
 원본에 없는 장애의 시작·종료·원인을 자동 복원하지 않는다. 자동 재개 실행, 상태 복구 스케줄러, 독립 에이전트 호출, 대시보드는 PLANNED이며 이번 범위에 포함하지 않는다.

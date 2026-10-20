@@ -1,0 +1,69 @@
+{
+  "tested_outputs": {
+    "docs/examples/role-execution/design.md": "d0860b1218124ccffaea160fb75b29ba933a50041e039f47785703e2c8933ad9",
+    "docs/examples/role-execution/prototype/tokens.css": "3ff1d2b6e92cecaf40c820c234f4e334980b794c87873b77074cf6bff970e3f8",
+    "docs/examples/role-execution/prototype/components.html": "dc203bcca3774ff78f0a97a1964717665f08a57a8c0bc582a0a3ac598ae1cbfd",
+    "docs/examples/role-execution/prototype/system.md": "ae431b415e9be527220438d637df5088a62aaadf2d775b9c60abcea11d89a78a",
+    "docs/examples/role-execution/prototype/index.html": "4a8c4dfcaf2152ed671ed79c557bbf0de790483dc034113f9d2a8ff2be86f8ef",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-A.html": "cdf6671be69e491b5f9cabbb805f277dd23c0e3a5ad8af50b88f8d830973dd4b",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-B.html": "f42930c91619f674f731b7e04452c015585352e6e8254efb270f604525ecd1c2",
+    "docs/examples/role-execution/prototype/components-final.html": "742f9f762353f141e8092f37335391ec63a9bd1d726f8526249656e88530457a",
+    "docs/examples/role-execution/prototype/memo-harness-draft-37efca4238102a9a92b059efc96bf3775c0af7428e18dbd82ed6e8aa5d096aad-A-final.html": "fded574907960e4f59945f7a89119a9711cead4a20573b786d93de3851bdbe57"
+  },
+  "environment": "Chrome extension / macOS / 1280x900 and 390x844 CSS px / 2026-10-19 / current Codex reviewer",
+  "coverage": [
+    "SCREEN-001 × EMPTY/EDITING/SAVING/SAVED/ERROR × 1280x900/390x844",
+    "긴 본문 1680자 × EDITING/SAVING/SAVED/ERROR × 두 크기",
+    "EX-FEAT-001-AC-001/002/003; ROLE-P1-AC-005/006"
+  ],
+  "result": "PASS",
+  "limitations": {
+    "product_policy": "빈 값·길이·이탈·처리 중 편집·영속 저장 UNKNOWN/NOT_RUN",
+    "zoom_200_percent": "NOT_RUN; 이번 필수 AC 범위 밖의 추가 제안 검토",
+    "language": "상단 選択 A 표기는 비차단 번역 개선 항목; 다음 디자인 수정에 연결"
+  },
+  "kind": "visual",
+  "screenshots": [
+    "docs/examples/role-execution/evidence/r1-desktop-EMPTY.jpg",
+    "docs/examples/role-execution/evidence/r1-desktop-EDITING.jpg",
+    "docs/examples/role-execution/evidence/r1-desktop-SAVING.jpg",
+    "docs/examples/role-execution/evidence/r1-desktop-SAVED.jpg",
+    "docs/examples/role-execution/evidence/r1-desktop-ERROR.jpg",
+    "docs/examples/role-execution/evidence/r1-mobile-EMPTY.jpg",
+    "docs/examples/role-execution/evidence/r1-mobile-EDITING.jpg",
+    "docs/examples/role-execution/evidence/r1-mobile-SAVING.jpg",
+    "docs/examples/role-execution/evidence/r1-mobile-SAVED.jpg",
+    "docs/examples/role-execution/evidence/r1-mobile-ERROR.jpg",
+    "docs/examples/role-execution/evidence/r1-390-long-EDITING.jpg",
+    "docs/examples/role-execution/evidence/r1-390-long-SAVING.jpg",
+    "docs/examples/role-execution/evidence/r1-390-long-SAVED.jpg",
+    "docs/examples/role-execution/evidence/r1-390-long-ERROR.jpg",
+    "docs/examples/role-execution/evidence/r1-1280-long-EDITING.jpg",
+    "docs/examples/role-execution/evidence/r1-1280-long-SAVING.jpg",
+    "docs/examples/role-execution/evidence/r1-1280-long-SAVED.jpg",
+    "docs/examples/role-execution/evidence/r1-1280-long-ERROR.jpg",
+    "docs/examples/role-execution/evidence/r1-components.jpg"
+  ],
+  "screenshot_sha256": {
+    "docs/examples/role-execution/evidence/r1-desktop-EMPTY.jpg": "084dea07d5da7cdec7c94ca04a7c82d48df2d852afc28b3101cd1cac669f2e2a",
+    "docs/examples/role-execution/evidence/r1-desktop-EDITING.jpg": "a89a7b9509ab19e6c1bd7def0e46581427a8950deec4bf9346adfaab4adfea22",
+    "docs/examples/role-execution/evidence/r1-desktop-SAVING.jpg": "3a797caf481b323856990d7c651f988068e4f82bdb55e5b67b481d0aa5c0e93f",
+    "docs/examples/role-execution/evidence/r1-desktop-SAVED.jpg": "9f01199d793ee0f2a6281e8b81e7e263c7e37ea91d4c6fb24980026b0eeaa362",
+    "docs/examples/role-execution/evidence/r1-desktop-ERROR.jpg": "c32ea5083e63d4fc7034315dd4865664391798a514b868233691b9421e0cb1e6",
+    "docs/examples/role-execution/evidence/r1-mobile-EMPTY.jpg": "a7adf726709dbc5d4af111a2e979639181e50899dc1e61ab72d8aaf030153385",
+    "docs/examples/role-execution/evidence/r1-mobile-EDITING.jpg": "73b5c915b0db173baef2a443c58237d6aa6b77cd7a7ea3309e47831769e297bf",
+    "docs/examples/role-execution/evidence/r1-mobile-SAVING.jpg": "b51bdab6683ae2d728c9b8325328e03f93f4c71548493cbd9c7d6a12b4ae8f95",
+    "docs/examples/role-execution/evidence/r1-mobile-SAVED.jpg": "5d42fe42bf9fd06c94484bca4668b3d8343ac69b717999e549e91b0ed0d47557",
+    "docs/examples/role-execution/evidence/r1-mobile-ERROR.jpg": "b30458b1979ef49cac420c392ee1d206de523acda2eb8ba5960a725406e5b5c9",
+    "docs/examples/role-execution/evidence/r1-390-long-EDITING.jpg": "49f161b686f20eefae0ad7023e7a10318f89b44fc84a65cc897538d2ad701f79",
+    "docs/examples/role-execution/evidence/r1-390-long-SAVING.jpg": "5cb1e26b41537d35bc368768018568ba589abba1782400b75ffe4ef39ebf6d64",
+    "docs/examples/role-execution/evidence/r1-390-long-SAVED.jpg": "ba00b34aaec617b417ad566c99e22b0b5a2d05dbdc723aa9e10cf349e7be6dee",
+    "docs/examples/role-execution/evidence/r1-390-long-ERROR.jpg": "fcd913f5870f1437e75598d410ff5604b9ffb7443ac278a40e738379b0c887be",
+    "docs/examples/role-execution/evidence/r1-1280-long-EDITING.jpg": "e86e223e2e3d67efb8296a8513753eb9ab321689d99b9f3ac6c8edf23917c2ed",
+    "docs/examples/role-execution/evidence/r1-1280-long-SAVING.jpg": "30ef9e5f513ecb300aa5daacf36911a0c26d0e55b13779b7b1ca0412828efff9",
+    "docs/examples/role-execution/evidence/r1-1280-long-SAVED.jpg": "d661f551b309665139a7c2e445505cc2ba7f7cc46b631a36ed0cc7fd4fa09c8b",
+    "docs/examples/role-execution/evidence/r1-1280-long-ERROR.jpg": "bcf9fbd75a8f1b059b737bae98a6323cbdfd51a38b069e138f1a3b1337508fe8",
+    "docs/examples/role-execution/evidence/r1-components.jpg": "918841d4c98b71220f4beb9b58fe17be15cbd54495ad96a9a0232a755edb65d9"
+  },
+  "findings": "실제 저장 캡처19개를 열어 검토. 단일 열의 제목/본문/결과/행동 위계, 상태 강조와 공유 버튼·색·간격 일관. 잘림·겹침·가로 넘침 없음. 긴 본문은 textarea 내부 스크롤 또는 스냅샷 줄바꿈, 긴 오류·재시도 접근 가능. 긴 스냅샷의 페이지 스크롤은 의도된 동작"
+}

@@ -79,7 +79,7 @@ Figma 제작·추출은 로컬 HTML/CSS 렌더링과 위 DOM·스타일·캡처 
 버전·차단·변경 이력은 [운영 기준](../operations.md)을 참조한다.
 
 ## 구현 상태
-현재 Codex의 역할 수행 이력은 구현돼 있다. 독립 자동 호출·외부 서비스 연결·시각 검토 PASS 접수/자동 인계 게이트는 PLANNED다. 이번 통합에서는 시안·브라우저 검토를 실행하지 않는다.
+독립 순차 프로세스 진입점·컨텍스트·실제 파일 제출·대기/재개·P→D 기준본·검토 접수는 [실행 계약](../role-execution.md)을 따른다. 실제 사용하는 tokens.css·components.html·system.md와 화면 시안이 필수 산출물이다. 기존 자원을 조사해 재사용하며 제출 기준본에 함께 보관한다. 구조·인터랙션·시각 결과를 별도 접수하고 필수 NOT_RUN/FAIL은 DONE을 차단한다. 이 접수는 자동 시각 판정기가 아니다. 외부 서비스 연결·자동 배정·상시 감시는 없다.
 
 ## 외부 참고 근거 — 실행 지침 아님
 분석 기준: [designflowharness-codex 커밋 8c66b8a8263e5dadc9a797063f8643730a07429b](https://github.com/figmatutor-info/designflowharness-codex/tree/8c66b8a8263e5dadc9a797063f8643730a07429b), 2026-10-13 확인.

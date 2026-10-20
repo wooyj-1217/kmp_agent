@@ -1,0 +1,1658 @@
+[
+  {
+    "target": "app",
+    "name": "LIST-DEFAULT",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "editorState": "NO-SELECTION",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 390,
+    "width": 390,
+    "capture": "d004-app-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "app",
+    "name": "LIST-DEFAULT",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "listHeading",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "editorState": "NO-SELECTION",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 390,
+    "width": 390,
+    "capture": "d004-app-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "app",
+    "name": "LIST-MIXED",
+    "accent": "#244fd3",
+    "active": {
+      "action": "ACT-FAV-TOGGLE",
+      "id": "",
+      "memo": "m-03"
+    },
+    "editor": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "editorState": "NO-SELECTION",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-03",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 390,
+    "width": 390,
+    "capture": "d004-app-LIST-MIXED.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITOR-UNFAVORITE",
+    "accent": "#244fd3",
+    "active": {
+      "action": "ACT-FAV-TOGGLE",
+      "id": "",
+      "memo": "m-03"
+    },
+    "bodyLength": 16,
+    "editor": {
+      "clientHeight": 639,
+      "height": 641.1796875,
+      "scrollHeight": 639,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력 중입니다.",
+    "width": 390,
+    "capture": "d004-app-EDITOR-UNFAVORITE.jpg"
+  },
+  {
+    "target": "app",
+    "name": "REOPEN",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "editorHeading",
+      "memo": null
+    },
+    "bodyLength": 16,
+    "editor": {
+      "clientHeight": 639,
+      "height": 641.1796875,
+      "scrollHeight": 639,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력 중입니다.",
+    "width": 390,
+    "capture": null
+  },
+  {
+    "target": "app",
+    "name": "LIST-EMPTY",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "listHeading",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "editorState": "NO-SELECTION",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "listState": "LIST-EMPTY",
+    "rows": [],
+    "scrollWidth": 390,
+    "width": 390,
+    "capture": "d004-app-LIST-EMPTY.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EMPTY-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 0,
+    "editor": {
+      "clientHeight": 595,
+      "height": 597.1796875,
+      "scrollHeight": 595,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EMPTY",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력하세요.",
+    "width": 390,
+    "capture": "d004-app-EMPTY-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITING-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 639,
+      "height": 641.1796875,
+      "scrollHeight": 639,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력 중입니다.",
+    "width": 390,
+    "capture": "d004-app-EDITING-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVING-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "SAVING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "snapshotLength": 5,
+    "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+    "width": 390,
+    "capture": "d004-app-SAVING-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVED-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "SAVED",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "snapshotLength": 5,
+    "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+    "width": 390,
+    "capture": "d004-app-SAVED-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "ERROR-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 742,
+      "height": 743.5546875,
+      "scrollHeight": 742,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "ERROR",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+    "width": 390,
+    "capture": "d004-app-ERROR-FAV-OFF.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EMPTY-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 0,
+    "editor": {
+      "clientHeight": 595,
+      "height": 597.1796875,
+      "scrollHeight": 595,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EMPTY",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력하세요.",
+    "width": 390,
+    "capture": "d004-app-EMPTY-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "EDITING-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 639,
+      "height": 641.1796875,
+      "scrollHeight": 639,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "본문을 입력 중입니다.",
+    "width": 390,
+    "capture": "d004-app-EDITING-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVING-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "SAVING",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "snapshotLength": 5,
+    "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+    "width": 390,
+    "capture": "d004-app-SAVING-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "SAVED-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 558,
+      "height": 560,
+      "scrollHeight": 558,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "SAVED",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "snapshotLength": 5,
+    "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+    "width": 390,
+    "capture": "d004-app-SAVED-FAV-ON.jpg"
+  },
+  {
+    "target": "app",
+    "name": "ERROR-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 742,
+      "height": 743.5546875,
+      "scrollHeight": 742,
+      "visible": true,
+      "width": 358,
+      "x": 16,
+      "y": 16
+    },
+    "editorState": "ERROR",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 844,
+    "list": {
+      "clientHeight": 0,
+      "height": 0,
+      "scrollHeight": 0,
+      "visible": false,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": false
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": false
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": false
+      }
+    ],
+    "scrollWidth": 390,
+    "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+    "width": 390,
+    "capture": "d004-app-ERROR-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-DEFAULT",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "listHeading",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "NO-SELECTION",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "width": 1280,
+    "capture": "d004-web-desktop-LIST-DEFAULT.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-MIXED",
+    "accent": "#244fd3",
+    "active": {
+      "action": "ACT-FAV-TOGGLE",
+      "id": "",
+      "memo": "m-03"
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "NO-SELECTION",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-03",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "width": 1280,
+    "capture": "d004-web-desktop-LIST-MIXED.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITOR-UNFAVORITE",
+    "accent": "#244fd3",
+    "active": {
+      "action": "ACT-FAV-TOGGLE",
+      "id": "",
+      "memo": "m-03"
+    },
+    "bodyLength": 16,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력 중입니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-EDITOR-UNFAVORITE.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "REOPEN",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "editorHeading",
+      "memo": null
+    },
+    "bodyLength": 16,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력 중입니다.",
+    "width": 1280,
+    "capture": null
+  },
+  {
+    "target": "web-desktop",
+    "name": "LIST-EMPTY",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "listHeading",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "NO-SELECTION",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-EMPTY",
+    "rows": [],
+    "scrollWidth": 1280,
+    "width": 1280,
+    "capture": "d004-web-desktop-LIST-EMPTY.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EMPTY-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 0,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EMPTY",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력하세요.",
+    "width": 1280,
+    "capture": "d004-web-desktop-EMPTY-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITING-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력 중입니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-EDITING-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVING-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "SAVING",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "snapshotLength": 5,
+    "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-SAVING-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVED-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "SAVED",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "snapshotLength": 5,
+    "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-SAVED-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "ERROR-FAV-OFF",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "ERROR",
+    "favorite": "FAV-OFF",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-DEFAULT",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-ERROR-FAV-OFF.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EMPTY-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 0,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EMPTY",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력하세요.",
+    "width": 1280,
+    "capture": "d004-web-desktop-EMPTY-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "EDITING-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "EDITING",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "본문을 입력 중입니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-EDITING-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVING-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "SAVING",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "snapshotLength": 5,
+    "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-SAVING-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "SAVED-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "SAVED",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "snapshotLength": 5,
+    "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-SAVED-FAV-ON.jpg"
+  },
+  {
+    "target": "web-desktop",
+    "name": "ERROR-FAV-ON",
+    "accent": "#244fd3",
+    "active": {
+      "action": null,
+      "id": "saveStatus",
+      "memo": null
+    },
+    "bodyLength": 5,
+    "editor": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 704,
+      "x": 470,
+      "y": 16
+    },
+    "editorState": "ERROR",
+    "favorite": "FAV-ON",
+    "forbidden": false,
+    "height": 900,
+    "list": {
+      "clientHeight": 834,
+      "height": 836,
+      "scrollHeight": 834,
+      "visible": true,
+      "width": 340,
+      "x": 106,
+      "y": 16
+    },
+    "listState": "LIST-MIXED",
+    "rows": [
+      {
+        "id": "m-01",
+        "pressed": "true",
+        "visible": true
+      },
+      {
+        "id": "m-02",
+        "pressed": "false",
+        "visible": true
+      },
+      {
+        "id": "m-03",
+        "pressed": "false",
+        "visible": true
+      }
+    ],
+    "scrollWidth": 1280,
+    "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+    "width": 1280,
+    "capture": "d004-web-desktop-ERROR-FAV-ON.jpg"
+  }
+]

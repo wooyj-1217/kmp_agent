@@ -1,0 +1,11 @@
+{
+  "kind": "requirements",
+  "result": "PASS",
+  "tested_outputs": {
+    "docs/examples/role-execution/requirements.md": "e2441a3416533e7e4e29fe99f39d708ac6d4670d11854870923e8e9a8d585fe1"
+  },
+  "resolved_issues": [
+    "ISSUE-001"
+  ],
+  "observations": "상위 Codex가 P-004를 읽고 모든 REQ별 app/web 적용 표·ALL 정책/AC·390x844 앱HTML/웹모바일·1280x900 웹분할·키보드/복귀/스크롤 차이·실제지원UNKNOWN·네이티브NOT_RUN을 확인했다. 합성즐겨찾기 기본false/즉시반전/표시/안정정렬/목록편집 값 유지/샘플3개/빈상태/후속개발입력계획 및 기존정책UNKNOWN이 보존됐다. P-003은 변경되지않으며 추가요구반환과 실제결함을 구분했다. 브라우저/네이티브 검증은 이 내용 검토에서 NOT_RUN."
+}

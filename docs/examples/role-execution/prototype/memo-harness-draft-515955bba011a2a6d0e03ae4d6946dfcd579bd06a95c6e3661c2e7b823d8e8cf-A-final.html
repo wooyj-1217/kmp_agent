@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>메모 작성 — 합성 A 전체 상태</title><link rel="stylesheet" href="tokens.css">
+<!-- P-002; CR-001; D 번호는 실행기 제출 기준본에서 연결; draft-515955bba011a2a6d0e03ae4d6946dfcd579bd06a95c6e3661c2e7b823d8e8cf; A-final revision 1. 변경 이유: 성공 첫 문구 교체 및 選択 A를 선택 A로 번역. 기존 합성 A 결정 재사용. 실제 사용자 제품 승인 아님. 지침 해시 목록·선택 출처: system.md, design.md. 기존 A/B·tokens.css·A-final·갤러리 보존. -->
+<style>[hidden]{display:none!important}main,section,fieldset{min-width:0}p,pre{overflow-wrap:anywhere}pre{white-space:pre-wrap;font:inherit;margin:0}.snapshot{border:1px solid var(--muted);border-radius:var(--radius);padding:var(--s2)}.controls{display:flex;flex-wrap:wrap;gap:var(--s1);align-items:center}fieldset{margin:var(--s3) 0 0;padding:var(--s2);border:2px dashed var(--muted);border-radius:var(--radius)}legend{font-weight:700;max-width:100%}select{font:inherit;min-height:var(--control);max-width:100%}button{max-width:100%;overflow-wrap:anywhere}#status:focus{outline:3px solid var(--accent);outline-offset:4px}.review-note{font-size:14px}.panel{margin-top:var(--s2)}</style></head>
+<body><main id="screen" data-screen-id="SCREEN-001" data-state-id="EMPTY"><a href="index.html">시험 목록</a><p class="muted">로컬 합성 시험 · 선택 A · 실제 저장 없음</p><h1>메모 작성</h1><section class="panel" aria-label="메모 가상 저장 시험"><div id="editor" data-component-id="COMP-001"><label for="body">본문</label><textarea id="body" data-action-id="ACT-001" aria-describedby="scope status" autocomplete="off"></textarea></div><div id="snapshotBox" data-component-id="COMP-004" hidden><h2>요청한 본문</h2><p class="muted review-note">검토용 스냅샷입니다. 처리 중 편집 정책은 미정입니다.</p><pre id="snapshot"></pre></div><p id="scope" class="muted review-note">비어 있지 않은 본문의 가상 저장만 시험합니다. 빈 값·공백 저장, 길이 제한·이탈·처리 중 편집 정책과 실제 저장은 범위 밖입니다.</p><p id="status" data-component-id="COMP-003" data-state-id="EMPTY" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">본문을 입력하세요. 초기 EMPTY 표시입니다.</p><button id="save" type="button" data-component-id="COMP-002" data-action-id="ACT-002" hidden>가상 저장</button><button id="busy" type="button" data-component-id="COMP-002" data-action-id="ACT-003" disabled hidden>가상 응답 대기 중</button><button id="retry" type="button" data-component-id="COMP-002" data-action-id="ACT-006" hidden>재시도</button></section>
+<fieldset aria-describedby="reviewHelp"><legend>검토 장치 · 제품 UI 아님</legend><p id="reviewHelp" class="review-note">저장 후 아래 성공/실패를 전달하세요. 자동 응답·실제 API는 없습니다. 직접 상태 선택은 캡처용이며 행동 검증을 대신하지 않습니다.</p><label for="statePicker">캡처할 상태</label><select id="statePicker"><option>EMPTY</option><option>EDITING</option><option>SAVING</option><option>SAVED</option><option>ERROR</option></select><p><button id="longBody" type="button">긴 본문 샘플 로드</button></p><div class="controls"><button id="success" type="button" data-action-id="ACT-004" disabled>가상 성공 전달</button><button id="failure" type="button" data-action-id="ACT-005" disabled>가상 실패 전달</button></div><p class="review-note">현재 상태: <output id="stateName">EMPTY</output> · 가상 요청 횟수: <output id="count">0</output></p><p class="review-note">직접 선택·샘플 로드는 현재 시험 값을 교체합니다. 새로고침·이탈 후 복구는 보장하지 않습니다. 검증 NOT_RUN.</p></fieldset></main>
+<script>
+'use strict';
+const byId=id=>document.getElementById(id);
+const screen=byId('screen'),body=byId('body'),status=byId('status'),picker=byId('statePicker');
+let state='EMPTY',draft='',requested='',requests=0;
+const messages={EMPTY:'본문을 입력하세요. 초기 EMPTY 표시입니다.',EDITING:'본문을 입력 중입니다. 비어 있지 않은 본문으로 가상 저장을 시험할 수 있습니다.',SAVING:'가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.',SAVED:'메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.',ERROR:'가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.'};
+function eligible(){return /\S/u.test(draft);}
+function render(next,focusResult=false){
+ state=next;screen.dataset.stateId=state;status.dataset.stateId=state;picker.value=state;byId('stateName').textContent=state;byId('count').textContent=String(requests);
+ const snapshotMode=state==='SAVING'||state==='SAVED';
+ byId('editor').hidden=snapshotMode;byId('snapshotBox').hidden=!snapshotMode;byId('snapshot').textContent=requested;
+ if(body.value!==draft)body.value=draft;
+ byId('save').hidden=state!=='EDITING'||!eligible();byId('busy').hidden=state!=='SAVING';byId('retry').hidden=state!=='ERROR';
+ byId('success').disabled=state!=='SAVING';byId('failure').disabled=state!=='SAVING';
+ status.className=state==='ERROR'?'error':'muted';
+ status.textContent=state==='EDITING'&&!eligible()?'공백만 있는 본문의 저장 분기는 이번 시험 범위 밖입니다. 입력 원문은 변경하지 않습니다.':messages[state];
+ if(focusResult)status.focus();
+}
+body.addEventListener('input',()=>{draft=body.value;render(draft.length?'EDITING':'EMPTY');});
+function request(){
+ if(state==='SAVING'||!(state==='EDITING'||state==='ERROR')||!eligible())return;
+ requested=draft;requests+=1;render('SAVING',true);
+}
+byId('save').addEventListener('click',request);byId('retry').addEventListener('click',request);
+byId('success').addEventListener('click',()=>{if(state==='SAVING')render('SAVED',true);});
+byId('failure').addEventListener('click',()=>{if(state!=='SAVING')return;draft=requested;render('ERROR',true);});
+picker.addEventListener('change',()=>{
+ const target=picker.value;
+ if(target==='EMPTY'){draft='';requested='';}
+ else {if(!eligible())draft='회의 메모';requested=draft;}
+ render(target);
+});
+byId('longBody').addEventListener('click',()=>{draft=('긴 본문 불변 확인용 메모입니다. '+ '연속문자'.repeat(30)+'\n').repeat(12);requested='';render('EDITING');});
+render('EMPTY');
+</script></body></html>

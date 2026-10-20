@@ -51,7 +51,15 @@ def diagnostic(invocation_id, phase, **fields):
         record = harness_logging.redact(record)
     # Metadata only: no prompt, credentials, tool arguments, or transcript body.
     with DIAGNOSTIC_PATH.open("a", encoding="utf-8") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("diagnostic lock budget exceeded")
+                time.sleep(.01)
         os.fchmod(handle.fileno(), 0o600)
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
         handle.flush()
@@ -93,28 +101,26 @@ def handle(payload, trace=None):
     if source is None:
         raise ValueError("hook transcript unavailable")
     logger = logger_module.Logger(root)
+    spec = importlib.util.spec_from_file_location("harness_incremental", Path(__file__).with_name("incremental_sync.py"))
+    incremental = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(incremental)
+    # Metadata lookup reads the first record only, never scans the session.
+    with source.open(encoding="utf-8") as f:
+        first = json.loads(f.readline())
     if trace:
-        trace("sync_started", repository_root=str(root),
-              harness=logger.harness,
-              events_path=str(root / ".harness/logs/events.jsonl"),
-              harness_root=str(Path(__file__).resolve().parents[1]),
-              resolved_source_path=str(source), **source_probe(source, payload.get("prompt")))
-    imported = logger.sync(source)
+        trace("sync_started", repository_root=str(root), harness=logger.harness,
+              events_path=str(logger.path), harness_root=str(Path(__file__).resolve().parents[1]),
+              resolved_source_path=str(source), source_bytes=source.stat().st_size,
+              session_created_at=first.get("payload", {}).get("timestamp", first.get("timestamp", "UNKNOWN")))
+    imported = incremental.collect(logger, source, mode="hook", trace=trace)
     if trace:
-        events = logger.read()
-        latest = [x for x in events if x["event_type"] == "session_message"
-                  and x["source"].get("session_id") == payload["session_id"]
-                  and x["observed"].get("role") == "user"]
-        trace("sync_finished", imported_events=imported, intervention_links=logger.intervention_status(),
-              collected_user_count=len(latest),
-              latest_collected_message_id=latest[-1]["observed"].get("message_id") if latest else None,
-              **source_probe(source, payload.get("prompt")))
+        trace("sync_finished", imported_events=imported, **{k:v for k,v in logger.last_collection.items() if k != "imported_events"})
     return imported
 
 
-def main():
+def main(supervised=False):
     global DIAGNOSTIC_PATH
-    invocation_id = str(uuid.uuid4())
+    invocation_id = os.environ.get("KMP_HOOK_INVOCATION_ID") or str(uuid.uuid4())
     started = time.monotonic()
     context = {"hook_event_name": "UNKNOWN", "session_id": "UNKNOWN", "turn_id": "UNKNOWN",
                "project_id": "UNKNOWN", "project_id_reason": "execution_context_not_resolved_yet",
@@ -129,22 +135,20 @@ def main():
         context.update({k: payload.get(k, "UNKNOWN") for k in ("hook_event_name", "session_id", "turn_id")})
         if repository_root(Path(payload["cwd"]).resolve()) != process_root:
             raise ValueError("hook process and payload repository differ")
-        manager = None
-        components, integration_error = "UNKNOWN", None
-        try:
-            manager = load_projects()
-            context.update(manager.project_context(process_root))
-            state = manager.read_json(process_root / ".harness/integration.json", {})
-            components = manager.fingerprint(process_root, state.get("skills", []))["components"]
-        except Exception as error:
-            integration_error = type(error).__name__
+        context.update(load_projects().project_context(process_root))
+        # Reuse approved manifest metadata; no runtime tree scan or reconciliation.
+        state_path = process_root / ".harness/integration.json"
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        cached_components = state.get("snapshot", {}).get("components", "DEFERRED")
+        # Project verification/fingerprinting is an explicit maintenance command.
         trace("hook_entered", cwd=payload.get("cwd"), transcript_path=payload.get("transcript_path"),
-              integration_components=components, integration_error=integration_error,
-              hook_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
+              integration_components=cached_components, integration_components_basis="approved_manifest_cache", integration_error=None,
+              hook_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              collector_script_sha256=hashlib.sha256(Path(__file__).with_name("incremental_sync.py").read_bytes()).hexdigest())
         handle(payload, trace=trace)
     except Exception as error:
         try:
-            trace("hook_exited", exit_code=1, error_type=type(error).__name__,
+            trace("collector_failed" if supervised else "hook_exited", exit_code=1, error_type=type(error).__name__,
                   error_detail=harness_logging.redact(str(error)) if harness_logging is not None else None,
                   subprocess_exit_code=getattr(error, "returncode", None),
                   elapsed_seconds=time.monotonic() - started)
@@ -153,19 +157,43 @@ def main():
         # No prompt or source content in diagnostics; no false success.
         print(json.dumps({"systemMessage": "Harness source sync failed: " + type(error).__name__}))
         return 1
-    trace("hook_exited", exit_code=0, error_type=None, elapsed_seconds=time.monotonic() - started)
-    try:
-        if manager is None:
-            raise ValueError("integration manager unavailable")
-        manager.after_hook(process_root, payload["session_id"])
-    except Exception as error:
-        # Propagation failures must not erase successful raw source collection.
-        trace("integration_check_failed", error_type=type(error).__name__)
-        print(json.dumps({"systemMessage": "Harness target verification failed: " + type(error).__name__}))
-        return 1
-    print("{}")
+    # Flush the response before the final marker. Missing marker remains UNKNOWN;
+    # the external hook runner's process status is still the final exit authority.
+    print("{}", flush=True)
+    trace("collector_ready" if supervised else "hook_exited", exit_code=0, error_type=None, completion_scope="collector_and_response",
+          elapsed_seconds=time.monotonic() - started)
     return 0
 
 
+def supervise():
+    """Observe collector subprocess exit; leave interrupted wrapper runs UNKNOWN."""
+    global DIAGNOSTIC_PATH
+    root = repository_root(Path.cwd())
+    DIAGNOSTIC_PATH = root / ".harness/logs/hook-diagnostics.jsonl"
+    invocation = str(uuid.uuid4())
+    started = time.monotonic()
+    raw = sys.stdin.read()
+    payload = json.loads(raw)
+    context = {k: payload.get(k,"UNKNOWN") for k in ("hook_event_name","session_id","turn_id")}
+    context.update(load_projects().project_context(root))
+    env = dict(os.environ, KMP_HOOK_INVOCATION_ID=invocation)
+    try:
+        child = subprocess.run([sys.executable,"-B",str(Path(__file__).resolve()),"--worker"],
+                               input=raw, text=True, capture_output=True, env=env, timeout=110)
+        code = child.returncode
+        if code == 0 and child.stdout.strip() != "{}":
+            code = 1  # A clean process exit without the completion response is not success.
+        print(child.stdout.strip() or json.dumps({"systemMessage":"Harness collector returned no response"}),flush=True)
+        diagnostic(invocation,"hook_exited",**context,exit_code=code,
+                   completion_scope="observed_collector_process_exit",
+                   elapsed_seconds=time.monotonic()-started)
+        return code
+    except subprocess.TimeoutExpired:
+        diagnostic(invocation,"hook_exited",**context,exit_code=1,error_type="CollectorTimeout",
+                   completion_scope="collector_timeout_reaped",elapsed_seconds=time.monotonic()-started)
+        print(json.dumps({"systemMessage":"Harness collection exceeded internal budget; retry pending"}),flush=True)
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(supervised=True) if sys.argv[1:] == ["--worker"] else supervise())

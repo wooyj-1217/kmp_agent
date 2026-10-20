@@ -1,0 +1,53 @@
+{
+  "kind": "synthetic_test_defect",
+  "result": "FAIL",
+  "origin": "deliberately injected into separate checkpoint candidate; NOT a natural model defect",
+  "draft_checkpoint": {
+    "path": ".harness/roles/b9386521-5b5a-4efa-89e4-2fff02121853/response-001.json",
+    "sha256": "4a97cd8752e780c94bcbe6049cc93ad9c875a0614432cb0a0ba712090cf82981",
+    "snapshot": ".harness/artifacts/4a97cd8752e780c94bcbe6049cc93ad9c875a0614432cb0a0ba712090cf82981.txt",
+    "snapshot_sha256": "4a97cd8752e780c94bcbe6049cc93ad9c875a0614432cb0a0ba712090cf82981",
+    "git_commit": "b802d18b068d4a213946a0c7f3b5dee77b6c6621"
+  },
+  "observations": {
+    "kind": "synthetic_test_defect",
+    "list": {
+      "buttons": [
+        {
+          "display": "none",
+          "memo": "m-01",
+          "visible": false
+        },
+        {
+          "display": "none",
+          "memo": "m-02",
+          "visible": false
+        },
+        {
+          "display": "none",
+          "memo": "m-03",
+          "visible": false
+        }
+      ],
+      "height": 844,
+      "rows": 3,
+      "screen": "SCREEN-LIST",
+      "state": "LIST-DEFAULT",
+      "width": 390
+    },
+    "editor": {
+      "display": "none",
+      "state": "EDITING"
+    }
+  },
+  "screenshots": [
+    "docs/examples/role-execution/evidence/star/synthetic-defect-LIST.jpg",
+    "docs/examples/role-execution/evidence/star/synthetic-defect-EDITOR.jpg"
+  ],
+  "expected": "app 목록/편집의 즐겨찾기 토글 표시·1회반전·정렬·이동유지",
+  "target_results": {
+    "app": "FAIL",
+    "web-mobile": "retained D-003 unchanged",
+    "web-desktop": "retained D-003 unchanged"
+  }
+}

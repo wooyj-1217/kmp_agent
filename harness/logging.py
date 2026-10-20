@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 import subprocess
 import sys
+import time
 import uuid
 
 UNKNOWN = "UNKNOWN"
@@ -32,7 +33,7 @@ def redact(value):
     value = re.sub(r"\bsk-[A-Za-z0-9_-]{12,}\b|\bAKIA[A-Z0-9]{16}\b", "[REDACTED_KEY]", value)
     value = re.sub(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[REDACTED_TOKEN]", value)
     value = re.sub(r"(?i)\b(password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=]\s*[\"']?[^\s,;\"'<>]+", r"\1=[REDACTED]", value)
-    value = re.sub(r"(\w+://)[^\s/@:]+:[^\s/@]+@", r"\1[REDACTED]@", value)
+    value = re.sub(r"(?<!\w)(\w+://)[^\s/@:]+:[^\s/@]+@", r"\1[REDACTED]@", value)
     value = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "[REDACTED_EMAIL]", value)
     return value
 
@@ -301,26 +302,50 @@ class Logger:
         return self.append("run_finished" if finish else "checkpoint", run_id,
                            start["work_type"], observed=observed, summary={"result": result})
 
-    def command(self, run_id, command):
+    def command(self, run_id, command=None, task_id=UNKNOWN, agent_run_id=UNKNOWN,
+                attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None):
         start = self.run(run_id)
         if any(e["run_id"] == run_id and e["event_type"] == "run_finished" for e in self.read()):
             raise ValueError("run already finished")
+        sys.path.insert(0, str(ROOT))
+        from harness.sequential import command_context, validate_settings, KINDS
+        context, binding = command_context(self.root, run_id, task_id, agent_run_id, attempt_id)
+        cwd = self.root
+        if command_name is not None:
+            config_path = self.root / ".harness/settings/sequential.json"
+            config_bytes = config_path.read_bytes() if config_path.exists() else None
+            config = validate_settings(json.loads(config_bytes)) if config_bytes is not None else None
+            if command or config is None or command_name not in config.get("commands", {}):
+                raise ValueError("choose an existing named command without explicit argv")
+            selected = config["commands"][command_name]
+            if command_kind != UNKNOWN and command_kind != selected["kind"]:
+                raise ValueError("command kind conflicts with named configuration")
+            command, command_kind = selected["argv"], selected["kind"]
+            cwd = (self.root / selected.get("cwd", ".")).resolve()
+            binding["command_settings_sha256"] = digest(config_bytes)
+        if command_kind not in KINDS:
+            raise ValueError("unsupported command kind")
+        if not cwd.is_relative_to(self.root) or not cwd.is_dir():
+            raise ValueError("command cwd must exist inside target project")
         if not command or command[0] != "rtk":
             raise ValueError("wrapped commands must start with rtk")
         before = snapshot(self.root)
         call_id = str(uuid.uuid4())
+        metadata = {**binding, "call_id": call_id, "command_kind": command_kind,
+                    "command_name": command_name or UNKNOWN, "cwd": str(cwd.relative_to(self.root))}
         self.append("command_started", run_id, start["work_type"],
-                    observed={"call_id": call_id, "started_at": now(),
+                    **context, observed={**metadata, "started_at": now(),
                               "argv_sha256": digest(json.dumps(command).encode())})
+        timer = time.monotonic()
         try:
-            proc = subprocess.run(command, cwd=self.root, capture_output=True)
-        except OSError as error:
+            proc = subprocess.run(command, cwd=cwd, capture_output=True)
+        except (OSError, KeyboardInterrupt) as error:
             self.append("command_finished", run_id, start["work_type"],
-                        observed={"call_id": call_id, "ended_at": now(), "error_type": type(error).__name__,
+                        **context, observed={**metadata, "ended_at": now(), "elapsed_seconds": time.monotonic() - timer, "error_type": type(error).__name__,
                                   "returncode": UNKNOWN, "changed_files": changes(before, snapshot(self.root))})
             raise
         self.append("command_finished", run_id, start["work_type"],
-                    observed={"call_id": call_id, "ended_at": now(), "returncode": proc.returncode,
+                    **context, observed={**metadata, "ended_at": now(), "elapsed_seconds": time.monotonic() - timer, "returncode": proc.returncode,
                               "stdout_sha256": digest(proc.stdout), "stderr_sha256": digest(proc.stderr),
                               "changed_files": changes(before, snapshot(self.root))})
         sys.stdout.buffer.write(proc.stdout)
@@ -328,7 +353,27 @@ class Logger:
         return proc.returncode
 
     def sync(self, session_path, run_id=UNKNOWN, content=None):
-        """Import only observed records; never infer historical work types/roles."""
+        """Compatible full-source sync; batch writes, then explicit legacy linking.
+
+        The hook adapter is not a Logger and follows the conversion body below.
+        This keeps its incremental parsing and existing source identities unchanged.
+        """
+        if isinstance(self, Logger):
+            spec = importlib.util.spec_from_file_location("legacy_batch_sync", Path(__file__).with_name("incremental_sync.py"))
+            batch = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(batch)
+            adapter = batch.Collector(self, 0, 0)
+            metadata = {}
+            adapter.write_metadata = metadata.__setitem__
+            started = time.monotonic()
+            Logger.sync(adapter, session_path, run_id, content=content)
+            stats = {"mode": "legacy_full"}
+            imported = batch.append_batch(self, adapter.events, stats)
+            metadata = dict(metadata["last-sync.json"], imported=imported)
+            self.write_metadata("last-sync.json", metadata)
+            self.resolve_interventions()
+            self.last_collection = {**stats, "elapsed_seconds": time.monotonic()-started}
+            return imported
         path = Path(session_path).resolve()
         imported = 0
         turn_id = UNKNOWN
@@ -550,6 +595,11 @@ def main():
     event.add_argument("--summary", required=True)
     command = sub.add_parser("command")
     command.add_argument("run_id")
+    command.add_argument("--task-id", default=UNKNOWN)
+    command.add_argument("--agent-run-id", default=UNKNOWN)
+    command.add_argument("--attempt-id", default=UNKNOWN)
+    command.add_argument("--command-kind", default=UNKNOWN)
+    command.add_argument("--command-name")
     command.add_argument("argv", nargs=argparse.REMAINDER)
     sub.add_parser("status")
     args = parser.parse_args()
@@ -575,7 +625,8 @@ def main():
         start = logger.run(args.run_id)
         logger.append(args.type, args.run_id, start["work_type"], summary={"text": args.summary})
     elif args.action == "command":
-        sys.exit(logger.command(args.run_id, args.argv))
+        sys.exit(logger.command(args.run_id, args.argv, args.task_id, args.agent_run_id,
+                                args.attempt_id, args.command_kind, args.command_name))
     else:
         print(json.dumps(logger.status(), ensure_ascii=False))
 

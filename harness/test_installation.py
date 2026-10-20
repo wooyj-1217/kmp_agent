@@ -37,6 +37,7 @@ class InstallationTests(unittest.TestCase):
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("synthetic shared skill\n")
         # The harness ignores personal .agents/; only this synthetic skill is forced in.
+        (source / "VERSION").write_text("0.1.0\n")  # Synthetic first release, independent of candidate VERSION.
         git("init", "--quiet", source)
         git("add", ".", cwd=source)
         git("add", "-f", ".agents/skills/fixture-skill/SKILL.md", cwd=source)

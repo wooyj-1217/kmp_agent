@@ -1,0 +1,8 @@
+{
+  "result": "PASS",
+  "expected": "reject due to unresolved blocking issue",
+  "actual": "unresolved blocking findings prevent handoff",
+  "source": "TASK-STAR-D DONE/approved",
+  "target": "TASK-STAR-GATE TODO; no process invoked",
+  "issue": "ISSUE-004"
+}

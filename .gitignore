@@ -10,3 +10,4 @@ __pycache__/
 /.agents/
 /.serena/
 /.kmp-agent/releases/
+/.kmp-agent/project.json

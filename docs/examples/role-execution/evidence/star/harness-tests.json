@@ -1,0 +1,25 @@
+{
+  "result": "PASS",
+  "commands": [
+    {
+      "command": "rtk proxy python3 -m unittest discover -s harness -p 'test_*.py'",
+      "tests": 87,
+      "duration_seconds": 149.819,
+      "exit_code": 0
+    },
+    {
+      "command": "rtk proxy python3 -m unittest harness.test_connections harness.test_roles",
+      "tests": 17,
+      "duration_seconds": 35.003,
+      "exit_code": 0
+    },
+    {
+      "command": "rtk proxy git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "notes": [
+    "Unit fixtures are synthetic; actual Codex/Chrome evidence is separately linked.",
+    "Checkpoint return regression verifies same agent_run_id, frozen inputs, attempt limit and refreshed returned_issues."
+  ]
+}

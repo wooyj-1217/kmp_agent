@@ -1,0 +1,50 @@
+{
+  "tested_outputs": {
+    "docs/examples/role-execution/design.md": "fa4c5bf17cef1bc68f17cc73a8af98b76f271dfe7f5b2d9cb2731b508c07ae28",
+    "docs/examples/role-execution/prototype/system.md": "a32ddbb15aabd655fa2f40407bb4955735d457a235f8d04cb20175389bd9bdcf",
+    "docs/examples/role-execution/prototype/index.html": "87667daa5d3118b550e166eb0e044952120873da09c2840eef8dfa74bfc333ec",
+    "docs/examples/role-execution/prototype/components-cr001.html": "4cd35e79625e7813f205184bd2cb90a12fbda40536c563acdf4f43ce77c3932a",
+    "docs/examples/role-execution/prototype/memo-harness-draft-515955bba011a2a6d0e03ae4d6946dfcd579bd06a95c6e3661c2e7b823d8e8cf-A-final.html": "6302525adf286b24c818103200225c6c7d54d8a6c868be7f72dfda4a982abe77",
+    "docs/examples/role-execution/prototype/tokens.css": "3ff1d2b6e92cecaf40c820c234f4e334980b794c87873b77074cf6bff970e3f8",
+    "docs/examples/role-execution/prototype/components.html": "dc203bcca3774ff78f0a97a1964717665f08a57a8c0bc582a0a3ac598ae1cbfd",
+    "docs/examples/role-execution/prototype/components-final.html": "742f9f762353f141e8092f37335391ec63a9bd1d726f8526249656e88530457a",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-A.html": "cdf6671be69e491b5f9cabbb805f277dd23c0e3a5ad8af50b88f8d830973dd4b",
+    "docs/examples/role-execution/prototype/memo-harness-draft-5e11231c4cc5b1ee53ab77e3ab70d5e709c5e9c393da63a9a1ac27d693d99550-B.html": "f42930c91619f674f731b7e04452c015585352e6e8254efb270f604525ecd1c2",
+    "docs/examples/role-execution/prototype/memo-harness-draft-37efca4238102a9a92b059efc96bf3775c0af7428e18dbd82ed6e8aa5d096aad-A-final.html": "fded574907960e4f59945f7a89119a9711cead4a20573b786d93de3851bdbe57"
+  },
+  "result": "PASS",
+  "environment": "Chrome extension / macOS / 390x844 and 1280x900 CSS px / 2026-10-19 / current Codex reviewer",
+  "coverage": [
+    "CR-001 / REQ-002 / EX-FEAT-001-AC-002 / SCREEN-001/SAVED / ACT-004",
+    "SAVED regular+long1680 × two sizes; new gallery × two sizes; header translation",
+    "비영향 항목: D-001 검토와 동등성 증명에 연결, 재실행하지 않음"
+  ],
+  "prior_reviews": [
+    "evidence/structure-r1.json",
+    "evidence/interaction-r1.json",
+    "evidence/visual-r1.json"
+  ],
+  "limitations": {
+    "product_policy": "빈 값·길이·이탈·처리 중 편집·영속 저장 UNKNOWN/NOT_RUN",
+    "zoom_200_percent": "NOT_RUN; 필수 AC 범위 밖 추가 검토",
+    "documentation": "생성 명세 표 일부에 혼용 표기가 남아 있으나 ID·동작·파일 참조는 해석 가능하며 인계 차단 결함으로 판정하지 않음"
+  },
+  "kind": "visual",
+  "screenshots": [
+    "docs/examples/role-execution/evidence/r2-390-SAVED-regular.jpg",
+    "docs/examples/role-execution/evidence/r2-390-SAVED-long.jpg",
+    "docs/examples/role-execution/evidence/r2-1280-SAVED-regular.jpg",
+    "docs/examples/role-execution/evidence/r2-1280-SAVED-long.jpg",
+    "docs/examples/role-execution/evidence/r2-components-390.jpg",
+    "docs/examples/role-execution/evidence/r2-components-1280.jpg"
+  ],
+  "screenshot_sha256": {
+    "docs/examples/role-execution/evidence/r2-390-SAVED-regular.jpg": "8b22ef3b4284480b24db7ae429186e0b298a6cfbf75f6d4fa0caa13bde08942a",
+    "docs/examples/role-execution/evidence/r2-390-SAVED-long.jpg": "c26b74cf6137cd7db362c7559573a7ad64e1c864269d5ac8d089e86805d1377d",
+    "docs/examples/role-execution/evidence/r2-1280-SAVED-regular.jpg": "95544106f8558b9ae0be4008e83cf94d29eaeddee549c142a77703e97b04a9d7",
+    "docs/examples/role-execution/evidence/r2-1280-SAVED-long.jpg": "48e698eab40e14fc4ebf0757897a2f5c2af373620606aed052bf4d8377d32f36",
+    "docs/examples/role-execution/evidence/r2-components-390.jpg": "f668f1031f89f0bc933212161608bde229ac6c0260bbe4cf97cf86432f283676",
+    "docs/examples/role-execution/evidence/r2-components-1280.jpg": "777fcd5dafd75e7634294f040efd0da1ea95b9c97aedc2880f777d7fa7a96b45"
+  },
+  "findings": "저장 캡처6개를 실제 열어 검토. 두 크기의 일반/긴 본문 성공 화면 및 새 컴포넌트 갤러리에서 새 문구·기존 안내 읽기 가능, 잘림·겹침·가로 넘침 없음. 공유 강조색·버튼·간격 유지. 상단 선택 A 번역 확인"
+}

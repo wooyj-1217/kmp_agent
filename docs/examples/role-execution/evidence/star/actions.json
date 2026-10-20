@@ -1,0 +1,1454 @@
+[
+  {
+    "target": "app",
+    "sortAndNavigation": [
+      {
+        "name": "initial-order",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-MIXED",
+        "order": [
+          "m-03",
+          "m-01",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "two-favorites",
+        "order": [
+          "m-01",
+          "m-03",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "true",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "m3-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "all-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "editor-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "return-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-MEMO-OPEN",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "reopen-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "editorHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-EMPTY",
+        "order": [],
+        "pressed": [],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      }
+    ],
+    "result": "PASS"
+  },
+  {
+    "target": "web-mobile",
+    "sortAndNavigation": [
+      {
+        "name": "initial-order",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-MIXED",
+        "order": [
+          "m-03",
+          "m-01",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "two-favorites",
+        "order": [
+          "m-01",
+          "m-03",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "true",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "m3-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "all-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "editor-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "return-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-MEMO-OPEN",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "reopen-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "editorHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-EMPTY",
+        "order": [],
+        "pressed": [],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      }
+    ],
+    "result": "PASS"
+  },
+  {
+    "target": "web-desktop",
+    "sortAndNavigation": [
+      {
+        "name": "initial-order",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-MIXED",
+        "order": [
+          "m-03",
+          "m-01",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "two-favorites",
+        "order": [
+          "m-01",
+          "m-03",
+          "m-02"
+        ],
+        "pressed": [
+          "true",
+          "true",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "m3-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-03"
+        }
+      },
+      {
+        "name": "all-unfavorite",
+        "order": [
+          "m-01",
+          "m-02",
+          "m-03"
+        ],
+        "pressed": [
+          "false",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        }
+      },
+      {
+        "name": "editor-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "return-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": "ACT-MEMO-OPEN",
+          "id": "",
+          "memo": "m-02"
+        }
+      },
+      {
+        "name": "reopen-retains-favorite",
+        "order": [
+          "m-02",
+          "m-01",
+          "m-03"
+        ],
+        "pressed": [
+          "true",
+          "false",
+          "false"
+        ],
+        "active": {
+          "action": null,
+          "id": "editorHeading",
+          "memo": null
+        }
+      },
+      {
+        "name": "LIST-EMPTY",
+        "order": [],
+        "pressed": [],
+        "active": {
+          "action": null,
+          "id": "listHeading",
+          "memo": null
+        }
+      }
+    ],
+    "result": "PASS"
+  },
+  {
+    "target": "app",
+    "actualSave": {
+      "before": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -180
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 390
+      },
+      "after": {
+        "accent": "#244fd3",
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": 16
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 390
+      },
+      "fail": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 10,
+        "editor": {
+          "clientHeight": 742,
+          "height": 743.5546875,
+          "scrollHeight": 742,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -309.5
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 390
+      },
+      "done": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -309.5
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 390
+      },
+      "longError": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 1680,
+        "editor": {
+          "clientHeight": 742,
+          "height": 743.5546875,
+          "scrollHeight": 742,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -493
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 390
+      },
+      "longSuccess": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 707,
+          "height": 708.5625,
+          "scrollHeight": 707,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -458
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 1680,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 390
+      },
+      "scroll": {
+        "clientHeight": 318,
+        "clientWidth": 322,
+        "scrollHeight": 2182,
+        "scrollWidth": 322
+      }
+    },
+    "result": "PASS"
+  },
+  {
+    "target": "web-mobile",
+    "actualSave": {
+      "before": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -174
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 390
+      },
+      "after": {
+        "accent": "#244fd3",
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": 16
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 390
+      },
+      "fail": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 10,
+        "editor": {
+          "clientHeight": 735,
+          "height": 737.15625,
+          "scrollHeight": 735,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -309.5
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 390
+      },
+      "done": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 558,
+          "height": 560,
+          "scrollHeight": 558,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -309.5
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 10,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 390
+      },
+      "longError": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 1680,
+        "editor": {
+          "clientHeight": 735,
+          "height": 737.15625,
+          "scrollHeight": 735,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -486.5
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 390
+      },
+      "longSuccess": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 700,
+          "height": 702.1640625,
+          "scrollHeight": 700,
+          "visible": true,
+          "width": 343,
+          "x": 16,
+          "y": -451.5
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 844,
+        "list": {
+          "clientHeight": 0,
+          "height": 0,
+          "scrollHeight": 0,
+          "visible": false,
+          "width": 0,
+          "x": 0,
+          "y": 0
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": false
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": false
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": false
+          }
+        ],
+        "scrollWidth": 375,
+        "snapshotLength": 1680,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 390
+      },
+      "scroll": {
+        "clientHeight": 318,
+        "clientWidth": 322,
+        "scrollHeight": 2182,
+        "scrollWidth": 322
+      }
+    },
+    "result": "PASS"
+  },
+  {
+    "target": "web-desktop",
+    "actualSave": {
+      "before": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": -107.5
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": -107.5
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 1280
+      },
+      "after": {
+        "accent": "#244fd3",
+        "active": {
+          "action": "ACT-FAV-TOGGLE",
+          "id": "",
+          "memo": "m-01"
+        },
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": 16
+        },
+        "editorState": "SAVING",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": 16
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "snapshotLength": 10,
+        "status": "가상 응답을 기다리는 중입니다. 중복 요청은 차단되며 실제 저장은 하지 않습니다.",
+        "width": 1280
+      },
+      "fail": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 10,
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": -452.5
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-OFF",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": -452.5
+        },
+        "listState": "LIST-DEFAULT",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 1280
+      },
+      "done": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": 16
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": 16
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "snapshotLength": 10,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 1280
+      },
+      "longError": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "bodyLength": 1680,
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": -452.5
+        },
+        "editorState": "ERROR",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": -452.5
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "status": "가상 저장에 실패했습니다. 요청한 본문은 그대로 유지되었습니다. 이것은 긴 오류 표시를 확인하기 위한 시험 문구입니다. 연결된 서비스는 없으며 실제 장애를 뜻하지 않습니다. 본문을 확인한 뒤 재시도하면 다시 가상 응답을 전달할 수 있습니다.",
+        "width": 1280
+      },
+      "longSuccess": {
+        "accent": "#244fd3",
+        "active": {
+          "action": null,
+          "id": "saveStatus",
+          "memo": null
+        },
+        "editor": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 704,
+          "x": 462.5,
+          "y": -452.5
+        },
+        "editorState": "SAVED",
+        "favorite": "FAV-ON",
+        "forbidden": false,
+        "height": 900,
+        "list": {
+          "clientHeight": 834,
+          "height": 836,
+          "scrollHeight": 834,
+          "visible": true,
+          "width": 340,
+          "x": 98.5,
+          "y": -452.5
+        },
+        "listState": "LIST-MIXED",
+        "rows": [
+          {
+            "id": "m-01",
+            "pressed": "true",
+            "visible": true
+          },
+          {
+            "id": "m-02",
+            "pressed": "false",
+            "visible": true
+          },
+          {
+            "id": "m-03",
+            "pressed": "false",
+            "visible": true
+          }
+        ],
+        "scrollWidth": 1265,
+        "snapshotLength": 1680,
+        "status": "메모가 저장됐어요 같은 화면에 요청한 본문을 표시합니다. 실제 저장·영속성은 보장하지 않습니다.",
+        "width": 1280
+      },
+      "scroll": {
+        "clientHeight": 318,
+        "clientWidth": 653,
+        "scrollHeight": 1261,
+        "scrollWidth": 653
+      }
+    },
+    "result": "PASS"
+  }
+]

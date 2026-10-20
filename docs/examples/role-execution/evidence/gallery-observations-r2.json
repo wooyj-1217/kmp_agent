@@ -1,0 +1,16 @@
+[
+  {
+    "accent": "#244fd3",
+    "buttonBackground": "rgb(36, 79, 211)",
+    "scrollWidth": 375,
+    "text": true,
+    "width": 390
+  },
+  {
+    "accent": "#244fd3",
+    "buttonBackground": "rgb(36, 79, 211)",
+    "scrollWidth": 1265,
+    "text": true,
+    "width": 1280
+  }
+]

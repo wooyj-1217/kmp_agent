@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "modules": {
+    "shared": ["shared"],
+    "server": ["server"]
+  },
+  "commands": {
+    "unit-test": {
+      "kind": "test",
+      "argv": ["rtk", "proxy", "python3", "-m", "unittest"],
+      "cwd": "."
+    }
+  }
+}
