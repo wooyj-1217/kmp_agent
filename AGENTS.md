@@ -7,6 +7,7 @@
 | 역할 수행 | [역할 목록](docs/roles/README.md) → 현재 역할 문서 + 해당 제품 지침·기능 입력 |
 | 공통 판단·완료·버전 | [운영 설계](docs/operations.md)의 관련 절 |
 | 작업 배정·상태·PR·인계 | [작업 관리](docs/task-management.md)의 관련 절 |
+| PR 준비·제출·기존 PR 보완 | [공통 PR 운영 규칙](docs/operations.md#pr-submission) → [범위 검사](docs/pr-scope-check.md) |
 | 기획·디자인 문서 작성 | 현재 역할 → [해당 템플릿](docs/templates/README.md) |
 | 적용 프로젝트의 하네스 결함·개선 PR | [개선 PR 정책](docs/harness-defect-pr.md) → 해당 역할·기존 작업/실행 기록; 이번 요청의 실행 범위 우선 |
 | 하네스 설계·계획 변경 | [design.md](design.md) · [plan.md](plan.md)의 관련 절 |
@@ -14,6 +15,8 @@
 | 순차 개발 근거·명령·대기·인계 | [공통 수집 규칙](docs/sequential-evidence.md); 제품 init 설정을 재사용하고 미관측 값은 UNKNOWN |
 | 하네스 버전·설치·업데이트 | [설치·init·update](docs/installation.md); 대상 버전은 명시적으로 선택하고 개발 원본에서 자동 전파하지 않음 |
 | 중단 후 재개 | [중단·재개](docs/interruption-recovery.md)와 기존 작업의 완료 근거 |
+
+모든 작업의 시작·주요 단계 전환·종료 보고와 조사 위임에는 [공통 진행 보고·조사 위임](docs/operations.md#progress-reporting)을 적용한다. 현재 역할 문서만 읽는 경우에도 이 절은 확인한다.
 
 제품 목표·범위·원본·인수 조건·테스트 명령과 감시 대상·변경 확정 조건은 적용 프로젝트가 정한다. 제품 산출물·코드·로그·검증 증거는 해당 프로젝트에 보관하며 하네스 원본으로 자동 전송하지 않는다. 자동 변경 대응의 목표와 현재 구현 상태를 구분한다.
 제품 아키텍처는 해당 제품 지침을 읽고, Ktor/KMP를 채택한 경우에만 [참조 구조](docs/product-architecture.md)를 적용한다.

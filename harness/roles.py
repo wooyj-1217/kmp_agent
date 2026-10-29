@@ -147,7 +147,7 @@ class Roles:
                 "Development is input interpretation ONLY: publish development-plan.md, read every supplied P/D/token/component/prototype/AC/architecture input, "
                 "and return input_receipt with planning_version, design_version, artifacts [{path,sha256}] for EVERY task input, acceptance_ids and interpretation. "
                 "Map REQs to KMP/Clean Architecture modules, shared/platform ownership and test plan. Do not implement or build an app. "
-                "Return missing/conflicting mandatory information to planning/design with a waiting response; preserve intentional UNKNOWNs outside this trial. "
+                "Return missing/conflicting mandatory information to planning/design with a waiting response; preserve intentional UNKNOWNs outside this trial. Keep literal user sources and approved requirements distinct from agent-derived specifications. Map each derived item to original IDs and record omissions, changed values/behavior, exclusions and actual approval. A derived document is never authority by filename. Require independent requirements QA before implementation; scoped harness trials cannot establish product PASS. "
                 "Returned issue fixes must address their recheck criteria; never self-resolve issues. "
                 "For configured design_targets, return target_artifacts {target:{entry:feature-relative HTML path,screens:[],requirements:[]}} for every target. "
                 "App HTML is a native-style simulation, not native execution. Responsive web needs distinct mobile and desktop composition/interaction. "
@@ -155,10 +155,15 @@ class Roles:
         packet["sequential_collection"] = {"attempt_id": run.get("attempt_id", "UNKNOWN"),
             "declarations": run.get("collection", {}),
             "instructions": "Declare REQUIRED vs ORDER_ONLY dependency reasons and shared modules/resources via configure-collection; during execution provide the active agent_run_id. Late declarations are timestamped separately and never rewrite the frozen start identity. Use UNKNOWN for unobservable facts. Use the command wrapper with task/agent_run/attempt IDs and command kind or a configured command name. On waiting use checkpoint wait_type/wait_target; resume closes the wait. Record actual integration/conflict/rework with evidence and an existing CR when applicable. Execution order is not a required dependency; file observation is not authorship. At handoff inspect collection-report and identify missing evidence. Settings do not observe commands run outside the wrapper."}
+        packet['usage_context'] = copy.deepcopy(run.get('usage_context'))
         packet["decisions"] = [{"reference": r, "content": (self.root / r["snapshot"]).read_text()} for r in run.get("decisions", [])]
         packet["returned_issues"] = [i for i in self.tasks.read().get("issues", []) if i.get("assigned_task_id") == task_id and i["status"] != "RESOLVED"]
         packet["checkpoint"] = ({"reference": run["checkpoint"], "content": (self.root / run["checkpoint"]["snapshot"]).read_text()}
                                  if run.get("checkpoint") else None)
+        from harness.human_progress import for_task, message
+        packet['human_progress']=for_task(self.root,task_id,self.tasks.run_id)
+        packet['human_progress_message']=message(packet['human_progress'],start=True)
+        packet['progress_instructions']='CMD: project > phase > current task, then the native checklist at major transitions. Dashboard: project-wide agent flow from the same source, not the same display scope. Register the whole execution Todo before starting; no platform guessing. Use the native checklist at major transitions, not every command. Mark [x] only for verified completion, [ ] otherwise; bold active items with 진행 중. Keep retries inside the same task. Refresh through harness.human_progress; never invent statuses or persist a separate checklist. Explain what each check establishes before/after commands; classify failures only from evidence. Do not present request acceptance as live process observation.'
         self.write(packet_path, packet)
         def operation(state):
             current = self.tasks._active(state["tasks"][task_id], agent_run_id, "work")
@@ -320,6 +325,23 @@ class Roles:
         return self.tasks.read()["tasks"][task_id].get("delivery", {"scope": "input_interpretation_only"})
 
     def execute(self, task_id, role, worker=None, timeout=300):
+        task=self.tasks.read()['tasks'][task_id]
+        if task.get('qa_config'):
+            if role!='verification' or worker is not None:raise ValueError('QA uses verification role and its configured adapter')
+            from harness.qa import QA
+            qa=QA(self.root,self.tasks.run_id)
+            if task['qa_config'].get('repair_task_id'):
+                from harness.qa_repair import execute_with_owner
+                return execute_with_owner(qa,task_id)
+            return qa.execute(task_id)
+        if task.get('development_delegation'):
+            if role!='development' or worker is not None:
+                raise ValueError('configured delegation requires development and native configured adapter')
+            from harness.delegation import Development
+            return Development(self.root,self.tasks.run_id).execute(task_id)
+        if worker is None and task.get('state')!='DONE':
+            from harness.execution_plan import require
+            require(self.tasks,task_id)
         prepared = self.prepare(task_id, role)
         if prepared.get("skipped"):
             return prepared
@@ -334,46 +356,58 @@ class Roles:
                 return {**prepared, "state": task["state"], "reason": task["blocked_reason"]}
             index = len(list(directory.glob("dispatch-*.json"))) + 1
             result = directory / f"last-{index}.json"
+            import uuid
+            call_id = str(uuid.uuid4())
             command = worker or ["codex", "exec", "--ignore-user-config", "--sandbox", "read-only", "--skip-git-repo-check", "--json", "-o", str(result), "-"]
             prompt = (self.root / prepared["context"]).read_text()
             try:
-                child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE, text=True, start_new_session=True)
-                self.write(directory / f"dispatch-{index:03d}.json", {"pid": child.pid, "command": command,
-                    "adapter": "custom_process" if worker else "codex_exec", "started_at": logging.now(), "usage": "UNKNOWN",
-                    "implementation_sha256": {p: logging.digest((CODE / p).read_bytes()) for p in
-                        ["harness/roles.py", "harness/tasks.py", "harness/deliverables.py", "harness/design_assets.py"]}})
-                self.process_event(task_id, aid, {"pid": child.pid, "adapter": "custom_process" if worker else "codex_exec", "spawned": True})
-                try:
-                    stdout, stderr = child.communicate(prompt, timeout=timeout)
-                except BaseException as interrupted:
+                from harness.runtime_limits import model_slot
+                with model_slot(self.tasks,task_id,aid,timeout):
+                    child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE, text=True, start_new_session=True)
+                    self.write(directory / f"dispatch-{index:03d}.json", {"pid": child.pid, "command": command,
+                        "adapter": "custom_process" if worker else "codex_exec", "started_at": logging.now(), "usage": "UNKNOWN",
+                        "implementation_sha256": {p: logging.digest((CODE / p).read_bytes()) for p in
+                            ["harness/roles.py", "harness/tasks.py", "harness/deliverables.py", "harness/design_assets.py"]}})
+                    self.process_event(task_id, aid, {"call_id": call_id, "pid": child.pid, "adapter": "custom_process" if worker else "codex_exec", "spawned": True,
+                        'process_state': 'role_process_started', 'started_at': logging.now(),
+                        'independent_model_spawned': worker is None})
                     try:
-                        os.killpg(child.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-                    try:
-                        partial_stdout, partial_stderr = child.communicate(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(child.pid, signal.SIGKILL)
-                        partial_stdout, partial_stderr = child.communicate(timeout=5)
-                    try:
-                        partial = {"stdout": partial_stdout} if worker else self.collect_codex(task_id, aid, partial_stdout)
-                    except (OSError, ValueError):
-                        partial = {"usage": "UNKNOWN", "collection": "partial CLI stream could not be imported"}
-                    self.write(directory / f"process-{index:03d}.json", {"returncode": child.returncode, **partial,
-                        "stderr": partial_stderr, "interrupted": type(interrupted).__name__, "finished_at": logging.now()})
-                    raise
-                finally:
-                    for pipe in (child.stdin, child.stdout, child.stderr):
-                        if pipe is not None:
-                            pipe.close()
-                collected = {"stdout": stdout} if worker else self.collect_codex(task_id, aid, stdout)
-                self.write(directory / f"process-{index:03d}.json", {"returncode": child.returncode, **collected, "stderr": stderr,
-                    "finished_at": logging.now(), "independent_process_observed": True})
-                if child.returncode:
-                    raise ValueError(f"worker exit {child.returncode}; see process-{index:03d}.json")
-                response = json.loads(stdout if worker else result.read_text())
-                return self.accept(task_id, aid, response)
+                        from harness.delegation_runtime import _communicate_stream, _drain
+                        from harness.usage_collection import WorkerStream
+                        stream = WorkerStream(self.tasks, task_id, aid, call_id)
+                        stdout, stderr = _communicate_stream(child, prompt, timeout, stream)
+                    except BaseException as interrupted:
+                        try:
+                            os.killpg(child.pid, signal.SIGTERM)
+                        except ProcessLookupError:
+                            pass
+                        try:
+                            partial_stdout, partial_stderr = _drain(child, timeout=5)
+                        except subprocess.TimeoutExpired:
+                            os.killpg(child.pid, signal.SIGKILL)
+                            partial_stdout, partial_stderr = _drain(child, timeout=5)
+                        try:
+                            partial = {"stdout": partial_stdout} if worker else self.collect_codex(task_id, aid, partial_stdout)
+                        except (OSError, ValueError):
+                            partial = {"usage": "UNKNOWN", "collection": "partial CLI stream could not be imported"}
+                        self.write(directory / f"process-{index:03d}.json", {"returncode": child.returncode, **partial,
+                            "stderr": partial_stderr, "interrupted": type(interrupted).__name__, "finished_at": logging.now()})
+                        raise
+                    finally:
+                        for pipe in (child.stdin, child.stdout, child.stderr):
+                            if pipe is not None:
+                                pipe.close()
+                    collected = {"stdout": stdout} if worker else self.collect_codex(task_id, aid, stdout)
+                    self.process_event(task_id, aid, {'call_id': call_id, 'process_state': 'role_process_finished',
+                        'thread_ids': sorted(stream.threads), 'exit_code': child.returncode})
+                    stream.tick()
+                    self.write(directory / f"process-{index:03d}.json", {"returncode": child.returncode, **collected, "stderr": stderr,
+                        "finished_at": logging.now(), "independent_process_observed": True})
+                    if child.returncode:
+                        raise ValueError(f"worker exit {child.returncode}; see process-{index:03d}.json")
+                    response = json.loads(stdout if worker else result.read_text())
+                    return self.accept(task_id, aid, response)
             except (OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as error:
                 self.tasks.fail(task_id, aid, f"{type(error).__name__}: {error}")
                 raise

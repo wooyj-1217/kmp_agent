@@ -6,9 +6,10 @@ import json
 def blocking(state, task):
     folder = task.get("role_contract", task.get("delivery", {})).get("folder")
     return [i for i in state.get("issues", []) if i["feature_id"] == task["feature_id"]
-            and (i["task_id"] == task["task_id"] or (folder and i.get("folder") == folder))
+            and (i.get("assigned_task_id", i["task_id"]) == task["task_id"] or (folder and i.get("folder") == folder))
             and (task["role"] != "planning" or i["owner"] == "planning")
-            and i["severity"] in {"BLOCKER", "MAJOR"} and i["status"] != "RESOLVED"]
+            and i["severity"] in {"BLOCKER", "MAJOR"} and i["status"] != "RESOLVED"
+            and not (i.get("qa_finding") and (i["qa_finding"].get("kind")=="improvement" or i["qa_finding"].get("blocking") is False))]
 
 
 def record(manager, task_id, kind, screen, ui_state, observed, expected, severity, recheck, evidence, synthetic=False, impacts=None):

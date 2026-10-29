@@ -12,13 +12,13 @@ import bootstrap
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", type=Path, required=True)
-    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "planning", "design", "development", "task", "command", "collection-report", "start", "finish"])
+    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "planning", "design", "development", "verification", "qa", "task", "command", "collection-report", "start", "finish"])
     parser.add_argument("--source")
     parser.add_argument("--ref")
     parser.add_argument("--task-id")
     parser.add_argument("--run-id", default="UNKNOWN")
     parser.add_argument("--tracking-settings", type=Path, help="One-time project modules/commands JSON, reused after init")
-    parser.add_argument("--operation", choices=["register", "configure-development", "configure-stage", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
+    parser.add_argument("--operation", choices=["register", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     parser.add_argument("--agent-run-id", default="UNKNOWN")
     parser.add_argument("--attempt-id", default="UNKNOWN")
@@ -101,7 +101,7 @@ def main():
                 command_exit = logger.command(args.run_id, json.loads(args.argv_json) if args.argv_json else None,
                     args.task_id or "UNKNOWN", args.agent_run_id, args.attempt_id, args.command_kind, args.command_name)
                 result = {"returncode": command_exit}
-        elif args.action in {"planning", "design", "development"}:
+        elif args.action in {"planning", "design", "development", "verification", "qa"}:
             manifest = bootstrap.read(target / bootstrap.MANIFEST)
             if not manifest or bootstrap.reference(target, manifest) != ROOT:
                 raise ValueError("Use the project's explicitly selected .kmp-agent/agent.py")
@@ -109,7 +109,7 @@ def main():
                 raise ValueError("role execution requires --task-id")
             bootstrap.validate(ROOT, manifest["commit"] if manifest["mode"] == "installed" else None)
             roles = bootstrap.load(ROOT / "harness/roles.py", "selected_role_entry")
-            result = roles.Roles(target, args.run_id).execute(args.task_id, args.action,
+            result = roles.Roles(target, args.run_id).execute(args.task_id, "verification" if args.action=="qa" else args.action,
                 json.loads(args.worker) if args.worker else None, args.timeout)
         else:
             manifest = bootstrap.read(target / bootstrap.MANIFEST)

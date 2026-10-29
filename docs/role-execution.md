@@ -35,7 +35,7 @@
 
 기존 디자인 자원을 먼저 조사하고 재사용 여부·경로를 system.md에 기록한다. tokens.css는 실제 CSS 변수이며 화면과 components.html이 같은 파일을 참조해야 한다. system.md에는 실제 쓰는 토큰·컴포넌트·변형·상태·사용 규칙만 둔다. 컴포넌트 갤러리에는 정상/비활성/처리 중/오류 등의 실제 시각 예제를 만든다. 각 화면은 REQ/AC와 SCREEN/STATE/ACT 대응을 명세·DOM에 유지한다. CDN·외부 폰트·실제 API를 필수로 만들지 않는다.
 
-대표 시안 비교·선택과 화면 확장은 기존 디자인 절차를 따른다. 시험용 선택은 **합성 시험 결정**으로 명시하며 실제 사용자 선택으로 승격하지 않는다. 실제 미선택은 waiting으로 저장한다. 범위에 필요한 화면×상태×크기·긴 본문/오류 문구를 사전에 열거한다. 실제 렌더링 DOM/계산된 스타일에서 토큰 적용·컴포넌트 일치·overflow를 확인하고, 실제 클릭·입력·키보드로 동작을 확인하며, 캡처를 보고 잘림·겹침·가독성·위계·일관성을 검토한다. 수정 조합만 재검증한다.
+대표 시안 비교·선택과 화면 확장은 기존 디자인 절차를 따른다. 시험용 선택은 **합성 시험 결정**으로 명시하며 실제 사용자 선택으로 승격하지 않는다. 실제 미선택은 waiting으로 저장한다. 범위에 필요한 화면×상태×크기·긴 본문/오류 문구를 사전에 열거한다. 실제 렌더링 DOM/계산된 스타일에서 토큰 적용·컴포넌트 일치·overflow를 확인하고, 실제 클릭·입력·키보드로 동작을 확인하며, 캡처를 보고 잘림·겹침·가독성·위계·일관성을 검토한다. 수정 조합만 재검증한다. 디자인 역할·템플릿의 게슈탈트 보완 기준에 따라 화면 목표·정보 그룹·우선 행동·재사용/예외를 기록하고 같은 조건의 비교와 상태 확장에 적용한다. 실제 시각 검토는 [디자인 기준](roles/design.md#정보-관계위계의-실제-렌더링-검토)과 [QA](roles/verification.md#디자인-시각-qa)를 따른다. 취향·선택 제안은 필수 FAIL로 자동 변환하지 않으며 기존 criteria·ISSUE의 근거/심각도 판단을 유지한다.
 
 검토는 `Tasks.review(..., design_checks={structure: ..., interaction: ..., visual: ...})`로 별도 접수한다. 각 실행 결과는 result, evidence(로컬 보고서), environment, coverage(SCREEN/STATE/ACT/크기·콘텐츠)를 갖는다. 보고서는 테스트한 산출물 snapshot, 실제 캡처 경로/해시, 재현 절차·기대/실제·관찰·남은 결함을 연결한다. 근거 접수는 자동 시각 판정기가 아니며 검토자가 정확성과 충분성을 책임진다. 필수 검증 NOT_RUN/FAIL은 BLOCKED다. 새 제출본의 이전 PASS를 자동 재사용하지 않는다.
 
@@ -96,3 +96,20 @@ waiting 응답은 완성 단계·초안 파일·질문을 기존 snapshot checkp
 development 진입점은 `roles.py` 및 선택 설치의 cli에 연결한다. handoff는 D의 자원뿐 아니라 기준 P의 실제 snapshot과 공식 검토 보고서를 전달한다. 승인 P/D가 맞지 않거나 자원이 누락되거나 차단 issue/재검증 필요 상태면 실행을 거부한다. READY는 등록 상태이고 실행 이력이 아니다. 실제 프로세스의 input_receipt를 전체 원본 path/SHA·정확한 P/D·AC·해석과 대조해 CONFIRMED_BY_AGENT를 남긴다. 상위 검토자가 구현 위치·책임·계획을 읽고 통과시켜야 INTERPRETATION_REVIEWED다. 해시 확인은 의미 해석의 자동 증명이 아니다.
 
 입력 누락/충돌은 waiting의 returns(kind/screen/ui_state/observed/expected/severity/recheck)로 소유 역할에 issue를 반환하고 현재 response를 관측 근거로 snapshot한다. 질문이 필요하면 기존 선택·대기 절차를 따른다. 이 개발 모드는 KMP/Clean Architecture 계획만 허용하며 .kt/.kts 작성·앱 빌드·제품 기능 완료를 처리하지 않는다.
+
+## 진행 보고와 조사 위임의 입력 연결
+
+[공통 진행 보고·조사 위임](operations.md#progress-reporting)을 단일 기준으로 사용한다. `Roles.context()`의 기존 definitions에 `docs/operations.md`가 원문·SHA와 함께 포함되므로 새 역할 컨텍스트에도 이 기준이 전달된다. 메인은 전체 목표·위임 범위를 명시 입력과 task scope에 넣고 조사 반환은 기존 응답 프로토콜의 summary 등과 근거 파일로 연결한다. 필수 files·input_receipt·검토 증거는 축약/생략하지 않는다. 이미 생성된 context.json은 정의를 동결하므로 기존 실행에 이 변경이 자동 반영되었다고 주장하지 않는다. 이 경로 확인은 입력 전달 검증이며 새 모델의 실제 준수 시험은 별도다.
+
+
+## 개발 위임·독립 QA 연결 (로컬 개발 소스)
+
+전체 오케스트레이터는 단계별 기준·사람 승인 조건을 유지하고 개발 내부 작업은 개발 코디네이터에 위임한다. 구성된 development 작업은 실제 독립 영역 프로세스를 호출한다. QA는 기존 verification 역할이며 `harness.cli --target PROJECT qa --run-id RUN --task-id QA_TASK`로 호출한다. 기획/디자인/구현/재검증 범위를 지정하고 원본 요구와 현재 산출물을 직접 검토한다.
+
+`QA.configure(..., repair_task_id=OWNER_TASK)`로 명시한 담당 보완 작업이 있으면 활성 호출 한 번에서 QA 반환→독립 담당 보완→독립 QA 재검증을 수행한다. 범위·입력·담당 불일치와 미위임 정책은 차단한다. 보완 제출은 IN_REVIEW이며 QA 통과 전 품질 PASS가 아니다. 호출 오류/timeout/출력 오류는 품질 실패와 구분하고, 기존 사람 승인·CR·snapshot·RECHECK_REQUIRED를 유지한다. 공통 동시 실행 슬롯과 총 프로세스 admission 예산을 준수한다. 세션 밖 자동 재시작은 없다.
+
+상세: [개발 위임](development-delegation.md) / [QA](qa.md). 기존의 입력 해석 전용 설명은 미구성 경로에 적용하며 새 계약의 실제 실행과 구분한다.
+
+### PR 준비가 포함된 역할 입력
+
+[공통 PR 운영 규칙](operations.md#pr-submission)을 적용한다. 위임 입력에 전체 목표·원래 제출 범위·담당 범위·기준/출처·기존 PR·범위표·검증 근거를 연결하고, 결과는 포함·제외·미해결과 근거로 반환한다. 신규 context는 `docs/operations.md` 원문·SHA를 이미 포함한다. 기존 frozen context는 소급 갱신하지 않으며, 입력 전달을 실제 모델 준수나 자동 제출 검사 실행으로 표현하지 않는다.

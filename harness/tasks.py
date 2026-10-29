@@ -53,6 +53,8 @@ class Tasks:
             run = next((r for r in task["executions"] if r["agent_run_id"] == agent_run_id), {})
             if run.get("collection"):
                 observed.update(attempt_id=run["attempt_id"], collection=copy.deepcopy(run["collection"]))
+            if run.get('usage_context'):
+                observed['usage_context'] = copy.deepcopy(run['usage_context'])
         state["outbox"].append({"event_type": kind, "run_id": self.run_id,
             "work_type": task["work_type"], "feature_id": task["feature_id"],
             "task_id": task["task_id"], "agent_run_id": agent_run_id,
@@ -93,6 +95,18 @@ class Tasks:
     def refresh_validation(self):
         return self.read()
 
+    def configure_qa(self, task_id, **configuration):
+        from harness.qa import QA
+        return QA(self.root,self.run_id).configure(task_id,**configuration)
+
+    def configure_runtime_limits(self, **limits):
+        from harness.runtime_limits import configure
+        return configure(self,**limits)
+
+    def configure_delegation(self, parent_task_id, **configuration):
+        from harness.delegation import Development
+        return Development(self.root,self.run_id).configure(parent_task_id,**configuration)
+
     def configure_collection(self, task_id, **declarations):
         from harness.sequential import configure
         return configure(self, task_id, **declarations)
@@ -119,10 +133,12 @@ class Tasks:
         directory.mkdir(parents=True, exist_ok=True)
         directory.chmod(0o700)
         frozen = directory / (checksum + ".txt")
-        if not frozen.exists():
-            with frozen.open("xb") as handle:
-                os.fchmod(handle.fileno(), 0o600)
-                handle.write(sanitized)
+        with (directory / 'snapshot.lock').open('a+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if not frozen.exists():
+                with frozen.open("xb") as handle:
+                    os.fchmod(handle.fileno(), 0o600)
+                    handle.write(sanitized)
         git = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True)
         return {"path": str(path.relative_to(self.root)), "sha256": logging.digest(data),
                 "snapshot": str(frozen.relative_to(self.root)), "snapshot_sha256": checksum,
@@ -135,33 +151,47 @@ class Tasks:
         return path.is_relative_to(self.root) and path.is_file() and logging.digest(path.read_bytes()) == artifact["snapshot_sha256"]
 
     def register(self, feature_id, task_id, role, title, scope, criteria, inputs, dependencies=None, max_attempts=1,
-                 work_type="HARNESS_BUILD", visual_required=False, execution_scope=None):
-        def operation(state):
-            if task_id in state["tasks"] or role not in ROLES or max_attempts < 1 or work_type not in logging.KINDS:
-                raise ValueError("invalid or duplicate task")
-            if not criteria or len({x["id"] for x in criteria}) != len(criteria) or not any(x["required"] for x in criteria):
-                raise ValueError("unique criteria and at least one required criterion are needed")
-            dependencies_list = dependencies or []
-            if any(d not in state["tasks"] or state["tasks"][d]["feature_id"] != feature_id for d in dependencies_list):
-                raise ValueError("dependencies must exist within the feature")
-            from harness.development_tracking import SCOPES
-            if execution_scope is not None and execution_scope not in SCOPES:
-                raise ValueError("execution_scope must be code_implementation/documentation/input_interpretation_only")
-            refs = [self.artifact(p) for p in inputs]
-            task = {"feature_id": feature_id, "task_id": task_id, "role": role, "title": title,
-                    "project_id": self.context["project_id"], "verification_scope": self.context["verification_scope"],
-                    "scope": scope, "execution_scope": execution_scope, "target_repository": str(self.root),
-                    "work_type": work_type, "state": "TODO", "dependencies": dependencies_list,
-                    "criteria": criteria, "inputs": refs, "outputs": [], "blocked_reason": None,
-                    "max_attempts": max_attempts, "executions": [], "reviews": [], "handoffs": [],
-                    "design_status": {"specification": "NOT_STARTED", "mockup": "NOT_PRODUCED",
-                                      "visual_review": "NOT_RUN", "visual_evidence": None},
-                    "visual_required": visual_required}
-            state["tasks"][task_id] = task
-            self._event(state, "task_registered", task, observed={"state": "TODO", "inputs": refs},
-                        summary={"role": role, "title": title, "scope": scope})
-            return copy.deepcopy(task)
-        return self._mutate("register", operation, task_id)
+                 work_type="HARNESS_BUILD", visual_required=False, execution_scope=None, pipeline_stage=None):
+        return self._mutate("register", lambda state:self._register_state(state, feature_id, task_id, role, title, scope, criteria, inputs, dependencies, max_attempts, work_type, visual_required, execution_scope, pipeline_stage), task_id)
+
+    def _register_state(self, state, feature_id, task_id, role, title, scope, criteria, inputs, dependencies=None, max_attempts=1,
+                 work_type="HARNESS_BUILD", visual_required=False, execution_scope=None, pipeline_stage=None):
+        if task_id in state["tasks"] or role not in ROLES or max_attempts < 1 or work_type not in logging.KINDS:
+            raise ValueError("invalid or duplicate task")
+        if pipeline_stage is not None and pipeline_stage not in {'planning','design','development','verification','report'}:
+            raise ValueError('pipeline_stage must name a development pipeline stage, not work/review or a role')
+        if not criteria or len({x["id"] for x in criteria}) != len(criteria) or not any(x["required"] for x in criteria):
+            raise ValueError("unique criteria and at least one required criterion are needed")
+        dependencies_list = dependencies or []
+        if any(d not in state["tasks"] or state["tasks"][d]["feature_id"] != feature_id for d in dependencies_list):
+            raise ValueError("dependencies must exist within the feature")
+        from harness.development_tracking import SCOPES
+        if execution_scope is not None and execution_scope not in SCOPES:
+            raise ValueError("execution_scope must be code_implementation/documentation/input_interpretation_only")
+        refs = [self.artifact(p) for p in inputs]
+        task = {"feature_id": feature_id, "task_id": task_id, "role": role, "title": title,
+                "project_id": self.context["project_id"], "verification_scope": self.context["verification_scope"],
+                "scope": scope, "execution_scope": execution_scope, "target_repository": str(self.root),
+                "work_type": work_type, "state": "TODO", "dependencies": dependencies_list,
+                "criteria": criteria, "inputs": refs, "outputs": [], "blocked_reason": None,
+                "max_attempts": max_attempts, "executions": [], "reviews": [], "handoffs": [],
+                "design_status": {"specification": "NOT_STARTED", "mockup": "NOT_PRODUCED",
+                                  "visual_review": "NOT_RUN", "visual_evidence": None},
+                "visual_required": visual_required}
+        state["tasks"][task_id] = task
+        if pipeline_stage is not None:
+            task['pipeline_stage']=pipeline_stage
+        self._event(state, "task_registered", task, observed={"state": "TODO", "inputs": refs},
+                    summary={"role": role, "title": title, "scope": scope})
+        return copy.deepcopy(task)
+
+    def register_execution_plan(self, **configuration):
+        from harness.execution_plan import register
+        return register(self, **configuration)
+
+    def revise_execution_plan(self, **configuration):
+        from harness.execution_plan import revise
+        return revise(self, **configuration)
 
     def configure_stage(self, task_id, stage, settings):
         from harness.project_contract import STAGES, DOCUMENTS, validate
@@ -187,6 +217,11 @@ class Tasks:
     def ready(self, task_id):
         def operation(state):
             task = state["tasks"][task_id]
+            if task.get('applicability',{}).get('status')=='EXCLUDED':
+                raise ValueError('excluded Todo is not complete or executable; record an applicability decision first')
+            from harness.stage_readiness import gate as readiness_gate
+            reason=readiness_gate(self,state,task)
+            if reason:raise ValueError(reason)
             if task["state"] not in {"TODO", "BLOCKED"}:
                 raise ValueError("ready requires TODO or BLOCKED")
             if any(r["ended_at"] is None for r in task["executions"]):
@@ -210,9 +245,25 @@ class Tasks:
             self._event(state, "task_state_changed", task, observed={"from": previous, "to": "READY"})
         self._mutate("ready", operation, task_id)
 
-    def begin(self, task_id, role, review=False, execution_mode="current_agent"):
+    def configure_usage_context(self, task_id, **context):
+        """Explicit purpose/owner/repeat metadata; no task/QA status changes."""
+        from harness.usage_context import validate
+        def operation(state):
+            task = state['tasks'][task_id]
+            if any(not r.get('ended_at') for r in task['executions']):
+                raise ValueError('finish/checkpoint the old role segment before changing its context')
+            value = validate(context, task['role'])
+            task['usage_context_configuration'] = value
+            self._event(state, 'usage_context_configured', task, observed=value)
+            return copy.deepcopy(value)
+        return self._mutate('configure_usage_context', operation, task_id)
+
+    def begin(self, task_id, role, review=False, execution_mode="current_agent", usage_context=None):
         def operation(state):
             task = state["tasks"][task_id]
+            from harness.stage_readiness import gate as readiness_gate
+            reason=readiness_gate(self,state,task,[] if review else None)
+            if reason:raise ValueError(reason)
             expected = "IN_REVIEW" if review else "READY"
             if task["state"] != expected or role not in ROLES or (not review and role != task["role"]):
                 raise ValueError("state or role does not permit execution")
@@ -239,6 +290,8 @@ class Tasks:
                    "execution_scope": execution_scope(task),
                    "started_at": logging.now(), "ended_at": None, "inputs": copy.deepcopy(task["outputs"] if review else task["inputs"]),
                    "outputs": [], "usage_bindings": [], "model_usage": UNKNOWN, "cost": UNKNOWN}
+            if task.get('pipeline_stage'):
+                run['pipeline_stage']=task['pipeline_stage']
             if task.get("development_tracking"):
                 from harness.development_tracking import baseline, capture, check_peers
                 from harness.development_tracking import validate_baseline
@@ -248,6 +301,11 @@ class Tasks:
                 run["code_state_start"] = capture(self, task)
             from harness.sequential import begin
             begin(self, task, run)
+            for field in ('parent_task_id','development_area','coordination_plan_id'):
+                if field in task:run[field]=task[field]
+            from harness.usage_context import frozen
+            # Copy the context before emitting start; later task edits never relabel it.
+            run['usage_context'] = frozen(state, task, run, usage_context)
             task["executions"].append(run)
             if not review:
                 task["state"] = "IN_PROGRESS"
@@ -291,20 +349,27 @@ class Tasks:
                         observed={"decision": ref, "checkpoint": run["checkpoint"], "from": "BLOCKED", "to": "IN_PROGRESS"})
         return self._mutate("resume", operation, task_id)
 
-    def fail(self, task_id, agent_run_id, reason):
+    def fail(self, task_id, agent_run_id, reason, failure_category="UNKNOWN", failure_evidence=None, next_action=None, requires_human=None, decision_question=None):
+        if failure_category not in {"PRODUCT_DEFECT","HARNESS_DEFECT","ENVIRONMENT","UNKNOWN"} or (requires_human is not None and not isinstance(requires_human,bool)):
+            raise ValueError("invalid explicit failure classification")
+        if (failure_category!="UNKNOWN" or requires_human is True) and not failure_evidence:
+            raise ValueError("classified failure/human decision requires evidence")
+        if requires_human is True and not decision_question:
+            raise ValueError("human decision needs an explicit question")
+        context={"category":failure_category,"evidence":self.artifact(failure_evidence) if failure_evidence else None,"next_action":next_action,"requires_human":requires_human,"question":decision_question}
         def operation(state):
             task = state["tasks"][task_id]
             run = self._active(task, agent_run_id, "work")
             if task["state"] not in {"IN_PROGRESS", "BLOCKED"} or not reason:
                 raise ValueError("failure requires active work and cause")
             previous = task["state"]
-            run.update(ended_at=logging.now(), failure=reason)
+            run.update(ended_at=logging.now(), failure=reason, failure_context=context)
             from harness.sequential import finish, wait_end
             wait_end(self, state, task, run, "CANCELLED")
             finish(self, task, run)
             task.update(state="BLOCKED", blocked_reason=reason)
             self._event(state, "agent_run_failed", task, agent_run_id,
-                        observed={"reason": reason, "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
+                        observed={"reason": reason, "failure_context": context, "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
         return self._mutate("fail", operation, task_id)
 
     def _active(self, task, agent_run_id, kind):
@@ -321,7 +386,7 @@ class Tasks:
             run = self._active(task, agent_run_id, "work")
             from harness.development_tracking import ensure, document_outputs
             ensure(self, state, task, "submit", run)
-            document_outputs(task, outputs)
+            document_outputs(task, outputs, design_status)
             refs = [self.artifact(p) for p in outputs]
             if task.get("development_tracking"):
                 from harness.development_tracking import capture, baseline, check_peers
@@ -363,6 +428,10 @@ class Tasks:
     def review(self, task_id, agent_run_id, results, summary, design_checks=None):
         def operation(state):
             task = state["tasks"][task_id]
+            from harness.stage_readiness import STAGES
+            for result in results:
+                if 'return_stage' in result and (result['result']!='FAIL' or result['return_stage'] not in STAGES or task['feature_id'] not in state.get('stage_workflows',{}) or not result.get('reason')):
+                    raise ValueError('typed return requires FAIL, registered target stage, reason and evidence')
             if task["state"] != "IN_REVIEW":
                 raise ValueError("review requires IN_REVIEW")
             run = self._active(task, agent_run_id, "review")
@@ -416,6 +485,9 @@ class Tasks:
             passed = passed and (task["role"] != "design" or task["design_status"]["specification"] == "COMPLETE")
             from harness.project_contract import review_gate
             review_gate(self, task, checked)
+            from harness.stage_readiness import gate as readiness_gate,review_basis
+            reason=readiness_gate(self,state,task,checked)
+            if reason:raise ValueError(reason)
             from harness.findings import blocking
             passed = passed and not blocking(state, task)
             if task.get("role_contract", {}).get("scope") == "input_interpretation_only":
@@ -427,6 +499,11 @@ class Tasks:
                 passed = passed and all(task["design_status"].get("checks", {}).get(k, {}).get("result") == "PASS"
                                         for k in ("structure", "interaction", "visual"))
             record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"])}
+            basis=review_basis(self,state,task)
+            if basis is not None:
+                from harness.stage_readiness import contract_hash
+                config=next(c for c in state['stage_workflows'][task['feature_id']]['stages'].values() if c['task_id']==task_id)
+                record.update(stage_readiness_basis=basis,stage_readiness_contract_sha256=contract_hash(task,config))
             if task.get("development_tracking"):
                 from harness.development_tracking import capture, baseline, check_peers
                 from harness.development_tracking import validate_baseline
@@ -460,7 +537,29 @@ class Tasks:
             self._event(state, "agent_run_finished", task, agent_run_id, observed={"ended_at": run["ended_at"], "outputs": run["outputs"]})
             self._event(state, "task_state_changed", task, agent_run_id, observed={"from": "IN_REVIEW", "to": task["state"], "reason": task["blocked_reason"]})
             return task["state"]
-        return self._mutate("review", operation, task_id)
+        outcome=self._mutate("review", operation, task_id)
+        grouped={}
+        for result in results:
+            if result.get('return_stage'):grouped.setdefault(result['return_stage'],[]).append(result)
+        current=self.read()
+        flow=current.get('stage_workflows',{}).get(current['tasks'][task_id]['feature_id'],{})
+        own=next((n for n,c in flow.get('stages',{}).items() if c['task_id']==task_id),None)
+        if outcome=='BLOCKED' and own and not grouped:
+            required={c['id'] for c in current['tasks'][task_id]['criteria'] if c['required']}
+            rejected=[r for r in results if r['criterion_id'] in required and r['result']!='PASS']
+            if rejected:
+                grouped[own]=[{**r,'reason':'required criterion '+r['result']} for r in rejected]
+        for stage,items in grouped.items():
+            proof=items[0].get('evidence')
+            if not proof:
+                # Failure may legitimately lack evidence. Preserve the recorded review,
+                # never manufacture PASS evidence or lose the already committed return.
+                path=self.path.parent/'review-returns'/(agent_run_id+'.json');path.parent.mkdir(exist_ok=True)
+                path.write_text(json.dumps({'review_run_id':agent_run_id,'task_id':task_id,'result':'NOT_PASSED','return_stage':stage,'criteria':items},ensure_ascii=False,indent=2))
+                proof=str(path.relative_to(self.root))
+            self.return_to_stage(self.read()['tasks'][task_id]['feature_id'],stage,
+                '; '.join(r['criterion_id']+': '+r['reason'] for r in items),proof,task_id,agent_run_id)
+        return outcome
 
     def handoff(self, source_id, target_id):
         def operation(state):
@@ -527,6 +626,18 @@ class Tasks:
     def issue(self, **data):
         from harness.findings import record
         return record(self, **data)
+
+    def configure_stage_workflow(self,feature_id,stages):
+        from harness.stage_readiness import configure
+        return configure(self,feature_id,stages)
+
+    def bind_stage_inputs(self,task_id,inputs,reason):
+        from harness.stage_readiness import bind_inputs
+        return bind_inputs(self,task_id,inputs,reason)
+
+    def return_to_stage(self,feature_id,stage,reason,evidence,source_task_id=None,source_review_id=None):
+        from harness.stage_readiness import return_to_stage
+        return return_to_stage(self,feature_id,stage,reason,evidence,source_task_id,source_review_id)
 
     def route_issue(self, **data):
         from harness.findings import route
@@ -610,7 +721,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["register", "configure-development", "refresh-validation", "configure-stage", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["register", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)

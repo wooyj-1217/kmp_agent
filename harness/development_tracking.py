@@ -281,10 +281,15 @@ def execution_scope(task):
     return declared or ("code_implementation" if task["role"] == "development" else "documentation")
 
 
-def document_outputs(task, paths):
+def document_outputs(task, paths, design_status=None):
+    design_status = design_status or task.get("design_status", {})
     # Development documentation is an explicit exemption, not a route to submit source/configuration.
     if (task["role"] == "development" or task.get("execution_scope") in {"documentation", "input_interpretation_only"}) and execution_scope(task) != "code_implementation":
         allowed = {".md", ".txt", ".rst", ".adoc", ".pdf", ".docx"}
+        # An explicitly submitted mockup is a design artifact, not product implementation.
+        # The separate visual review remains NOT_RUN; this never grants quality PASS.
+        if task["role"] == "design" and (design_status or {}).get("mockup") == "COMPLETE" and (design_status or {}).get("visual_review") == "NOT_RUN":
+            allowed |= {".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp"}
         if any(Path(p).suffix.lower() not in allowed for p in paths):
             raise ValueError("non-code task cannot submit source/configuration; create a code_implementation task")
 

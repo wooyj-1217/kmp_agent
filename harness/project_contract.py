@@ -75,6 +75,8 @@ def gate(manager, task):
 
 def review_gate(manager, task, results):
     """Review JSON is an attestation linked to exact outputs, not automatic E2E execution."""
+    from harness.acceptance_contract import review_gate as acceptance_review
+    acceptance_review(manager, task, results)
     if task.get("stage_contract", {}).get("stage") != "integration_verification":
         return
     gate(manager, task)
