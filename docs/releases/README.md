@@ -6,7 +6,8 @@
 | --- | --- | --- |
 | 이전 배포 `v0.1.0` / VERSION `0.1.0` | [v0.1.0](v0.1.0.md) | 원격 태그가 가리키는 `b802d18b068d4a213946a0c7f3b5dee77b6c6621`의 실제 파일만 조사한 사후 기록 |
 | `v0.2.0` / VERSION `0.2.0` | [0.2.0 지원 범위](v0.2.0.md) · [준비서](candidate-preparation.md) · [본문 원본](v0.2.0-notes.md) | 태그에 고정한 지원 계약. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.2.0) 확인 |
-| 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 현재 후보는 위 0.2.0 행 참조 |
+| `v0.3.0` / VERSION `0.3.0` | [0.3.0 지원 범위](v0.3.0.md) · [본문 원본](v0.3.0-notes.md) | 개발 위임·독립 QA·요구사항 추적·대시보드 확장. 최종 SHA·원격 검증은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.3.0) 확인 |
+| 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 현재 배포는 위 0.3.0 행 참조 |
 
 ## 범위와 판정
 
