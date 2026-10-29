@@ -180,7 +180,7 @@ def append_batch(logger, candidates, stats, trace=None):
     raise RuntimeError('event log changed repeatedly; retry collection')
 
 
-def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, force=False):
+def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, force=False, turn_ids=None):
     started = time.monotonic()
     stats = dict(mode=mode, status='RUNNING')
     module = logger_module()
@@ -193,6 +193,14 @@ def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, forc
     directory = logger.directory / 'cursors'
     directory.mkdir(mode=0o700, exist_ok=True)
     stem = hashlib.sha256(session.encode()).hexdigest()
+    scope_turns = sorted(set(turn_ids)) if turn_ids is not None else None
+    if scope_turns is not None:
+        if not scope_turns or any(not isinstance(t, str) or t in ('', module.UNKNOWN) for t in scope_turns):
+            raise ValueError('explicit native turn scope required')
+        # Scope-specific cursor: adding a turn safely replays/deduplicates exact
+        # source identities, and never advances another consumer's cursor.
+        stem += '-' + hashlib.sha256(json.dumps(scope_turns).encode()).hexdigest()
+        stats['scope_turn_ids'] = scope_turns
     cursor_path = directory / (stem+'.json')
     try:
         with lock(directory/(stem+'.lock'), stats, 'session', trace=trace):
@@ -252,6 +260,12 @@ def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, forc
             content = b''.join((json.dumps(r)+'\n').encode() for r in synthetic)+complete
             collector = Collector(logger, cursor.get('lines',0), len(synthetic))
             module.Logger.sync(collector, source, content=content)
+            if scope_turns is not None:
+                candidates = collector.events
+                collector.events = [e for e in candidates if
+                    (e[2].get('turn_id') if e[2].get('turn_id') not in (None, '', module.UNKNOWN)
+                     else e[2].get('session_turn_id')) in scope_turns]
+                stats['outside_registered_turn_scope'] = len(candidates) - len(collector.events)
             turn = cursor.get('turn_id',module.UNKNOWN); model = cursor.get('model',module.UNKNOWN)
             latest_user = cursor.get('latest_user_id'); user_count = cursor.get('user_count',0)
             for line in complete.splitlines():

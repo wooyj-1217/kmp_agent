@@ -33,6 +33,24 @@ class IncrementalTests(unittest.TestCase):
     def rows(self,n,start=1):
         return [dict(ordinal=i,type='response_item',payload=dict(type='message',role='user',id='m'+str(i),content=[{'text':'synthetic '*500}])) for i in range(start,start+n)]
 
+    def test_registered_turn_scope_excludes_history_and_replay_preserves_source(self):
+        def usage(turn, response):
+            return dict(type='token_usage_record', payload=dict(turn_id=turn, response_id=response,
+                        thread_id='synthetic-session', usage={'input_tokens':10,'output_tokens':2}))
+        self.write([self.meta, dict(type='event_msg',payload={'type':'task_started','turn_id':'old'}),
+                    usage('old','old-response'), dict(type='event_msg',payload={'type':'task_started','turn_id':'now'}),
+                    usage('now','new-response'), usage('old','late-old-response')])
+        original=self.source.read_bytes()
+        self.collect(turn_ids=['now'])
+        self.assertEqual([e['observed']['response_id'] for e in self.log.read() if e['event_type']=='model_usage'], ['new-response'])
+        self.assertGreater(self.log.last_collection['outside_registered_turn_scope'],0)
+        self.assertEqual(self.collect(turn_ids=['now']),0)
+        self.collect(turn_ids=['old','now'])
+        values=[e['observed']['response_id'] for e in self.log.read() if e['event_type']=='model_usage']
+        self.assertEqual(set(values),{'old-response','new-response','late-old-response'})
+        self.assertEqual(len(values),3)
+        self.assertEqual(self.source.read_bytes(),original)
+
     def write(self,rows):self.source.write_bytes(b''.join((json.dumps(r)+'\n').encode() for r in rows))
     def collect(self,**kwargs):
         n=inc.collect(self.log,self.source,**kwargs)
