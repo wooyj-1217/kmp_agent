@@ -12,13 +12,13 @@ import bootstrap
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", type=Path, required=True)
-    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "planning", "design", "development", "verification", "qa", "task", "command", "collection-report", "start", "finish"])
+    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "planning", "design", "development", "verification", "qa", "task", "usage-register", "usage-poll", "command", "collection-report", "start", "finish"])
     parser.add_argument("--source")
     parser.add_argument("--ref")
     parser.add_argument("--task-id")
     parser.add_argument("--run-id", default="UNKNOWN")
     parser.add_argument("--tracking-settings", type=Path, help="One-time project modules/commands JSON, reused after init")
-    parser.add_argument("--operation", choices=["register", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
+    parser.add_argument("--operation", choices=["register", "configure-completion", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     parser.add_argument("--agent-run-id", default="UNKNOWN")
     parser.add_argument("--attempt-id", default="UNKNOWN")
@@ -68,7 +68,7 @@ def main():
                 result = bootstrap.configure(target, code, manifest, context.prepare(target))
                 if tracking is not None:
                     result["collection_settings"] = collection.save_settings(target, tracking)
-        elif args.action in {"task", "command", "collection-report", "start", "finish"}:
+        elif args.action in {"task", "usage-register", "usage-poll", "command", "collection-report", "start", "finish"}:
             manifest = bootstrap.read(target / bootstrap.MANIFEST)
             if not manifest or bootstrap.reference(target, manifest) != ROOT:
                 raise ValueError("Use the project's explicitly selected .kmp-agent/agent.py")
@@ -85,6 +85,24 @@ def main():
                     raise ValueError("task requires --operation and --data JSON (except show)")
                 tasks = Tasks(target, args.run_id)
                 result = tasks.report() if args.operation == "show" else getattr(tasks, args.operation.replace("-", "_"))(**json.loads(args.data.read_text()))
+            elif args.action in {"usage-register", "usage-poll"}:
+                from harness.usage_collection import register, poll
+                tasks = Tasks(target, args.run_id)
+                if args.action == "usage-register":
+                    if not args.task_id or args.agent_run_id == "UNKNOWN" or not args.data:
+                        raise ValueError("usage-register requires --task-id, --agent-run-id and --data exact native context JSON")
+                    context = json.loads(args.data.read_text())
+                    allowed = {'session_id', 'path', 'turn_id', 'response_ids', 'independent', 'call_id', 'import_scope'}
+                    if not isinstance(context, dict) or not context.get('session_id') or set(context) - allowed:
+                        raise ValueError("usage-register data must contain only explicit native context fields")
+                    if context.get('path') is not None and not isinstance(context['path'], str):
+                        raise ValueError("usage-register source path must be a string")
+                    if not context.get('independent') and context.get('turn_id'):
+                        context.setdefault('import_scope', 'registered_turns')
+                    registered = register(tasks, args.task_id, args.agent_run_id, **context)
+                    result = {"registration": registered, "collection": poll(tasks, session_ids={registered['session_id']})}
+                else:
+                    result = poll(tasks)
             elif args.action == "collection-report":
                 from harness.sequential import report
                 result = report(target)

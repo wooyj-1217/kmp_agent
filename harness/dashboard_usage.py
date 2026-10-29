@@ -7,6 +7,20 @@ from functools import lru_cache
 LABELS = {'기획':'기획', '디자인':'디자인', '구현':'개발', '검증':'검증', '수정':'수정·재작업', '보고서':'리포트', '공통':'공통'}
 
 
+def native_identity_conflict(event):
+    """Quarantine a proven thread mismatch, never infer missing historical IDs.
+
+    Older child imports could stamp the parent's session ID on the event.
+    Both native IDs must be present before rejecting that recorded identity;
+    missing metadata continues through the existing UNKNOWN policy.
+    """
+    session = (event.get('source') or {}).get('session_id')
+    thread = (event.get('observed') or {}).get('thread_id')
+    def known(value):
+        return isinstance(value, str) and bool(value.strip()) and value != 'UNKNOWN'
+    return known(session) and known(thread) and session != thread
+
+
 def token_parts(u, semantics='per_response_increment'):
     if semantics != 'per_response_increment' or not isinstance(u, dict):
         return None
@@ -91,6 +105,8 @@ def enrich_usage(root, usage, scope):
     usage['scope_info'].update(responses=len(rows),period=[dates[0],dates[-1]] if dates else [],
                                attribution='원장에 기록된 응답–작업 연결 · 단계는 별도 사후 분류')
     usage['totals']={k:sum(r[k] for r in rows) for k in ('tokens','normal_input','cached_input','output')}
+    if not rows and usage.get('identity_conflicts'):
+        usage['totals']={k:None for k in ('tokens','normal_input','cached_input','output')}
     usage['totals']['cost_unknown_responses']=sum(r['cost'] is None for r in rows)
     # Price reference is a dated comparison scenario, NOT an observed actual billing route.
     pricing=(usage.get('comparison') or {}).get('pricing_reference')

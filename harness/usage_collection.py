@@ -56,7 +56,17 @@ def register(manager, task_id, execution_id, session_id, *, path=None, turn_id=N
     return value
 
 
-def poll(manager):
+def poll_registered(root, session_id, *, source_path=None):
+    """No inference: an absent registration never creates ownership."""
+    entries = [r for r in registrations(root) if r["session_id"] == session_id]
+    if not entries:
+        return {"new_bindings": 0, "sessions": []}
+    from harness.tasks import Tasks
+    return poll(Tasks(root, entries[0]["run_id"]), session_ids={session_id},
+                source_overrides={session_id: str(Path(source_path).resolve())} if source_path else None)
+
+
+def poll(manager, *, session_ids=None, source_overrides=None):
     root = manager.root; directory = root / '.harness/usage'; directory.mkdir(parents=True, exist_ok=True)
     from harness.incremental_sync import collect, atomic_json
     status = []; count = 0
@@ -65,12 +75,16 @@ def poll(manager):
         previous_path = directory / 'collection-state.json'
         previous = json.loads(previous_path.read_text()) if previous_path.exists() else {}
         incremental_seen = {(r['session_id'], r['execution_id']) for r in previous.get('sessions', []) if r.get('had_incremental_usage')}
-        registered = registrations(root)
+        if session_ids is not None:
+            status.extend(r for r in previous.get('sessions', []) if r['session_id'] not in session_ids)
+        registered = [r for r in registrations(root) if session_ids is None or r["session_id"] in session_ids]
         sessions = sorted({r['session_id'] for r in registered})
         home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
         for session in sessions:
             entries = [r for r in registered if r['session_id'] == session]
             paths = {r['source_path'] for r in entries if r.get('source_path')}
+            if source_overrides and source_overrides.get(session):
+                paths.add(source_overrides[session])
             if not paths:
                 paths = {str(p) for p in (home / 'sessions').rglob('*' + session + '.jsonl')}
             observed = {'session_id': session, 'mode': 'incremental', 'status': 'source_pending'}
@@ -81,7 +95,7 @@ def poll(manager):
                 try:
                     with source.open() as f:
                         meta = json.loads(f.readline())
-                    if meta.get('type') != 'session_meta' or meta.get('payload', {}).get('session_id', meta.get('payload', {}).get('id')) != session:
+                    if meta.get('type') != 'session_meta' or logging.native_session_id(meta.get('payload', {})) != session:
                         raise ValueError('native session identity mismatch')
                     # A shared main session can contain unrelated past requests.
                     # Independent workers own the whole freshly-created session;
@@ -100,6 +114,7 @@ def poll(manager):
                     bound = {(run['agent_run_id'], b.get('session_id'), b.get('response_id'))
                              for task in current['tasks'].values() for run in task.get('executions', [])
                              for b in run.get('usage_bindings', [])}
+                    pending_by_owner = {}
                     for event in source_events:
                         obs = event['observed']; response = obs.get('response_id')
                         if not response or response == 'UNKNOWN':
@@ -111,23 +126,32 @@ def poll(manager):
                             entry = matched[0]
                             if (entry['execution_id'], session, response) in bound:
                                 continue
-                            try:
-                                from harness.tasks import Tasks
-                                owner = manager if manager.run_id == entry['run_id'] else Tasks(root, entry['run_id'])
-                                count += bool(owner.bind_usage(entry['task_id'], entry['execution_id'], session, response, entry['basis'] + '; incremental native collection'))
-                            except ValueError:
-                                append_unique(directory / 'attribution-limits.jsonl', {'session_id': session, 'response_id': response,
-                                              'reason': 'existing_binding_conflict', 'executions': sorted(aids)})
+                            key = (entry['task_id'], entry['execution_id'], entry['run_id'])
+                            group = pending_by_owner.setdefault(key, {'entry':entry, 'bindings':{}})
+                            group['bindings'][(session,response)] = {'session_id':session, 'response_id':response}
                         elif len(aids) > 1:
                             append_unique(directory / 'attribution-limits.jsonl', {'session_id': session, 'response_id': response,
                                           'reason': 'multiple_explicit_contexts_for_one_response', 'executions': sorted(aids)})
+                    for (task_id, execution_id, run_id), group in pending_by_owner.items():
+                        entry = group['entry']
+                        try:
+                            from harness.tasks import Tasks
+                            owner = manager if manager.run_id == run_id else Tasks(root, run_id)
+                            count += owner.bind_usage_batch(task_id, execution_id, list(group['bindings'].values()),
+                                                           entry['basis'] + '; incremental native collection')
+                        except ValueError:
+                            for binding in group['bindings'].values():
+                                append_unique(directory / 'attribution-limits.jsonl', {**binding,
+                                              'reason':'existing_binding_conflict', 'executions':[execution_id]})
                     observed.update(status='observing', usage_responses=len(source_events))
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     observed.update(status='collection_error', error=type(error).__name__ + ': ' + str(error))
+            final_state = manager.read()
+            final_events = manager.logger.read() if observed['status'] == 'observing' else []
             for entry in entries:
                 record = {**observed, 'execution_id': entry['execution_id'], 'task_id': entry['task_id']}
                 if observed['status'] == 'observing':
-                    all_events = manager.logger.read()
+                    all_events = final_events
                     finished = any(e.get('agent_run_id') == entry['execution_id'] and e.get('event_type') == 'role_process' and
                                    e.get('observed', {}).get('process_state') == 'role_process_finished' for e in all_events)
                     turn_complete = not entry['independent'] and entry.get('turn_id') and any(
@@ -135,7 +159,7 @@ def poll(manager):
                         e.get('observed', {}).get('turn_id') == entry['turn_id'] for e in all_events)
                     if finished or turn_complete:
                         record.update(mode='after_finish', status='completed')
-                run = next(r for r in manager.read()['tasks'][entry['task_id']]['executions'] if r['agent_run_id'] == entry['execution_id'])
+                run = next(r for r in final_state['tasks'][entry['task_id']]['executions'] if r['agent_run_id'] == entry['execution_id'])
                 has_bound_usage = any(b.get('session_id') == session for b in run.get('usage_bindings', []))
                 record['had_incremental_usage'] = (session, entry['execution_id']) in incremental_seen or bool(
                     record['status'] == 'observing' and has_bound_usage)

@@ -298,13 +298,14 @@ def task_view(root, task, scope, tasks):
 
 
 def usage_view(events, scope, taskviews, pricing, source_tasks=None):
+    from harness.dashboard_usage import native_identity_conflict
     allowed = set(scope.get('agent_run_ids', []))
     bindings = {}
     for tid, task in (source_tasks or {}).items():
         for run in task.get('executions', []):
             for b in run.get('usage_bindings', []):
                 bindings.setdefault((b.get('session_id'), b.get('response_id')), set()).add((tid, run.get('agent_run_id')))
-    selected = []; conflicts = set()
+    selected = []; conflicts = set(); identity_conflicts = set()
     for event in events:
         if event.get('event_type') != 'model_usage':
             continue
@@ -316,6 +317,10 @@ def usage_view(events, scope, taskviews, pricing, source_tasks=None):
                 conflicts.add(key)
             event = {**event, 'task_id': within[0][0], 'agent_run_id': within[0][1]}
         if event.get('agent_run_id') in allowed:
+            if native_identity_conflict(event):
+                conflicts.add(key)
+                identity_conflicts.add(key)
+                continue
             canonical=[tid for tid,task in (source_tasks or {}).items() if any(r.get('agent_run_id')==event.get('agent_run_id') for r in task.get('executions',[]))]
             if len(canonical)==1:
                 if event.get('task_id') not in (None,'',UNKNOWN,canonical[0]):conflicts.add(key)
@@ -348,7 +353,9 @@ def usage_view(events, scope, taskviews, pricing, source_tasks=None):
         cost = sum(a*b for a, b in zip(tokens, rates))/1e6 if len(rates) == 3 and all(type(x) in (int, float) and x >= 0 for x in rates) and rate.get('as_of') and rate.get('source') else None
         t = next((t for t in taskviews if t['id'] == tid and any(r['id'] == aid for r in t['runs'])), None)
         rows.append({'project_id': (source_tasks or {}).get(tid,{}).get('project_id'), 'task': t['title'] if t else '귀속 불명', 'stage': LABELS.get(t['stage'], '귀속 불명') if t else '귀속 불명', 'hour': str(e.get('timestamp') or '시각 미확인')[:13], 'occurred_at':e.get('timestamp'), 'session_id':key[0], 'response_id':key[1], 'agent_run_id':aid, 'task_id':tid, 'attribution':'원장 명시 연결' if key in bindings else '이벤트 직접 연결', 'semantics':e.get('observed',{}).get('usage_semantics') or '기록에 의미 구분 없음', 'tokens': sum(tokens), 'normal_input': tokens[0], 'cached_input': tokens[1], 'output': tokens[2], 'cost': cost, 'model': model})
-    return {'rows': rows, 'excluded': excluded, 'conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'응답 값 또는 명시 귀속 충돌 · 합산 제외'} for k in sorted(conflicts,key=str)], 'pricing': pricing, 'coverage': '연결된 응답만 집계합니다. 실행 전체 수집 완전성은 미확인입니다.'}
+    return {'rows': rows, 'excluded': excluded,
+            'identity_conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'native_identity_conflict','tokens':None} for k in sorted(identity_conflicts,key=str)],
+            'conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'원본 세션/스레드 ID 불일치 · 합산 제외' if k in identity_conflicts else '응답 값 또는 명시 귀속 충돌 · 합산 제외'} for k in sorted(conflicts,key=str)], 'pricing': pricing, 'coverage': '연결된 응답만 집계합니다. 실행 전체 수집 완전성은 미확인입니다.'}
 
 
 def snapshot(root, scope_id=None, start=None, end=None):

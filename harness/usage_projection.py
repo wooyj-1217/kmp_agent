@@ -6,7 +6,7 @@ Ambiguous token values are quarantined, not replaced by zero or guessed.
 import json
 from collections import defaultdict
 from pathlib import Path
-from harness.dashboard_usage import token_parts
+from harness.dashboard_usage import token_parts, native_identity_conflict
 from harness.dashboard_live import ROLES
 from harness.usage_context import (UNKNOWN, NA, PURPOSES, REPETITIONS, ACTORS,
                                    development_owners, resolve, read_events, read_registrations)
@@ -56,6 +56,13 @@ def project(root, task_id=None, execution_id=None, mode='tasks', include_childre
     contexts = {aid: resolve(root, state, task, run, events) for aid, (task, run) in runs.items()}
     rows = []; quarantine = []
     for key, source_events in facts.items():
+        invalid_identity = [e for e in source_events if native_identity_conflict(e)]
+        if invalid_identity:
+            quarantine.append({'session_id':key[0], 'response_id':key[1], 'reason':'native_identity_conflict',
+                               'event_ids':[e.get('event_id') for e in invalid_identity], 'tokens':None})
+            source_events = [e for e in source_events if not native_identity_conflict(e)]
+            if not source_events:
+                continue
         candidates = {(json.dumps(e['observed'].get('usage'), sort_keys=True),
                        e['observed'].get('usage_semantics'), e['observed'].get('model')) for e in source_events}
         missing_identity = any(v in (None, '', 'UNKNOWN') for v in key)
