@@ -7,6 +7,7 @@ import json
 import uuid
 from pathlib import Path
 from harness import logging as log
+from harness.findings import is_blocking
 
 STAGES=('planning','design','development_plan')
 ROLES={'planning':'planning','design':'design','development_plan':'development'}
@@ -57,7 +58,7 @@ def assess(root,state,feature_id):
         result={r['criterion_id']:r for r in review.get('results',[])}
         required={r['id'] for r in t['criteria'] if r.get('required')}
         missing=sorted(k for k in required if result.get(k,{}).get('result')!='PASS')
-        open_issues=[i for i in state.get('issues',[]) if i.get('status')!='RESOLVED' and i.get('assigned_task_id',i.get('task_id')) in c['task_history']]
+        open_issues=[i for i in state.get('issues',[]) if i.get('feature_id')==feature_id and is_blocking(i) and i.get('assigned_task_id',i.get('task_id')) in c['task_history']]
         attempts=sum(sum(r.get('kind')=='work' for r in state['tasks'][tid].get('executions',[])) for tid in c['task_history'])
         limit=state['tasks'][c['task_history'][0]]['max_attempts']
         reasons=[];status='PASS'

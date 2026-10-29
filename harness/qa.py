@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import time
+import uuid
 
 from harness.tasks import Tasks
 
@@ -48,14 +49,14 @@ def validate_result(value):
     return value
 
 
-def manifest(root):
+def manifest(root,generated_paths=()):
     """Content manifest, excluding private harness state/Git and QA-only scratch."""
     root=Path(root);out={}
     for p in root.rglob('*'):
         rel=p.relative_to(root)
         if set(rel.parts)&{'.git','.harness','.kmp-agent','.codex','.agents','.worker-cache','__pycache__','qa-tools'}:continue
         if p.is_symlink():out[str(rel)]='SYMLINK:'+os.readlink(p)
-        elif p.is_file():out[str(rel)]=hashlib.sha256(p.read_bytes()).hexdigest()
+        elif p.is_file() and not any(rel.as_posix()==base or rel.as_posix().startswith(base+'/') for base in generated_paths):out[str(rel)]=hashlib.sha256(p.read_bytes()).hexdigest()
     return out
 
 
@@ -86,8 +87,8 @@ def target_scope(target,original_requests):
     return {'mode':'target_paths','paths':clean,'basis':'declared code_paths, target inputs/outputs, baseline refs and original requests'}
 
 
-def scoped_manifest(root,scope):
-    content=manifest(root)
+def scoped_manifest(root,scope,generated_paths=()):
+    content=manifest(root,generated_paths)
     if scope.get('mode')!='target_paths':return content
     paths=scope['paths']
     return {p:sha for p,sha in content.items() if any(p==base or p.startswith(base+'/') for base in paths)}
@@ -107,7 +108,7 @@ class QA:
     def __init__(self,root,run_id):
         self.root=Path(root).resolve();self.tasks=Tasks(self.root,run_id)
 
-    def configure(self,task_id,stage,target_task_id,original_requests,criteria,commands=None,max_attempts=2,repair_task_id=None,executable='codex',timeout=600,images=None,context_files=None):
+    def configure(self,task_id,stage,target_task_id,original_requests,criteria,commands=None,max_attempts=2,repair_task_id=None,executable='codex',timeout=600,images=None,context_files=None,generated_paths=None,repair_criteria=None):
         if stage not in STAGES or not original_requests or max_attempts<1:raise ValueError('QA requires stage, original requests and positive retry limit')
         state=self.tasks.read();target=state['tasks'][target_task_id]
         lineage_path=self.root/'requirement-lineage.json'
@@ -125,17 +126,29 @@ class QA:
         if not criteria or any(not c.get('id') or not c.get('description') or type(c.get('required')) is not bool for c in criteria):raise ValueError('explicit QA criteria required')
         commands=commands or []
         if any(not isinstance(c,list) or not c or not all(isinstance(x,str) for x in c) for c in commands):raise ValueError('commands must be argv lists')
+        from harness.qa_policy import generated_paths as check_generated,repair_criteria as check_links
+        protected=[r['path'] for r in refs+target['inputs']+target['outputs']+image_refs+context_refs]
+        protected+=target.get('development_tracking',{}).get('code_paths',[])
+        generated=check_generated(self.root,[] if generated_paths is None else generated_paths,protected)
+        links=check_links({} if repair_criteria is None else repair_criteria,state['tasks'].get(repair_task_id),criteria)
         self.tasks.register(target['feature_id'],task_id,'verification','QA '+stage+': '+target['title'],'Independent QA; product files read-only',criteria,inputs,max_attempts=max_attempts,work_type=target['work_type'],execution_scope='documentation',pipeline_stage='verification')
         scope=target_scope(target,refs+image_refs+context_refs)
         if stage=='requirements':
             if not lineage_path.exists():raise ValueError('requirements QA requires typed lineage')
             scope={'mode':'target_paths','paths':list(dict.fromkeys(['requirement-lineage.json']+[s['path'] for s in lineage['sources']])),'basis':'source and derivation scope; implementation changes do not invalidate source alignment'}
-        config={'context_artifacts':context_refs,'images':image_refs,'manifest_scope':scope,'stage':stage,'executable':executable,'timeout':timeout,'target_task_id':target_task_id,'original_requests':refs,'commands':commands,'repair_task_id':repair_task_id,'target_manifest':scoped_manifest(self.root,scope),'target_baseline':copy.deepcopy(target.get('development_tracking',{}).get('baselines',target.get('inputs',[]))),'attempts':[]}
+        config={'generated_paths':generated,'repair_criteria':copy.deepcopy(links),'repair_criteria_definitions':{c['id']:copy.deepcopy(c) for c in state['tasks'].get(repair_task_id,{}).get('criteria',[]) if c['id'] in links},'context_artifacts':context_refs,'images':image_refs,'manifest_scope':scope,'stage':stage,'executable':executable,'timeout':timeout,'target_task_id':target_task_id,'original_requests':refs,'commands':commands,'repair_task_id':repair_task_id,'target_manifest':scoped_manifest(self.root,scope,generated),'target_baseline':copy.deepcopy(target.get('development_tracking',{}).get('baselines',target.get('inputs',[]))),'attempts':[]}
         def op(s):
             t=s['tasks'][task_id];t['qa_config']=config
             self.tasks._event(s,'qa_configured',t,observed={'stage':stage,'target_task_id':target_task_id,'original_requests':refs})
         self.tasks._mutate('configure_qa',op,task_id)
         return config
+
+    def _generated(self,config,task):
+        from harness.qa_policy import generated_paths as check_generated
+        target=self.tasks.read()['tasks'][config['target_task_id']]
+        protected=[r['path'] for r in config['original_requests']+task['inputs']+target['inputs']+target['outputs']]
+        protected+=target.get('development_tracking',{}).get('code_paths',[])
+        return check_generated(self.root,config.get('generated_paths',[]),protected)
 
     def _save(self,task_id,attempt):
         def op(s):
@@ -148,7 +161,7 @@ class QA:
         def op(s):
             qa=s['tasks'][qa_task_id]
             review=next((r for r in qa['reviews'] if r['agent_run_id']==review_run_id),None)
-            if qa['state']!='DONE' or not review or not all(r['result']=='PASS' for r in review['results'] if r['criterion_id'] in {c['id'] for c in qa['criteria'] if c['required']}) or scoped_manifest(self.root,qa['qa_config'].get('manifest_scope',{'mode':'UNKNOWN'}))!=code_manifest:raise ValueError('issue closure requires current actual QA PASS')
+            if qa['state']!='DONE' or not review or not all(r['result']=='PASS' for r in review['results'] if r['criterion_id'] in {c['id'] for c in qa['criteria'] if c['required']}) or scoped_manifest(self.root,qa['qa_config'].get('manifest_scope',{'mode':'UNKNOWN'}),qa['qa_config'].get('generated_paths',[]))!=code_manifest:raise ValueError('issue closure requires current actual QA PASS')
             if any(f['blocking'] and f['kind']!='improvement' for f in result['findings']):raise ValueError('blocking findings cannot close issues')
             closed=[]
             for issue_id in dict.fromkeys(result['reviewed_issue_ids']):
@@ -163,19 +176,38 @@ class QA:
         return self.tasks._mutate('qa_verified_issue_resolution',op,qa_task_id)
 
     def execute(self,task_id,worker=None,repair=None,executable=None,timeout=None):
+        context={'phase':'preflight','owned_runs':[]}
+        try:
+            return self._execute(task_id,worker,repair,executable,timeout,context)
+        except BaseException as error:
+            from harness.qa_failure import record_failure
+            try:failure=record_failure(self.tasks,task_id,context,error)
+            except Exception as cleanup_error:
+                if callable(getattr(error,'add_note',None)):
+                    error.add_note('QA cleanup could not be persisted: '+type(cleanup_error).__name__+': '+str(cleanup_error))
+                raise error from cleanup_error
+            if not context['owned_runs'] or not isinstance(error,Exception):raise
+            return failure
+
+    def _execute(self,task_id,worker,repair,executable,timeout,context):
         task=self.tasks.read()['tasks'][task_id];config=task.get('qa_config')
         executable=executable or (config or {}).get('executable','codex');timeout=timeout or (config or {}).get('timeout',600)
         if task['role']!='verification' or not config:raise ValueError('QA must be configured on verification task')
         if any(r.get('ended_at') is None for r in task['executions']):raise ValueError('QA already has an active execution')
         if any(str(v).startswith('SYMLINK:') for v in manifest(self.root).values()):raise ValueError('QA isolation refuses product symlinks')
         if task['state']=='DONE':raise ValueError('QA already completed; configure a new retest task')
-        if scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}))!=config['target_manifest']:raise ValueError('target changed since QA configuration; configure a new retest task')
+        if scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))!=config['target_manifest']:raise ValueError('target changed since QA configuration; configure a new retest task')
+        generated=self._generated(config,task)
+        from harness.delegation_runtime import validate_images
+        validate_images(self.root,[r['path'] for r in config.get('images',[])])
         for ref in config['original_requests']+task['inputs']:
-            if not (self.root/ref['snapshot']).is_file():raise ValueError('missing frozen QA input')
+            if not self.tasks._valid_artifact(ref):raise ValueError('missing or changed frozen QA input')
         if worker is None:
             from harness.execution_plan import require
             try:require(self.tasks,task_id)
-            except ValueError as error:return {'outcome':'BLOCKED','reason':str(error),'agent_run_id':None,'model_executed':False}
+            except ValueError as error:
+                from harness.qa_failure import record_failure
+                return record_failure(self.tasks,task_id,context,error)
         lineage_comparison=None
         if (self.root/'requirement-lineage.json').exists():
             from harness.requirement_lineage import compare, require_review
@@ -187,15 +219,20 @@ class QA:
         last=None
         for _ in range(remaining):
             task=self.tasks.read()['tasks'][task_id]
+            context['phase']='preflight'
+            generated=self._generated(config,task)
+            context['phase']='begin';context['owned_runs']=[];context.pop('agent_run_id',None)
             if task['state']!='READY':self.tasks.ready(task_id)
-            run=self.tasks.begin(task_id,'verification',execution_mode='independent_process' if worker is None else 'local_check')
-            aid=run['agent_run_id'];base=self.root/'.harness'/'qa'/task_id/aid;workspace=base/'workspace';base.mkdir(parents=True)
-            source_before=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}))
+            reserved_id=str(uuid.uuid4());context.update(agent_run_id=reserved_id,owned_runs=[reserved_id])
+            run=self.tasks.begin(task_id,'verification',agent_run_id=reserved_id,execution_mode='independent_process' if worker is None else 'local_check')
+            aid=run['agent_run_id'];context.update(agent_run_id=aid,owned_runs=[aid],phase='prepare_workspace');base=self.root/'.harness'/'qa'/task_id/aid;workspace=base/'workspace';base.mkdir(parents=True)
+            source_before=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))
             shutil.copytree(self.root,workspace,ignore=shutil.ignore_patterns('.git','.harness','.kmp-agent','.codex','.agents','__pycache__','.worker-cache'))
-            before=manifest(workspace)
+            before=manifest(workspace,generated)
+            before_all=manifest(workspace) if generated else before
             current_state=self.tasks.read();current_target=current_state['tasks'][config['target_task_id']]
             previous_issues=[copy.deepcopy(i) for i in current_state.get('issues',[]) if i.get('task_id')==config['target_task_id']]
-            packet={'previous_findings':previous_issues,'previous_qa_attempts':copy.deepcopy(config.get('attempts',[])),'current_target':{'task_id':current_target['task_id'],'inputs':current_target['inputs'],'outputs':current_target['outputs'],'state':current_target['state'],'development_tracking':current_target.get('development_tracking',{})},'qa_stage':config['stage'],'qa_task_id':task_id,'target_task_id':config['target_task_id'],'criteria':task['criteria'],'original_requests':config['original_requests'],'inputs':task['inputs'],'baseline':config['target_baseline'],'code_manifest':before,'source_manifest_scope':config.get('manifest_scope',{'mode':'UNKNOWN'}),'source_target_manifest':source_before,'commands':config['commands'],'instructions':'Inspect original requests and frozen inputs. Do not modify product files. Write evidence only under qa-tools/. Findings must distinguish baseline errors, implementation violations, usability, suggestions. No approval from self-report alone. Return the exact supplied QA result schema.','result_schema':RESULT_SCHEMA}
+            packet={'previous_findings':previous_issues,'previous_qa_attempts':copy.deepcopy(config.get('attempts',[])),'current_target':{'task_id':current_target['task_id'],'inputs':current_target['inputs'],'outputs':current_target['outputs'],'state':current_target['state'],'development_tracking':current_target.get('development_tracking',{})},'qa_stage':config['stage'],'qa_task_id':task_id,'target_task_id':config['target_task_id'],'criteria':task['criteria'],'original_requests':config['original_requests'],'inputs':task['inputs'],'baseline':config['target_baseline'],'code_manifest':before,'source_manifest_scope':config.get('manifest_scope',{'mode':'UNKNOWN'}),'source_target_manifest':source_before,'authorized_generated_paths':generated,'commands':config['commands'],'instructions':'Inspect original requests and frozen inputs. Do not modify product files. Write evidence only under qa-tools/. Findings must distinguish baseline errors, implementation violations, usability, suggestions. No approval from self-report alone. Return the exact supplied QA result schema.','result_schema':RESULT_SCHEMA}
             from harness.human_progress import for_task, message
             progress=for_task(self.root,task_id,self.tasks.run_id)
             packet['human_progress']=progress
@@ -204,13 +241,15 @@ class QA:
             packet['requirement_lineage']=lineage_comparison or {'semantic_review':'NOT_ESTABLISHED','legacy_inputs':'authority not certified'}
             if lineage_comparison:
                 packet['instructions']+=' Independently read the literal user source and approved requirements, not just the derived inventory. Detect missing original items, changed values/behavior and exclusions. Agent-authored documents are never user authority. Verify exact approval evidence. Return baseline_gap/baseline_contradiction to planning; do not invent policy. A HARNESS_TRIAL PASS is execution-path evidence only, never product compliance.'
+            context['phase']='materialize_inputs'
             bundle=workspace/'qa-tools'/'frozen-inputs';bundle.mkdir(parents=True,exist_ok=True)
             packet['frozen_input_materializations']=[]
             for ref in config['original_requests']+task['inputs']:
                 source=(self.root/ref['snapshot']).resolve()
-                if not source.is_relative_to(self.root) or not source.is_file():raise ValueError('missing frozen QA input')
+                if not self.tasks._valid_artifact(ref) or not source.is_relative_to(self.root) or not source.is_file():raise ValueError('missing or changed frozen QA input')
                 dest=bundle/(ref['sha256']+'.txt');shutil.copyfile(source,dest)
                 packet['frozen_input_materializations'].append({'source_path':ref['path'],'source_sha256':ref['sha256'],'snapshot_path':str(dest.relative_to(workspace)),'snapshot_sha256':hashlib.sha256(dest.read_bytes()).hexdigest()})
+            context['phase']='worker'
             error=None;result=None;runtime=None
             try:
                 if worker is None:
@@ -220,9 +259,12 @@ class QA:
                     result=validate_result(runtime['result'])
                 else:result=validate_result(worker(workspace,packet))
             except Exception as exc:error=type(exc).__name__+': '+str(exc)
+            context['phase']='verify_workspace'
             frozen_tampered=any(not (workspace/r['snapshot_path']).is_file() or hashlib.sha256((workspace/r['snapshot_path']).read_bytes()).hexdigest()!=r['snapshot_sha256'] for r in packet['frozen_input_materializations'])
-            modified=manifest(workspace)!=before or frozen_tampered
-            source_changed=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}))!=source_before
+            modified=manifest(workspace,generated)!=before or frozen_tampered
+            self._generated(config,self.tasks.read()['tasks'][task_id])
+            source_changed=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))!=source_before
+            context['phase']='commands'
             commands=[]
             if result is not None and not modified and not source_changed:
                 for index,argv in enumerate(config['commands']):
@@ -234,11 +276,12 @@ class QA:
                     path=base/('command-'+str(index)+'.txt');path.write_text(output)
                     self.tasks.logger.append('qa_command_finished',run_id=self.tasks.run_id,task_id=task_id,agent_run_id=aid,work_type=task['work_type'],feature_id=task['feature_id'],observed={'command':argv,'exit_code':code,'status':status,'evidence':str(path.relative_to(self.root))})
                     commands.append({'command':argv,'status':status,'exit_code':code,'elapsed_seconds':time.monotonic()-started,'evidence':self.tasks.artifact(str(path.relative_to(self.root)))})
-            modified=modified or manifest(workspace)!=before
+            modified=modified or manifest(workspace,generated)!=before
+            context['phase']='result_processing'
             problems=[]
             if error:problems.append(error)
             if modified:problems.append('QA changed product files in isolated workspace')
-            if source_changed or scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}))!=source_before:problems.append('target code/baseline changed during QA')
+            if source_changed or scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))!=source_before:problems.append('target code/baseline changed during QA')
             checked={};evidence_refs={}
             if result:
                 rows=result['criteria'];expected={c['id'] for c in task['criteria']}
@@ -274,19 +317,33 @@ class QA:
             passed=required_pass and not problems and all(c['status']=='PASS' for c in commands)
             outcome='PASS' if passed else 'BLOCKED' if error or modified or source_changed or any('baseline owner decision' in x for x in problems) else 'REWORK' if result and (result['findings'] or any(v=='FAIL' for v in checked.values())) else 'NOT_RUN'
             report={'result':outcome,'worker_report_is_self_report':True,'review_method':'native local evidence and independently executed commands; not an independent model review','target_task_id':config['target_task_id'],'target_manifest':source_before,'criteria':checked,'evidence_refs':evidence_refs,'worker_report':result,'commands':commands,'problems':problems,'runtime':runtime}
-            report['review_execution']='INDEPENDENT_PROCESS' if worker is None and runtime.get('pid') else 'SYNTHETIC_OR_LOCAL_WORKER' if worker is not None else 'NOT_RUN'
+            report['review_execution']='INDEPENDENT_PROCESS' if worker is None and (runtime or {}).get('pid') else 'SYNTHETIC_OR_LOCAL_WORKER' if worker is not None else 'NOT_RUN'
             report['review_method']='independent model review plus local evidence gate; not whole-product acceptance' if report['review_execution']=='INDEPENDENT_PROCESS' else 'synthetic/local worker and local evidence gate; not independent model review'
             report['requirement_lineage']=lineage_comparison
             report['claim_scope']=lineage_comparison['scope'] if lineage_comparison else 'LEGACY_UNCERTIFIED'
             report['execution_path_validation']='NOT_ESTABLISHED'
             report['product_requirements_fulfillment']='NOT_ESTABLISHED'
             report['scope_note']='QA task PASS alone does not establish execution-path or whole-product PASS; trial evidence never transfers to product acceptance.'
+            report['failure']={'phase':'worker','cause':error} if error else None
+            report['target_scope']=copy.deepcopy(config['manifest_scope'])
+            report['criterion_definitions']=copy.deepcopy(task['criteria'])
+            report['repair_criteria']=copy.deepcopy(config.get('repair_criteria',{}))
+            report['repair_criteria_definitions']=copy.deepcopy(config.get('repair_criteria_definitions',{}))
+            report['generated_paths']=generated
+            after_all=manifest(workspace) if generated else {}
+            report['generated_changes']=[{'path':p,'before':before_all.get(p),'after':after_all.get(p)} for p in sorted(before_all.keys()|after_all.keys()) if generated and before_all.get(p)!=after_all.get(p) and any(p==g or p.startswith(g+'/') for g in generated)]
+            context['phase']='publish_report'
             report_path=base/'report.json';report_path.write_text(json.dumps(report,ensure_ascii=False,indent=2))
             md=base/'report.md';md.write_text('# QA '+config['stage']+'\n\nResult: '+outcome+'\n\n'+(result['summary'] if result else str(error)))
+            context['phase']='submit'
             self.tasks.submit(task_id,aid,[str(md.relative_to(self.root))],'QA evidence produced; acceptance requires native review')
-            review=self.tasks.begin(task_id,'verification',review=True,execution_mode='local_check')
+            context['phase']='begin_review'
+            review_id=str(uuid.uuid4());context['owned_runs'].append(review_id)
+            review=self.tasks.begin(task_id,'verification',review=True,execution_mode='local_check',agent_run_id=review_id)
+            context['phase']='review'
             review_rows=[{'criterion_id':c['id'],'result':'PASS' if passed and checked.get(c['id'])=='PASS' else 'FAIL' if checked.get(c['id'])=='FAIL' else 'NOT_RUN','evidence':str(report_path.relative_to(self.root))} for c in task['criteria']]
             self.tasks.review(task_id,review['agent_run_id'],review_rows,'QA '+outcome+'; local evidence check, not self approval')
+            context['phase']='findings'
             attempt={'agent_run_id':aid,'review_run_id':review['agent_run_id'],'outcome':outcome,'report':self.tasks.artifact(str(report_path.relative_to(self.root))),'finding_ids':[],'repair':'NOT_RUN'}
             for f in (result or {}).get('findings',[]):
                 kind='design' if f['owner_role']=='design' else 'policy' if f['kind']=='baseline_contradiction' else 'requirements'
@@ -308,12 +365,15 @@ class QA:
                         except ValueError as exc:attempt.setdefault('stage_return_errors',[]).append(str(exc))
                 development_findings=[f for f in result['findings'] if f['blocking'] and f['owner_role']=='development' and f['kind']!='improvement' and finding_return_stage(f,workflow,config['target_task_id']) is None]
                 if development_findings:attempt['development_coordinator_return']={'target_task_id':config['target_task_id'],'finding_ids':attempt['finding_ids'],'reason':'implementation correction; development-plan approval is not implicitly invalidated'}
+            context['phase']='save_attempt'
             self._save(task_id,attempt);last=attempt
             if passed or not repair or modified or source_changed or error:break
             if len(self.tasks.read()['tasks'][task_id]['qa_config']['attempts'])>=task['max_attempts']:break
             # Explicit owner callback only. QA cannot silently alter product or approve repairs.
+            context['phase']='owner_repair'
             repaired=repair(copy.deepcopy(attempt),copy.deepcopy(result),self.root)
             if not isinstance(repaired,dict) or repaired.get('status')!='COMPLETE' or not repaired.get('evidence'):break
+            context['phase']='rebase'
             proof=self.tasks.artifact(repaired['evidence'])
             changed_originals=[r['path'] for r in config['original_requests'] if not (self.root/r['path']).is_file() or hashlib.sha256((self.root/r['path']).read_bytes()).hexdigest()!=r['sha256']]
             if changed_originals:
@@ -328,9 +388,9 @@ class QA:
             def rebase(s):
                 t=s['tasks'][task_id];before_inputs=copy.deepcopy(t['inputs']);t['inputs']=refs
                 t.setdefault('input_rebases',[]).append({'before':before_inputs,'after':copy.deepcopy(refs),'reason':'owner repair followed by fresh QA retest','repair_evidence':proof})
-                scope=target_scope(target,t['qa_config']['original_requests']);t['qa_config']['manifest_scope']=scope;t['qa_config']['target_manifest']=scoped_manifest(self.root,scope);t['qa_config']['target_baseline']=target_baseline
+                scope=target_scope(target,t['qa_config']['original_requests']);t['qa_config']['manifest_scope']=scope;t['qa_config']['target_manifest']=scoped_manifest(self.root,scope,generated);t['qa_config']['target_baseline']=target_baseline
                 t['qa_config']['attempts'][-1]['repair']={'status':'REPORTED_COMPLETE_NOT_VERIFIED','evidence':proof}
-                t['qa_config'].setdefault('retest_bases',[]).append({'manifest':scoped_manifest(self.root,scope),'manifest_scope':scope,'inputs':copy.deepcopy(refs),'baseline':target_baseline,'repair':proof})
+                t['qa_config'].setdefault('retest_bases',[]).append({'manifest':scoped_manifest(self.root,scope,generated),'manifest_scope':scope,'inputs':copy.deepcopy(refs),'baseline':target_baseline,'repair':proof})
                 self.tasks._event(s,'qa_retest_inputs_rebased',t,observed={'before':before_inputs,'after':refs,'repair':proof})
             self.tasks._mutate('qa_repair_retest_basis',rebase,task_id)
             config=self.tasks.read()['tasks'][task_id]['qa_config']

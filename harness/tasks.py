@@ -258,7 +258,7 @@ class Tasks:
             return copy.deepcopy(value)
         return self._mutate('configure_usage_context', operation, task_id)
 
-    def begin(self, task_id, role, review=False, execution_mode="current_agent", usage_context=None):
+    def begin(self, task_id, role, review=False, execution_mode="current_agent", usage_context=None, agent_run_id=None):
         def operation(state):
             task = state["tasks"][task_id]
             from harness.stage_readiness import gate as readiness_gate
@@ -283,7 +283,10 @@ class Tasks:
                 dependency_gate(state, task)
             from harness.development_tracking import ensure, execution_scope
             ensure(self, state, task, "begin_review" if review else "begin")
-            run = {"agent_run_id": str(uuid.uuid4()), "run_id": self.run_id,
+            reserved_id=agent_run_id or str(uuid.uuid4())
+            if not isinstance(reserved_id,str) or str(uuid.UUID(reserved_id))!=reserved_id or any(r['agent_run_id']==reserved_id for t in state['tasks'].values() for r in t.get('executions',[])):
+                raise ValueError('execution ID must be a new canonical UUID')
+            run = {"agent_run_id": reserved_id, "run_id": self.run_id,
                    "execution_context": copy.deepcopy(self.context),
                    "feature_id": task["feature_id"], "task_id": task_id, "role": role,
                    "kind": "review" if review else "work", "execution_mode": execution_mode,

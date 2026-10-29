@@ -17,7 +17,7 @@ class QARepairSafety(unittest.TestCase):
         self.root=Path(temp.name).resolve();self.manager,self.coordinator,self.spec=build_fixture(self.root)
         self.qa=QA(self.root,self.manager.run_id)
         self.attempt={};self.result={'findings':[{'blocking':True,'owner_role':'planning','kind':'baseline_gap'}]}
-    def documentation(self,include_original=False,owner_role='planning',owner_feature='DELEGATION-FIXTURE'):
+    def documentation(self,include_original=False,owner_role='planning',owner_feature='DELEGATION-FIXTURE',repair_criteria=None):
         m=self.manager
         m.register('DELEGATION-FIXTURE','DOC-TARGET','planning','Synthetic planning outputs','test target only',
                    [{'id':'AC-DOC','required':True,'text':'required original behavior missing'}],['design.md'],
@@ -36,7 +36,7 @@ class QARepairSafety(unittest.TestCase):
                    ['design.md','planning.md','policy.md'],work_type='HARNESS_BUILD',execution_scope='documentation')
         self.qa.configure('QA-DOC','planning','DOC-TARGET',['design.md'],
                           [{'id':'QA-AC','description':'original behavior present','required':True}],
-                          repair_task_id='DOC-REPAIR',executable='not-invoked',timeout=5)
+                          repair_task_id='DOC-REPAIR',executable='not-invoked',timeout=5,repair_criteria=repair_criteria)
         self.qa._workflow_task_id='QA-DOC'
         self.attempt={'report':m.artifact('failure-proof.json')}
         return owner_repair(self.qa)

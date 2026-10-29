@@ -113,6 +113,20 @@ def validate_result(value):
     return value
 
 
+def validate_images(workspace,image_paths):
+    workspace=Path(workspace).resolve()
+    image_refs=[]
+    for value in image_paths or []:
+        image=(workspace/value).resolve()
+        if not image.is_relative_to(workspace.resolve()) or not image.is_file():raise ValueError('image must exist inside isolated workspace')
+        if image.suffix.lower() not in {'.png','.jpg','.jpeg','.webp'}:raise ValueError('unsupported image extension')
+        raw=image.read_bytes()
+        if not (raw.startswith(b'\x89PNG\r\n\x1a\n') or raw.startswith(b'\xff\xd8\xff') or (raw[:4]==b'RIFF' and raw[8:12]==b'WEBP')):raise ValueError('unsupported image bytes')
+        if (image.suffix.lower()=='.png') != raw.startswith(b'\x89PNG\r\n\x1a\n') or (image.suffix.lower() in {'.jpg','.jpeg'}) != raw.startswith(b'\xff\xd8\xff'):raise ValueError('image extension and bytes disagree')
+        image_refs.append({'path':str(image.relative_to(workspace)), 'sha256':logging.digest(raw)})
+    return image_refs
+
+
 def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
               output_dir: Path, executable: str, timeout: int, *,
               result_schema=None, result_validator=None, sandbox='workspace-write', image_paths=None) -> dict:
@@ -141,16 +155,8 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
     argv = ['rtk', 'proxy', executable, 'exec', '--ignore-user-config', '--sandbox',
             sandbox, '--json', '--output-schema', str(schema_path), '-o',
             str(result_path), '-C', str(workspace), '-']
-    image_refs=[]
-    for value in image_paths or []:
-        image=(workspace/value).resolve()
-        if not image.is_relative_to(workspace.resolve()) or not image.is_file():raise ValueError('image must exist inside isolated workspace')
-        if image.suffix.lower() not in {'.png','.jpg','.jpeg','.webp'}:raise ValueError('unsupported image extension')
-        raw=image.read_bytes()
-        if not (raw.startswith(b'\x89PNG\r\n\x1a\n') or raw.startswith(b'\xff\xd8\xff') or (raw[:4]==b'RIFF' and raw[8:12]==b'WEBP')):raise ValueError('unsupported image bytes')
-        if (image.suffix.lower()=='.png') != raw.startswith(b'\x89PNG\r\n\x1a\n') or (image.suffix.lower() in {'.jpg','.jpeg'}) != raw.startswith(b'\xff\xd8\xff'):raise ValueError('image extension and bytes disagree')
-        argv[-1:-1]=['--image',str(image)]
-        image_refs.append({'path':str(image.relative_to(workspace)), 'sha256':logging.digest(raw)})
+    image_refs=validate_images(workspace,image_paths)
+    for ref in image_refs:argv[-1:-1]=['--image',str(workspace/ref['path'])]
     if image_refs:
         (output_dir/'attached-images.json').write_text(json.dumps(image_refs,indent=2))
     state = manager.read()

@@ -76,6 +76,19 @@ def usage_slice(data, task_ids=None, execution_id=None, start=None, end=None):
     return out
 
 
+def request_status(ids,tasks,views,active):
+    if not ids:return '작업 연결 없음'
+    if any(t not in tasks or t not in views for t in ids):return '연결 작업 상태 미확인'
+    verdicts={views[t]['verdict'] for t in ids}
+    if 'CONFLICT' in verdicts:return '진행 중 · 기록·검증 불일치' if active else '기록·검증 불일치'
+    if 'RECHECK_REQUIRED' in verdicts:return '진행 중 · 재검증 필요' if active else '재검증 필요'
+    if active:return '진행 중'
+    if verdicts & {'BLOCKED','FAIL'} or any(tasks[t]['state']=='BLOCKED' for t in ids):return '문제 확인 필요'
+    if all(tasks[t]['state']=='DONE' for t in ids):
+        return '연결된 작업 검증 완료' if verdicts<={'PASS','VERIFIED'} else '완료 보고 · 검증 미확인'
+    return '작업 기록 있음'
+
+
 def workspace(root, project_id=None):
     root = Path(root); events = read_events(root)
     p = root / '.harness/tasks/tasks.yaml'
@@ -129,10 +142,7 @@ def workspace(root, project_id=None):
             ids |= more
         req['task_ids'] = sorted(ids)
         req['active'] = bool(active_ids.intersection(req['task_ids']))
-        req['status'] = ('진행 중' if req['active'] else
-                         '연결된 작업 완료' if req['task_ids'] and all(tasks[t]['state'] == 'DONE' for t in req['task_ids']) else
-                         '문제 확인 필요' if any(tasks[t]['state'] == 'BLOCKED' for t in req['task_ids']) else
-                         '작업 기록 있음' if req['task_ids'] else '작업 연결 없음')
+        req['status'] = request_status(req['task_ids'],tasks,views,req['active'])
         req['tokens'] = total([r for r in usage['rows'] if r['task_id'] in req['task_ids']])
     important = {'qa_attempt_finished': 'QA 검토 결과', 'issue_returned': '보완 요청',
                  'issue_resolved': '문제 해결 확인', 'task_reviewed': '검토 결과 등록',

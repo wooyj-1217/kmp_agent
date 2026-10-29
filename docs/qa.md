@@ -125,3 +125,32 @@ and the native run's process admission budget; this is not a token/dollar cap.
 ## Actual image and execution context
 
 QA.configure images/context_files freezes artifacts separately from verbatim original_requests and includes them in source scope. Images use actual Codex exec --image transport with hash metadata; only in-workspace PNG/JPEG/WebP with matching suffix/bytes are accepted. Context changes block before dispatch. Each evidence field must identify exactly one actual relative file, with extra references inside that file. Invalid evidence cannot become PASS even when model prose says pass. Actual model review, execution-evidence review, model-executed commands and synthetic tests remain distinct.
+
+
+## 기준 대응과 프로젝트별 생성물 설정
+
+`task configure-qa --data ...`의 기존 JSON에 다음 선택 필드를 사용한다.
+
+```json
+{
+  "generated_paths": ["client/build", "server/build"],
+  "repair_criteria": {
+    "OWNER-AC-001": ["QA-001"],
+    "OWNER-AC-002": ["QA-002", "QA-003"]
+  }
+}
+```
+
+`repair_criteria`는 보완 작업의 기준 ID → QA 기준 ID 목록이다. 기준 정의와 연결을 QA 보고서에 고정하고 각 QA 결과·검토 실행·검증 근거를 보완 검토 증거에 연결한다. 매핑된 QA 기준이 모두 PASS이고 근거와 현재 대상이 일치할 때만 해당 보완 기준을 PASS로 제출한다. 연결 누락, 기준 정의 변경, 근거 누락/변경, QA 이후 대상 변경은 NOT_RUN이다. QA 전체 PASS를 보완 전체 PASS로 복사하지 않는다. QA `outcome`과 보완 `owner_review`/`owner_acceptance`는 별개이며 보완의 필수 기준이 남으면 완료되지 않는다. 기존 설정에 매핑이 없으면 품질 승인을 추정하지 않는다.
+
+`generated_paths`는 프로젝트에서 허용한 생성물 디렉터리의 정규 상대 경로다. 기본값은 빈 목록이며 `build/`라는 이름이나 `.gitignore`만으로 예외를 만들지 않는다. 루트·상위 경로·절대 경로·glob·개인/제어 경로·심볼릭 링크는 거부한다. 허용 경로가 추적 파일 또는 선언된 입력·산출물·코드 경로를 포함해 제품 소스를 가리키면 거부하고 실행 직전에도 재확인한다. 그 밖의 소스 추가·수정·삭제와 새 심볼릭 링크 감시는 유지한다. 생성물 변경 경로와 해시는 보고서 `generated_changes`로 구분한다. 승인된 생성물 경로 내의 추적되지 않고 입력으로도 선언되지 않은 파일의 제품 의미는 자동 판별할 수 없으므로 경로 지정 자체를 신중히 해야 한다.
+
+## 실패·중단 기록
+
+QA 호출은 선검사 → 실행 시작 → 작업본 준비 → 기준 자료 배치 → 역할 실행 → 명령 → 결과/근거 처리 → 보고서 → 제출 → 검토 → 이슈/시도 기록 → 담당 수정 → 재시험 기준 갱신을 실패 경계로 다룬다. 시작 전에 기존 형식의 역할 실행 UUID를 예약하므로 상태 저장 후 이벤트 flush가 실패해도 이번 호출이 시작한 정확한 실행만 정리할 수 있다. 다른 호출의 열린 작업은 종료하지 않는다.
+
+정상적인 FAIL/NOT_RUN은 기존 QA 보고서·검토·시도에 남긴다. 예상하지 못한 실패는 `.harness/qa/failures/<UUID>/report.json`, 기존 작업 원장의 `qa_failures`, `qa_execution_failed` 이벤트에 발생 단계·원인·실행 ID·종료 근거를 남긴다. 미실행 검증은 NOT_RUN이다. 이번 호출의 열린 작업·검토를 종료하고 BLOCKED로 기록한다. 검토 PASS 이후 결과 저장이 실패해도 기존 PASS 이력·파일은 보존하되 현재 완료 판정은 취소하고 재검증 필요로 표시한다. 시작 전 거부는 실제 역할 실행 실패와 구분하며 시도 상한을 소모하지 않는다. 중복 완료 호출이나 동시 호출 거부 때문에 이미 완료한 검토나 다른 실행을 중단하지 않는다.
+
+보완 결과 처리도 동일한 실패 정리를 적용하며 독립 QA PASS와 보완 인수 완료를 구분한다. 강제 프로세스 종료/SIGKILL·전원 상실은 예외 처리로 보장할 수 없고, 저장 장치 자체가 실패하면 기록 확정을 보장할 수 없다. 이 경우 성공을 반환하지 않고 복구·재개 절차로 실제 종료 상태와 기록을 확인해야 한다. 타임아웃 연장으로 처리하지 않는다.
+
+실패 원인 보고서는 정리 전에 생성되므로 그 안의 `execution_status`는 `UNCONFIRMED`일 수 있다. 정리 후 확정된 종료 상태는 기존 작업 원장 `qa_failures.execution_status`와 역할 실행의 `ended_at`을 원본으로 확인한다. `NOT_STARTED`는 예약 ID만 있고 실행은 생성되지 않은 경우이며 시도 상한을 소모하지 않는다. `RECORDED_ENDED`는 이번 호출이 소유한 실행의 종료가 원장에 기록됐다는 뜻이고, OS의 모든 후손 프로세스를 독립적으로 관측했다는 뜻은 아니다. 다른 프로젝트·피처·작업 유형에 속한 보완 작업은 검토·변경하지 않고 인수를 거부한다.
