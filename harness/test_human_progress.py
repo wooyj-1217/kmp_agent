@@ -104,6 +104,65 @@ class ProgressTests(unittest.TestCase):
     def test_qa_and_repair_stay_in_original_todo(self):
         self.add('개발');self.add('검토');self.add('수정');self.raw['검토']['qa_config']={'target_task_id':'개발','repair_task_id':'수정'}
         self.assertEqual(len(project(self.data,self.raw)['steps']),1)
+    def test_same_target_acceptance_owner_does_not_create_self_parent(self):
+        self.add('TARGET',verdict='PASS',raw_state='DONE',state='complete')
+        self.add('QA',verdict='PASS',raw_state='DONE',state='complete')
+        self.raw['QA']['qa_config']={'target_task_id':'TARGET','repair_task_id':'TARGET'}
+        self.data['execution_plan']={'task_ids':['TARGET','QA']}
+        p=project(self.data,self.raw)
+        self.assertFalse(p['cycle_detected'])
+        self.assertEqual([step['task_id'] for step in p['steps']],['TARGET'])
+        self.assertEqual(p['steps'][0]['state'],'complete')
+        self.assertEqual([child['task_id'] for child in p['steps'][0]['children']],['QA'])
+
+    def test_same_target_acceptance_preserves_blocked_qa_history(self):
+        self.add('TARGET',verdict='PASS',raw_state='DONE',state='complete')
+        old=self.add('QA-OLD',verdict='FAIL',raw_state='BLOCKED',state='blocked');old['blocked']='actual past QA environment failure'
+        self.add('QA-NEW',verdict='PASS',raw_state='DONE',state='complete')
+        for name in ('QA-OLD','QA-NEW'):
+            self.raw[name]['qa_config']={'target_task_id':'TARGET','repair_task_id':'TARGET'}
+        before=copy.deepcopy((self.data,self.raw));p=project(self.data,self.raw)
+        self.assertFalse(p['cycle_detected'])
+        self.assertEqual(p['steps'][0]['state'],'blocked')
+        self.assertNotIn('[x]',message(p))
+        self.assertEqual({child['task_id'] for child in p['steps'][0]['children']},{'QA-OLD','QA-NEW'})
+        self.assertEqual((self.data,self.raw),before)
+
+    def test_same_target_owner_does_not_hide_unverified_required_qa(self):
+        self.add('TARGET',verdict='PASS',raw_state='DONE',state='complete')
+        self.add('QA',verdict='NOT_RUN',raw_state='DONE',state='complete')
+        self.raw['QA']['qa_config']={'target_task_id':'TARGET','repair_task_id':'TARGET'}
+        p=project(self.data,self.raw)
+        self.assertFalse(p['cycle_detected'])
+        self.assertNotEqual(p['steps'][0]['state'],'complete')
+        self.assertNotIn('[x]',message(p))
+
+    def test_self_owner_link_does_not_mask_another_real_repair_parent(self):
+        for name in ('ROOT','OWNER','SELF-QA','REPAIR-QA'):self.add(name)
+        self.raw['SELF-QA']['qa_config']={'target_task_id':'OWNER','repair_task_id':'OWNER'}
+        self.raw['REPAIR-QA']['qa_config']={'target_task_id':'ROOT','repair_task_id':'OWNER'}
+        p=project(self.data,self.raw)
+        self.assertFalse(p['cycle_detected'])
+        self.assertEqual([step['task_id'] for step in p['steps']],['ROOT'])
+        self.assertEqual({child['task_id'] for child in p['steps'][0]['children']},{'OWNER','SELF-QA','REPAIR-QA'})
+
+    def test_real_repair_parent_cycle_still_blocks(self):
+        for name in ('A','B','QA-A','QA-B'):self.add(name,verdict='PASS',raw_state='DONE',state='complete')
+        self.raw['QA-A']['qa_config']={'target_task_id':'A','repair_task_id':'B'}
+        self.raw['QA-B']['qa_config']={'target_task_id':'B','repair_task_id':'A'}
+        p=project(self.data,self.raw)
+        self.assertTrue(p['cycle_detected'])
+        self.assertTrue(all(step['state']=='blocked' for step in p['steps']))
+        self.assertNotIn('[x]',message(p))
+
+    def test_explicit_self_parent_remains_a_real_cycle(self):
+        self.add('TARGET',parent='TARGET',verdict='PASS',raw_state='DONE',state='complete')
+        self.add('QA',verdict='PASS',raw_state='DONE',state='complete')
+        self.raw['QA']['qa_config']={'target_task_id':'TARGET','repair_task_id':'TARGET'}
+        p=project(self.data,self.raw)
+        self.assertTrue(p['cycle_detected'])
+        self.assertTrue(all(step['state']=='blocked' for step in p['steps']))
+
     def test_cmd_location_and_no_project_completion_claim(self):
         self.add('현재',state='active');text=message(project(self.data,self.raw));self.assertIn('위치:',text);self.assertIn('프로젝트 전체 완료 판정과 별개',text)
     def test_pure_projection_does_not_mutate_state(self):

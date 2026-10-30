@@ -108,3 +108,5 @@ capture는 immutable Git blob OID의 batch 조회로 파일별 프로세스를 �
 첫 후속 로컬 계측에서 파일이 적은 병렬 fixture는 기존 70.6초/1,526 Git 호출, 수정 후 77.1초/1,494 호출로 포괄적인 속도 개선이 아니었다. 파일 16개 capture에서는 state_sha256 및 기존 필드가 일치했고 23→8 Git 호출(0.83→0.28초)을 확인했다. 모든 숫자는 해당 로컬 합성 조건의 관측이며 제품 성능으로 일반화하지 않는다. raw 근거와 실제 모델 결과는 적용 프로젝트 로컬 후속 기록을 참조한다.
 
 실제 모델 후속 실행에서 QA가 doctor/drive/cleanup에 `PASS: 설명`을 반환하여 exact PASS 게이트에서 차단된 사례를 확인했다. 모델 schema와 로컬 validator 모두 상태 필드를 PASS/FAIL/BLOCKED/NOT_RUN enum으로 제한한다. 설명은 observation/증거에 기록하며 자동 문자열 정규화나 기대 결과 완화는 하지 않는다. 실패한 실제 QA와 raw 증거는 보존하고 새 task/agent_run으로 재검증한다.
+
+같은 QA target을 명시적 acceptance owner로 다시 연결할 때, 그 연관 자체를 자기 부모 간선으로 해석하지 않는다. 별도 실제 repair 부모와 명시적 부모/의존/교차 repair 순환 탐지는 유지한다. 이 읽기 투영 수정은 실패한 과거 QA를 DONE 또는 optional로 바꾸거나 원장을 재작성하지 않는다. 실제 모델 실행 검증 커밋과 이후 투영 수정의 검사 범위를 따로 기록한다.

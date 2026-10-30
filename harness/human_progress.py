@@ -41,7 +41,11 @@ def project(result, source_tasks, root=None):
         if tid in rework_parent:return rework_parent[tid]
         qa_target=(raw.get('qa_config') or {}).get('target_task_id')
         if qa_target in views:return qa_target
-        repair_target=next(((v.get('qa_config') or {}).get('target_task_id') for v in source_tasks.values() if (v.get('qa_config') or {}).get('repair_task_id')==tid),None)
+        # A target may also be its own explicit QA acceptance owner. That
+        # association is not a new parent edge; preserve real repair ancestry.
+        repair_target=next(((v.get('qa_config') or {}).get('target_task_id') for v in source_tasks.values()
+                            if (v.get('qa_config') or {}).get('repair_task_id')==tid
+                            and (v.get('qa_config') or {}).get('target_task_id')!=tid),None)
         if repair_target in views:return repair_target
         return raw.get('parent_task_id') or (raw.get('delegation') or {}).get('parent_task_id')
     parent_cycles=set()
