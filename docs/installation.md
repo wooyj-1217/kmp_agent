@@ -37,6 +37,18 @@ rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@git
 
 설치는 대상 안의 별도 체크아웃에서 필요한 파일·구문·버전·Git 커밋을 확인하고 init까지 수행한다. init 성공은 **파일·연결 설정 준비 완료**이며 세션 적용·자동 수집 PASS가 아니다. 새 세션 및 훅 신뢰가 필요한 상태와 복구 방법을 결과 JSON에 표시한다.
 
+## 제품 설치 파일 선별
+
+이 필터가 포함된 `bootstrap.py`로 새로 가져오는 설치·update 체크아웃은 Git sparse-checkout의 `product-v1` 구성을 사용한다. `installation.json`의 `file_profile`에 실제 구성을 기록한다. 개발 저장소의 파일을 삭제하는 방식이 아니며, 같은 태그/SHA와 Git clean 검증을 유지한다.
+
+- 제외: 하네스 자체 `harness/test_*.py`, `run_tests.py`, `trial.py`·`role_trial.py`·`star_trial.py`, 예제 작업자·대시보드 fixture·링크 렌더링 시험 스크립트, `docs/examples/`, 하네스 회고·메모 시험 요구 문서, 개발 전용 `tools/` 파일.
+- 유지: 제품 실행 모듈·QA·대시보드 정적 자원, 역할 지침·템플릿·운영 문서, 훅 설정, 선택 가능한 공통 skills. `tools/check_pr_scope.py`는 제품의 PR 제출 검사에도 사용하는 도구이므로 유지한다. 제품 자체의 테스트·fixture·산출물은 이 선별 대상이 아니다.
+- 개발 테스트·예제·시험 자료의 재현은 선택한 태그/SHA의 **전체 개발 checkout**에서 수행한다. 설치본에서 이 파일들을 가리키는 과거 시험 설명·링크는 개발 원본 기준이다. 개발 모드는 원본을 직접 참조하므로 필터링하지 않는다.
+
+이는 설치 작업트리의 파일 선별이다. Git 내부 객체까지 삭제하거나 네트워크 다운로드량을 줄이는 기능은 아니다. 설치본과 전체 개발본은 같은 커밋이어도 실제 포함 파일·소스 지문이 다를 수 있다.
+
+기존 정상 설치·과거 버전·로컬 원본은 소급 정리하지 않는다. 같은 SHA의 기존 full checkout 재사용 시에도 파일을 제거하지 않는다. 새 SHA를 명시적으로 선택해 이 필터를 포함한 설치기로 가져온 체크아웃부터 적용하며, 이전 설치 정보에 `file_profile`이 없으면 필터 적용을 추정하지 않는다. 기존 진입점은 기존 버전의 설치기를 실행하므로 첫 전환은 새 부트스트랩 checkout의 `bootstrap.py update --source <저장소> --ref <새 태그/전체 SHA> --target <제품 루트>`로 수행한다. 버전업만으로 기존 설치본에 자동 전파됐다고 표현하지 않는다.
+
 ## 프로젝트 명령
 
 프로젝트 루트에서 실행한다. init은 중복 없이 연결을 보수하고, status는 설치·연결·실제 수집 근거를 읽는다.
