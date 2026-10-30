@@ -31,8 +31,9 @@ class DevelopmentGates(unittest.TestCase):
                 data[k].update(status='NOT_APPLICABLE',value=None,reason='no server')
         return data
 
-    def register_code(self, tid='AUTO', stage='ui', mode='none'):
-        self.write('requirements.md','frozen implementation requirements\n')
+    def register_code(self, tid='AUTO', stage='ui', mode='none', *, write_requirements=True):
+        if write_requirements:
+            self.write('requirements.md','frozen implementation requirements\n')
         self.write(tid+'.json',json.dumps(self.settings(mode)))
         self.t.register('F',tid,'development','fixture implementation','explicit stage',
                         [{'id':'AC','required':True,'text':'fixture proof'}],['requirements.md'])
@@ -221,7 +222,9 @@ class DevelopmentGates(unittest.TestCase):
         self.t.submit('SOURCE',run['agent_run_id'],['requirements.md'],'requirements')
         review=self.t.begin('SOURCE','verification',review=True)
         self.t.review('SOURCE',review['agent_run_id'],[{'criterion_id':'AC','result':'PASS','evidence':'requirements.md'}],'review')
-        self.register_code()
+        reviewed_content=(self.root/'requirements.md').read_bytes()
+        self.register_code(write_requirements=False)
+        self.assertEqual((self.root/'requirements.md').read_bytes(),reviewed_content)
         self.edit_task('AUTO',lambda t:t.update(dependencies=['SOURCE'],inputs=[r for r in t['inputs'] if r['path']!='requirements.md']))
         self.t.handoff('SOURCE','AUTO')
         self.assertTrue(self.t.read()['tasks']['AUTO']['development_tracking']['automatic'])
@@ -230,6 +233,32 @@ class DevelopmentGates(unittest.TestCase):
             self.t.handoff('SOURCE','MISSING')
         target=self.t.read()['tasks']['MISSING']
         self.assertEqual(target['state'],'TODO');self.assertFalse(target['inputs'])
+
+    def test_changed_reviewed_source_blocks_handoff_and_preserves_history(self):
+        self.t.register('F','SOURCE','planning','planning','document',[{'id':'AC','required':True,'text':'fixture'}],[])
+        self.t.ready('SOURCE');run=self.t.begin('SOURCE','planning')
+        self.write('requirements.md','handoff requirements')
+        self.t.submit('SOURCE',run['agent_run_id'],['requirements.md'],'requirements')
+        review=self.t.begin('SOURCE','verification',review=True)
+        self.t.review('SOURCE',review['agent_run_id'],[{'criterion_id':'AC','result':'PASS','evidence':'requirements.md'}],'review')
+        prior=copy.deepcopy(self.t.read()['tasks']['SOURCE'])
+        frozen=prior['outputs'][0]
+        # The ordinary helper deliberately writes a different working baseline.
+        # That is an actual source change, not a reason to weaken handoff gates.
+        self.register_code()
+        self.edit_task('AUTO',lambda t:t.update(dependencies=['SOURCE']))
+        with self.assertRaisesRegex(ValueError,'requires recheck'):
+            self.t.handoff('SOURCE','AUTO')
+        state=self.t.read();source=state['tasks']['SOURCE'];target=state['tasks']['AUTO']
+        self.assertEqual(source['state'],'DONE')
+        self.assertEqual(source['reviews'],prior['reviews'])
+        self.assertEqual(source['reviews'][-1]['results'][0]['result'],'PASS')
+        self.assertEqual(source['validation_status'][review['agent_run_id']]['state'],'RECHECK_REQUIRED')
+        self.assertEqual(source['outputs'],prior['outputs'])
+        self.assertTrue(self.t._valid_artifact(frozen))
+        self.assertEqual((self.root/frozen['snapshot']).read_text(),'handoff requirements')
+        self.assertEqual(target['state'],'TODO')
+        self.assertFalse(target['handoffs'])
 
 
 if __name__ == '__main__':

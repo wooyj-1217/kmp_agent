@@ -67,6 +67,8 @@ class InspectionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'deadline exceeded'):io.run_git(self.root,'status')
 
     def test_lock_contender_status_and_interrupt_fail_bounded_then_recover(self):
+        self.m.register('F','ACTIVE','planning','owned interruption fixture','test only',[{'id':'AC','required':True,'text':'fixture'}],[])
+        self.m.ready('ACTIVE');active=self.m.begin('ACTIVE','planning')
         entered=threading.Event();release=threading.Event();errors=[]
         def holder():
             try:self.m._mutate('controlled_delay',lambda state:(entered.set(),release.wait(2)))
@@ -76,10 +78,14 @@ class InspectionTests(unittest.TestCase):
             with patch.object(io,'LOCK_TIMEOUT_SECONDS',.05):
                 for action in ('read','interrupt_request'):
                     start=time.monotonic()
-                    with self.assertRaisesRegex(TimeoutError,'no stale status'):self.m._mutate(action,lambda state:None)
+                    with self.assertRaisesRegex(TimeoutError,'no stale status'):
+                        if action=='read':self.m.read()
+                        else:self.m.fail('ACTIVE',active['agent_run_id'],'controlled fixture interruption')
                     self.assertLess(time.monotonic()-start,.5)
         finally:release.set();t.join(3)
-        self.assertFalse(errors);self.assertFalse(t.is_alive());self.m.read()
+        self.assertFalse(errors);self.assertFalse(t.is_alive())
+        self.m.fail('ACTIVE',active['agent_run_id'],'retry interruption after lock release')
+        task=self.m.read()['tasks']['ACTIVE'];self.assertEqual(task['state'],'BLOCKED');self.assertTrue(task['executions'][0]['ended_at'])
 
     def test_timeout_during_refresh_invalidates_and_releases_lock(self):
         self.fixture.passed()
