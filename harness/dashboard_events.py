@@ -7,6 +7,7 @@ from pathlib import Path
 import select
 import socket
 import stat as file_stat
+import subprocess
 import sys
 import threading
 import time
@@ -65,8 +66,12 @@ class NativeEvents:
             '.harness/dashboard', '.kmp-agent', '.harness/logs/events.jsonl',
             '.harness/dashboard-scopes.json', '.harness/integration-status.json',
             'AGENTS.md', 'README.md')]
+        code_scopes = []
         def references(value):
             if isinstance(value, dict):
+                tracking = value.get("development_tracking")
+                if isinstance(tracking, dict):
+                    code_scopes.extend(tracking.get("code_paths") or ["."])
                 for key, item in value.items():
                     if key in {'path', 'snapshot'} and isinstance(item, str):
                         path = (self.root / item).resolve()
@@ -82,6 +87,34 @@ class NativeEvents:
                 references(json.loads((self.root / name).read_text()))
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
+        # Development evidence depends on source contents, index and HEAD. Only
+        # registered scopes are walked; Git object storage is never traversed.
+        for scope in code_scopes:
+            if isinstance(scope, str):
+                target = (self.root / scope).resolve()
+                if target.is_relative_to(self.root):
+                    targets.append(target)
+        # Git can track files under otherwise ignored build/media directories.
+        # capture() includes those files, so include exact paths without walking
+        # their generated siblings.
+        if code_scopes:
+            result = subprocess.run(["rtk", "proxy", "git", "ls-files", "-z", "--cached",
+                                     "--others", "--exclude-standard", "--", *code_scopes],
+                                    cwd=self.root, capture_output=True, text=True)
+            if result.returncode == 0:
+                for name in result.stdout.split("\0"):
+                    target = self.root / name
+                    if name and target.resolve().is_relative_to(self.root) and not name.startswith((".harness/", ".kmp-agent/")):
+                        targets.append(target)
+        git_targets = []
+        if code_scopes:
+            result = subprocess.run(["rtk", "proxy", "git", "rev-parse", "--git-dir", "--git-common-dir"],
+                                    cwd=self.root, capture_output=True, text=True)
+            if result.returncode == 0:
+                for name in result.stdout.splitlines():
+                    git_dir = (self.root / name).resolve()
+                    git_targets.extend(git_dir / part for part in
+                                       ("HEAD", "index", "packed-refs", "refs", "config", "info/exclude"))
         paths = {self.root}
         for target in targets:
             paths.add(target)
@@ -91,6 +124,15 @@ class NativeEvents:
                     base = Path(directory)
                     dirs[:] = [n for n in dirs if included((base / n).relative_to(self.root)) and not (base / n).is_symlink()]
                     paths.update(base / n for n in dirs + files if included((base / n).relative_to(self.root)))
+        for target in git_targets:
+            paths.add(target)
+            # Native events on parents detect atomic replacement and new refs.
+            paths.add(target.parent)
+            if target.is_dir():
+                for directory, dirs, files in os.walk(target, followlinks=False):
+                    base = Path(directory)
+                    dirs[:] = [n for n in dirs if not (base / n).is_symlink()]
+                    paths.update(base / n for n in dirs + files)
         existing = set()
         for path in paths:
             if self.closed:
@@ -113,7 +155,7 @@ class NativeEvents:
                                 digest.update(chunk)
                             self._digests[path] = digest.hexdigest()
                         self._metadata[path] = metadata
-                    state[str(path)] = self._digests[path]
+                    state[str(path)] = (self._digests[path], stat.st_mode & 0o777)
                 old = self._handles.get(path)
                 if old and old[1] == stat.st_ino:
                     continue

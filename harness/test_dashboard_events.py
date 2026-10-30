@@ -85,6 +85,36 @@ class DashboardEventsTest(unittest.TestCase):
         self.assertFalse(any('ios-derived' in str(path) or 'releases' in path.parts
                              for path in self.events._handles))
 
+    def test_development_sources_index_and_head_invalidate(self):
+        def git(*args):
+            subprocess.run(["rtk", "proxy", "git", *args], cwd=self.root,
+                           check=True, capture_output=True)
+        git("init")
+        git("config", "user.email", "test@example.test")
+        git("config", "user.name", "Test")
+        source = self.root / "src/main.py"
+        source.parent.mkdir()
+        source.write_text("before")
+        git("add", "src")
+        git("commit", "-m", "initial")
+        old = self.events.revision
+        self.task.write_text(json.dumps({"tasks": {"T": {
+            "development_tracking": {"code_paths": ["src"]}}}}))
+        old = self.changed(old)
+        source.write_text("after")
+        old = self.changed(old)
+        source.chmod(0o755)
+        old = self.changed(old)
+        git("add", "src")
+        old = self.changed(old)
+        git("commit", "-m", "updated")
+        old = self.changed(old)
+        nested = source.parent / "new/nested.py"
+        nested.parent.mkdir()
+        nested.write_text("new")
+        self.changed(old)
+        self.assertFalse(any("objects" in path.parts for path in self.events._handles))
+
     def test_burst_is_coalesced_and_same_content_atomic_replace_is_silent(self):
         old = self.events.revision
         number = self.events._number
