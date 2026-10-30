@@ -36,6 +36,9 @@ class InstallationTests(unittest.TestCase):
         skill = source / ".agents/skills/fixture-skill"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("synthetic shared skill\n")
+        (source / "tools").mkdir()
+        (source / "tools/dev-check.py").write_text("raise SystemExit('development only')\n")
+        shutil.copy2(ROOT / "tools/check_pr_scope.py", source / "tools/check_pr_scope.py")
         # The harness ignores personal .agents/; only this synthetic skill is forced in.
         (source / "VERSION").write_text("0.1.0\n")  # Synthetic first release, independent of candidate VERSION.
         git("init", "--quiet", source)
@@ -161,6 +164,94 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(info["runtime_identity"]["version"], "0.1.1")
         self.assertEqual(info["runtime_identity"]["commit"], self.second)
         self.assertFalse(info["runtime_identity"]["dirty"])
+
+    def test_product_checkout_excludes_development_files_and_keeps_runtime_identity(self):
+        # Product-owned tests/fixtures are not part of the common tool checkout.
+        product_test = self.target / "test_product.py"
+        product_test.write_text("product test remains\n")
+        manifest = self.install()["installation"]
+        code = self.target / manifest["code_path"]
+        self.assertEqual(manifest["file_profile"], "product-v1")
+        self.assertFalse(list((code / "harness").glob("test_*.py")))
+        for name in ("docs/examples", "docs/retrospective.md", "docs/memo-real-trial-request.md",
+                     "tools/dev-check.py", "harness/run_tests.py", "harness/trial.py",
+                     "harness/role_trial.py", "harness/star_trial.py", "harness/role_example_worker.py",
+                     "harness/dashboard_fixture.py", "harness/request_link_render_check.js"):
+            self.assertFalse((code / name).exists(), name)
+            self.assertTrue((self.source / name).exists(), name)
+        for name in ("harness/roles.py", "harness/qa.py", "harness/dashboard_assets/app.js",
+                     "docs/roles/development.md", "docs/templates/design.md",
+                     ".agents/skills/fixture-skill/SKILL.md", "tools/check_pr_scope.py"):
+            self.assertTrue((code / name).is_file(), name)
+        self.assertEqual(git("rev-parse", "HEAD", cwd=code), self.first)
+        self.assertEqual(git("status", "--porcelain", cwd=code), "")
+        self.assertEqual(boot.validate(code, self.first), "0.1.0")
+        self.assert_owned_preserved()
+        status = json.loads(self.cli("status").stdout)
+        self.assertEqual(status["runtime_identity"]["commit"], self.first)
+        self.assertFalse(status["runtime_identity"]["dirty"])
+        self.assertEqual(self.cli("task", "--operation", "show").returncode, 0)
+        # A cold process must resolve role definitions, QA and dashboard imports
+        # using only the installed files, never this developer test checkout.
+        smoke = subprocess.run(["rtk", "proxy", sys.executable, "-B", "-c", """
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from harness.roles import Roles, CODE
+from harness.qa import validate_result
+from harness.dashboard import snapshot
+assert CODE == Path(sys.argv[1])
+roles = Roles(sys.argv[2], "filtered-runtime-smoke")
+roles.tasks.register("F", "P", "planning", "product planning", "fixture only",
+                     [{"id": "C", "required": True, "text": "input read"}], ["docs/requirements.md"])
+roles.setup("P", "feature")
+packet = roles.prepare("P", "planning")
+packet = json.loads((Path(sys.argv[2]) / packet["context"]).read_text())
+assert "docs/roles/planning.md" in {d["path"] for d in packet["definitions"]}
+validate_result({"criteria": [], "findings": [], "recommendation": "NOT_RUN",
+                 "summary": "model-free runtime smoke", "reviewed_issue_ids": []})
+assert isinstance(snapshot(sys.argv[2]), dict)
+""", str(code), str(self.target)], cwd=self.target, text=True, capture_output=True)
+        self.assertEqual(smoke.returncode, 0, smoke.stdout + smoke.stderr)
+        checker = subprocess.run(["rtk", "proxy", sys.executable, str(code / "tools/check_pr_scope.py"), "--help"],
+                                 cwd=self.target, capture_output=True)
+        self.assertEqual(checker.returncode, 0, checker.stderr)
+        self.assertEqual(product_test.read_text(), "product test remains\n")
+        (code / "VERSION").write_text("9.9.9\n")
+        with self.assertRaisesRegex(ValueError, "differs from its pinned Git commit"):
+            boot.validate(code, self.first)
+
+    def test_legacy_full_checkout_preserved_and_new_update_uses_product_profile(self):
+        manifest = self.install()["installation"]
+        old_code = self.target / manifest["code_path"]
+        git("sparse-checkout", "disable", cwd=old_code)
+        self.assertTrue((old_code / "harness/test_installation.py").exists())
+        self.assertEqual(boot.file_profile(old_code, "installed"), "full-checkout")
+        repeated = self.install()  # Reuse the existing release, no destructive pruning.
+        self.assertEqual(repeated["installation"]["file_profile"], "full-checkout")
+        self.assertTrue((old_code / "harness/test_installation.py").exists())
+        result = self.cli("update", "--ref", "v0.1.1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        updated = boot.read(self.target / boot.MANIFEST)
+        self.assertEqual(updated["file_profile"], "product-v1")
+        new_code = self.target / updated["code_path"]
+        self.assertFalse((new_code / "harness/test_installation.py").exists())
+        self.assertTrue((old_code / "harness/test_installation.py").exists())
+        self.assert_owned_preserved()
+
+    def test_missing_legacy_checkout_restores_actual_product_profile(self):
+        manifest = self.install()["installation"]
+        code = self.target / manifest["code_path"]
+        git("sparse-checkout", "disable", cwd=code)
+        repeated = self.install()["installation"]
+        self.assertEqual(repeated["file_profile"], "full-checkout")
+        shutil.rmtree(code)  # Simulate loss of the ignored tool checkout only.
+        restored = self.install()["installation"]
+        self.assertEqual(restored["file_profile"], "product-v1")
+        self.assertFalse((code / "harness/test_installation.py").exists())
+        self.assertEqual(git("status", "--porcelain", cwd=code), "")
+        self.assert_owned_preserved()
 
     def test_first_install_command_works_without_an_existing_project_tool(self):
         result = subprocess.run(["rtk", "proxy", sys.executable, str(ROOT / "bootstrap.py"), "install",
