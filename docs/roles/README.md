@@ -13,6 +13,8 @@
 | 검증 | [verification](verification.md) | PASS / FAIL / NOT_RUN과 증거 |
 | 개선 | [improvement](improvement.md) | 재작업·하네스 개선 평가 |
 
+버전업 준비에는 [지침 정비 담당](instruction-maintainer.md)을 orchestrator의 한정된 보조 책임으로 호출한다. 호출 시점·누적 범위·메인 검토는 [릴리스 절차](../releases/README.md#instruction-maintenance)를 따른다. 별도 상시 역할이나 새 런타임 역할 값을 추가하지 않는다.
+
 기능별 [최소 템플릿](../templates/README.md)을 사용한다. 기획·디자인 도구와 요금제는 미결정이며 특정 서비스는 필수가 아니다.
 현재 역할 문서와 해당 제품·기능의 입력만 선택해 읽는다. 다른 역할의 상세 기준은 인계·검토에 필요한 절만 참조한다. 과거 예제·시험·로그·스냅샷은 일반 제품 작업의 필수 입력이 아니다.
 

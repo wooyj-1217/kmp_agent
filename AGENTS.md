@@ -14,6 +14,7 @@
 | 로컬 실행·로그 기록 | [로컬 설정 안내](docs/harness-logging.md#local-setup) → [기존 로깅 절차](docs/harness-logging.md#사용-절차) |
 | 순차 개발 근거·명령·대기·인계 | [공통 수집 규칙](docs/sequential-evidence.md); 제품 init 설정을 재사용하고 미관측 값은 UNKNOWN |
 | 하네스 버전·설치·업데이트 | [설치·init·update](docs/installation.md); 대상 버전은 명시적으로 선택하고 개발 원본에서 자동 전파하지 않음 |
+| 하네스 버전업·릴리스 준비 | [버전업 지침 정비](docs/releases/README.md#instruction-maintenance) → [지침 정비 담당](docs/roles/instruction-maintainer.md) |
 | 중단 후 재개 | [중단·재개](docs/interruption-recovery.md)와 기존 작업의 완료 근거 |
 
 모든 작업의 시작·주요 단계 전환·종료 보고와 조사 위임에는 [공통 진행 보고·조사 위임](docs/operations.md#progress-reporting)을 적용한다. 현재 역할 문서만 읽는 경우에도 이 절은 확인한다.
