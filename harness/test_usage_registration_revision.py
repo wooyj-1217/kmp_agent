@@ -89,6 +89,32 @@ class RegistrationRevisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'missing bound'):
             self.review('NEW')
 
+    def test_other_turn_already_in_prefix_can_be_bound_to_same_execution(self):
+        self.fixture()
+        continuation = self.native('continuation-response')
+        continuation['payload']['turn_id'] = 'continuation-turn'
+        self.rows.append(continuation)
+        self.source.write_text(''.join(json.dumps(r) + '\n' for r in self.rows))
+        content = self.source.read_bytes()
+        self.arguments['evidence'].update(source_bytes=len(content),
+            source_sha256=hashlib.sha256(content).hexdigest())
+        self.logger.append('model_usage', self.run, source={'session_id': 'synthetic-session'},
+            observed={'thread_id': 'synthetic-session', 'turn_id': 'continuation-turn',
+                      'response_id': 'continuation-response', 'model': 'synthetic',
+                      'usage_semantics': 'per_response_increment', 'usage': self.usage_value})
+        revision = self.revise()
+        register(self.manager, 'NEW', self.new['agent_run_id'], 'synthetic-session',
+                 turn_id='continuation-turn', path=self.source)
+        poll(self.manager)
+        resolve_attribution_limits(self.manager, revision['id'])
+        self.assertEqual(len(registrations(self.root)), 3)
+        self.assertEqual(self.unresolved(), set())
+        current = self.manager.read()['tasks']['NEW']['executions'][0]
+        self.assertEqual({b['response_id'] for b in current['usage_bindings']},
+                         {'new-response', 'continuation-response'})
+        self.assertEqual(self.manager.read()['tasks']['OLD'], self.original_tasks['tasks']['OLD'])
+        self.assertEqual(self.review('NEW'), 'DONE')
+
     def test_retry_is_idempotent(self):
         self.fixture(); revision = self.revise()
         self.assertEqual(self.revise(), revision)

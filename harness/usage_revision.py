@@ -94,7 +94,9 @@ def _validate(root, revision, entries, state, events):
         if allocated & ids:
             raise ValueError("replacement ownership overlap")
         allocated |= ids
-        bound = {b["response_id"] for b in run.get("usage_bindings", []) if b["session_id"] == session and b["response_id"] in native}
+        bound = {b["response_id"] for b in run.get("usage_bindings", [])
+                 if b["session_id"] == session and b["response_id"] in native
+                 and native[b["response_id"]][1].get("turn_id") == turn}
         if not bound <= ids:
             raise ValueError("revision cannot remove existing bindings")
         for response in ids:
