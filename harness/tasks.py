@@ -77,8 +77,7 @@ class Tasks:
             original = copy.deepcopy(state)
             try:
                 from harness.execution_policy import gate
-                if task_id in state['tasks']:
-                    gate(self, state, task_id, action)
+                gate(self, state, task_id, action)
                 result = operation(state)
             except (ValueError, KeyError) as error:
                 task = original["tasks"].get(task_id)
@@ -120,8 +119,8 @@ class Tasks:
     def question_status(self):
         return copy.deepcopy(self.read().get('required_questions', {}))
 
-    def require_dispatch(self, task_id):
-        return self._mutate('dispatch', lambda state: None, task_id)
+    def require_dispatch(self, task_id, preflight=False):
+        return self._mutate('dispatch_preflight' if preflight else 'dispatch', lambda state: None, task_id)
 
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure

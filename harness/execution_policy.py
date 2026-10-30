@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 KINDS = {'HARNESS_BUILD', 'HARNESS_IMPROVEMENT', 'PRODUCT'}
-START = {'ready', 'begin', 'begin_review', 'resume', 'dispatch'}
+START = {'ready', 'begin', 'begin_review', 'resume', 'dispatch', 'dispatch_preflight'}
 ADVANCE = START | {'submit', 'review', 'handoff', 'accept'}
 
 
@@ -134,19 +134,26 @@ def membership(state, run_id, task_id):
     return None
 
 
+def dependency_closure(state, initial):
+    affected = set(initial)
+    while True:
+        before = len(affected)
+        affected.update(tid for tid, t in state['tasks'].items()
+                        if set(t.get('dependencies', [])) & affected or t.get('parent_task_id') in affected
+                        or t.get('delegation', {}).get('parent_task_id') in affected
+                        or t.get('qa_config', {}).get('target_task_id') in affected)
+        affected.update(t['qa_config']['repair_task_id'] for tid, t in state['tasks'].items()
+                        if tid in affected and t.get('qa_config', {}).get('repair_task_id') in state['tasks'])
+        if len(affected) == before:
+            return affected
+
+
 def pending(state, task_id):
     result = []
     for qid, q in state.get('required_questions', {}).items():
         if q['status'] != 'OPEN':
             continue
-        affected = set(q['propagated_task_ids'])
-        while True:
-            before = len(affected)
-            affected.update(tid for tid, t in state['tasks'].items()
-                            if set(t.get('dependencies', [])) & affected or t.get('parent_task_id') in affected
-                            or t.get('qa_config', {}).get('target_task_id') in affected)
-            if len(affected) == before:
-                break
+        affected = dependency_closure(state, q['propagated_task_ids'])
         if task_id in affected:
             result.append(qid)
     return result
@@ -155,9 +162,13 @@ def pending(state, task_id):
 def gate(manager, state, task_id, action):
     if action not in ADVANCE:
         return
+    if task_id not in state['tasks']:
+        raise ValueError('managed execution requires an existing task')
     task = state['tasks'][task_id]
     if task['state'] == 'DONE':
-        return
+        if action == 'handoff':
+            return  # Completed source history may be handed to a separately gated target.
+        raise ValueError('completed task history does not permit a new managed execution')
     questions = pending(state, task_id)
     if questions:
         raise ValueError('required human answer pending: ' + ', '.join(questions))
@@ -176,6 +187,14 @@ def gate(manager, state, task_id, action):
         raise ValueError('whole execution plan membership required before ' + action)
     if not task.get('work_plan') or task.get('work_plan_run_id') != manager.run_id:
         raise ValueError('assigned detailed work plan required before ' + action)
+    if action == 'dispatch':
+        active = [r for r in task['executions'] if not r.get('ended_at')]
+        if len(active) != 1 or active[0].get('run_id') != manager.run_id or task['state'] != ('IN_REVIEW' if active[0].get('kind') == 'review' else 'IN_PROGRESS'):
+            raise ValueError('managed dispatch requires one active unblocked execution in the current run')
+        if any(state['tasks'][d]['state'] != 'DONE' for d in task.get('dependencies', [])):
+            raise ValueError('unfinished dependency prevents managed dispatch')
+        if not all(manager._valid_artifact(a) for a in task.get('inputs', [])):
+            raise ValueError('invalid input snapshot prevents managed dispatch')
 
 
 class WorkerGate:
@@ -203,12 +222,13 @@ def status(state, task, run_id=None):
     task_plan = bool(task.get('work_plan') and task.get('work_plan_run_id') == run_id)
     legacy = any(not r.get('ended_at') and contract.get('grandfathered_active_attempts', {}).get(r['agent_run_id']) == task['task_id'] for r in task['executions'])
     reasons = ['required human answer pending'] if qids else []
+    if task['state'] == 'DONE':reasons.append('completed task history does not permit a new managed execution')
     if active and task['state'] != 'DONE':
         if run_id not in state.get('execution_policy_bindings', {}):reasons.append('current run native root session binding required')
         if not member: reasons.append('whole execution plan membership required')
         if not task_plan: reasons.append('assigned detailed work plan required')
     finish_reasons = ['required human answer pending'] if qids else []
-    if not legacy: finish_reasons = reasons[:]
+    if not legacy and task['state'] != 'DONE': finish_reasons = reasons[:]
     return {'status': 'BLOCKED' if reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
             'start_status': 'BLOCKED' if reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
             'finish_status': 'BLOCKED' if finish_reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
@@ -216,6 +236,25 @@ def status(state, task, run_id=None):
             'plan_registered': bool(member), 'task_plan_registered': task_plan,
             'contract_active': active, 'legacy_active_attempt': legacy,
             'historical_done': task['state'] == 'DONE', 'contract_version': contract.get('version')}
+
+
+def stop_owned_group(child, drain, timeout=2):
+    """Stop only a freshly owned session/PG, including pipe-detaching descendants."""
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    result = None
+    try:
+        result = drain(child, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    return result if result is not None else drain(child, timeout=timeout)
 
 
 def managed_command(manager, task_id, argv, cwd, timeout=None, text=True):
@@ -238,19 +277,5 @@ def managed_command(manager, task_id, argv, cwd, timeout=None, text=True):
             except subprocess.TimeoutExpired:
                 continue
     except BaseException:
-        try:
-            os.killpg(child.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            child.communicate(timeout=2)
-        except subprocess.TimeoutExpired:
-            pass
-        # A descendant may ignore TERM and close inherited pipes; drainage alone
-        # cannot establish that the owned process group stopped.
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        child.communicate()
+        stop_owned_group(child, lambda owned, timeout: owned.communicate(timeout=timeout))
         raise

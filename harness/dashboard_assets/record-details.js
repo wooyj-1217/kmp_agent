@@ -37,8 +37,10 @@ function executionPolicyDetail(t){
  const gate=t.execution_gate,plan=t.work_plan;
  if(!gate&&!plan)return '<h3>착수 계획·필수 답변</h3><p>실행 정책 적용 기록 없음</p>';
  const labels={CLEAR:'착수 조건 확인됨',ALLOWED:'착수 조건 확인됨',BLOCKED:'착수 차단',NOT_CONFIGURED:'실행 정책 미설정'};
+ const reasonLabels={'required human answer pending':'필수 답변을 기다리고 있습니다.','current run native root session binding required':'현재 실행의 메인 대화 원본을 연결해야 합니다.','whole execution plan membership required':'현재 실행의 전체 계획에 작업을 연결해야 합니다.','assigned detailed work plan required':'현재 실행의 담당 세부 계획을 등록해야 합니다.'};
+ const reasons=(gate?.reasons||[]).map(r=>reasonLabels[r]||'착수 조건을 추가 확인해야 합니다.');
  const questions=(data.required_questions||[]).filter(q=>q.affected_task_ids.includes(t.id));
- return `<h3>착수 계획·필수 답변</h3><p>${esc(labels[gate?.status]||'착수 조건 미확인')} · 전체 계획 ${gate?.plan_registered?'등록됨':'미등록'} · 담당 계획 ${gate?.task_plan_registered?'등록됨':'미등록'}</p>${gate?.legacy_active_attempt?'<p>정책 활성화 전 시작한 시도 · 새 착수와 구분</p>':''}${questions.map(q=>`<p class="decision-alert">${q.status==='OPEN'?'답변 대기':'답변 출처 확인됨'}: ${esc(q.question)}${q.human_review_required?' · 사람의 추가 확인 필요':''}</p>`).join('')}${plan?detail('담당자가 등록한 세부 계획',`<ol>${plan.steps.map(s=>`<li>${esc(s.action)}<p>완료 조건: ${(s.completion_criteria||[]).map(esc).join(' · ')}</p><p>확인 방법: ${(s.verification||[]).map(esc).join(' · ')}</p></li>`).join('')}</ol>`):'<p>담당 세부 계획 기록 없음</p>'}`;
+ return `<h3>착수 계획·필수 답변</h3><p>${esc(labels[gate?.status]||'착수 조건 미확인')} · 전체 계획 ${gate?.plan_registered?'등록됨':'미등록'} · 담당 계획 ${gate?.task_plan_registered?'등록됨':'미등록'}</p>${gate?.legacy_active_attempt?'<p>정책 활성화 전 시작한 시도 · 새 착수와 구분</p>':''}${reasons.map(r=>`<p>${esc(r)}</p>`).join('')}${questions.map(q=>`<p class="decision-alert">${q.status==='OPEN'?'답변 대기':'답변 출처 확인됨'}: ${esc(q.question)}${q.human_review_required?' · 사람의 추가 확인 필요':''}</p>`).join('')}${plan?detail('담당자가 등록한 세부 계획',`<ol>${plan.steps.map(s=>`<li>${esc(s.action)}<p>완료 조건: ${(s.completion_criteria||[]).map(esc).join(' · ')}</p><p>확인 방법: ${(s.verification||[]).map(esc).join(' · ')}</p></li>`).join('')}</ol>`):'<p>담당 세부 계획 기록 없음</p>'}`;
 }
 function executionPlanSection(){
  const p=data.human_progress;

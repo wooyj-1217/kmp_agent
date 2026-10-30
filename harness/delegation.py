@@ -245,13 +245,13 @@ class Development:
             self.update(tid,status,str(exc));return False
 
     def execute(self,parent_task_id,worker=None):
-        self.tasks.require_dispatch(parent_task_id)
         from harness.delegation_runtime import run_codex
         from harness.requirement_lineage import development_gate
         # Return historic completion without recertifying or rewriting it.
         previous=self.tasks.read()['tasks'][parent_task_id]
-        if worker is None and previous['state']=='DONE':
+        if previous['state']=='DONE':
             return {'state':'DONE' if valid_done(previous) else 'RECHECK_REQUIRED','cached':True,'parent_task_id':parent_task_id,'claim_scope':'HISTORICAL_ONLY','product_requirements_fulfillment':'NOT_ESTABLISHED','feature_complete':False}
+        self.tasks.require_dispatch(parent_task_id, preflight=True)
         # Legacy synthetic tests remain local checks, never product certification.
         if worker is None or (self.root/'requirement-lineage.json').exists():
             development_gate(self.tasks, parent_task_id)

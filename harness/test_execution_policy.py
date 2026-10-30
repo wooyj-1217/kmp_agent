@@ -153,6 +153,11 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.m.register(**self.step('LATE', ['T']))
         with self.assertRaisesRegex(ValueError, 'human answer'):
             self.m.require_dispatch('LATE')
+        self.m.register(**self.step('QA'));self.m.register(**self.step('REPAIR'))
+        self.m._mutate('synthetic_qa_repair_links',lambda s:s['tasks']['QA'].update(qa_config={'target_task_id':'T','repair_task_id':'REPAIR'}))
+        with self.assertRaisesRegex(ValueError,'human answer'):
+            self.m.require_dispatch('REPAIR')
+        self.assertEqual(self.m.read()['tasks']['REPAIR']['state'],'BLOCKED')
 
     def test_multiple_structured_items_in_one_human_reply_have_distinct_provenance(self):
         self.activate(); self.question()
@@ -260,7 +265,8 @@ class ExecutionPolicyTests(unittest.TestCase):
             self.m.submit('T', aid, ['scope.md'], 'done')
 
     def test_worker_cache_is_readonly_and_owned_process_stops(self):
-        self.activate(); self.plan(); watch = WorkerGate(self.m, 'T')
+        self.activate(); self.plan(); self.m.ready('T'); self.m.begin('T','improvement')
+        watch = WorkerGate(self.m, 'T')
         with patch.object(self.m, 'read', side_effect=AssertionError('mutating read forbidden')):
             watch.check(); watch.check()
         def ask():
@@ -277,7 +283,8 @@ class ExecutionPolicyTests(unittest.TestCase):
             self.m.logger.command('run', ['rtk', 'proxy', 'echo', 'no'])
         with self.assertRaisesRegex(ValueError, 'detailed work plan'):
             self.m.logger.command('run', ['rtk', 'proxy', 'echo', 'no'], task_id='T')
-        self.plan(); marker = self.root / 'descendant.txt'
+        self.plan(); self.m.ready('T'); self.m.begin('T','improvement')
+        marker = self.root / 'descendant.txt'
         descendant = 'import pathlib,time;time.sleep(1);pathlib.Path(' + repr(str(marker)) + ').write_text("escaped")'
         parent = 'import subprocess,sys,time;subprocess.Popen([sys.executable,"-c",' + repr(descendant) + ']);time.sleep(20)'
         def ask():
@@ -286,6 +293,60 @@ class ExecutionPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'interrupted'):
             managed_command(self.m, 'T', [sys.executable, '-c', parent], self.root, 30)
         thread.join(); time.sleep(1.1)
+        self.assertFalse(marker.exists())
+
+    def test_nonexistent_done_and_unstarted_task_cannot_spawn_managed_command(self):
+        self.activate(); self.plan()
+        with patch('harness.execution_policy.subprocess.Popen') as spawn:
+            for tid,reason in [('MISSING','existing task'),('T','active unblocked')]:
+                with self.assertRaisesRegex(ValueError,reason):
+                    managed_command(self.m,tid,[sys.executable,'-c','print(123)'],self.root)
+            self.m._mutate('synthetic_historical_done',lambda s:s['tasks']['T'].update(state='DONE'))
+            with self.assertRaisesRegex(ValueError,'completed task history'):
+                managed_command(self.m,'T',[sys.executable,'-c','print(456)'],self.root)
+            spawn.assert_not_called()
+        self.assertEqual(self.m.read()['tasks']['T']['state'],'DONE')
+        self.assertEqual(self.m.report()['tasks']['T']['execution_gate']['start_status'],'BLOCKED')
+
+    def test_role_interrupt_kills_term_ignoring_pipe_detached_descendant(self):
+        self.activate(); self.plan(); self.m.ready('T')
+        aid=self.m.begin('T','improvement')['agent_run_id']
+        from harness.roles import Roles
+        role=Roles.__new__(Roles);role.tasks=self.m;role.root=self.root
+        directory=self.root/'.harness/fake';directory.mkdir(parents=True)
+        (directory/'context.json').write_text('test context')
+        ready=self.root/'child-ready';marker=self.root/'escaped-marker'
+        descendant='import os,pathlib,signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);os.close(1);os.close(2);pathlib.Path('+repr(str(ready))+').write_text("ready");time.sleep(1);pathlib.Path('+repr(str(marker))+').write_text("escaped")'
+        parent='import subprocess,sys,time;subprocess.Popen([sys.executable,"-c",'+repr(descendant)+']);time.sleep(20)'
+        def ask():
+            deadline=time.monotonic()+5
+            while not ready.exists() and time.monotonic()<deadline:time.sleep(.02)
+            self.question()
+        thread=threading.Thread(target=ask);thread.start()
+        prepared={'task_id':'T','agent_run_id':aid,'context':'.harness/fake/context.json'}
+        with patch.object(role,'prepare',return_value=prepared):
+            with self.assertRaisesRegex(ValueError,'human answer pending'):
+                role.execute('T','improvement',worker=[sys.executable,'-c',parent],timeout=5)
+        thread.join();time.sleep(1.1)
+        self.assertFalse(marker.exists())
+
+    def test_native_runtime_interrupt_kills_term_ignoring_pipe_detached_descendant(self):
+        self.activate();self.plan();self.m.ready('T')
+        aid=self.m.begin('T','improvement')['agent_run_id']
+        from harness.delegation_runtime import run_codex
+        ready=self.root/'native-ready';marker=self.root/'native-escaped'
+        descendant='import os,pathlib,signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);os.close(1);os.close(2);pathlib.Path('+repr(str(ready))+').write_text("ready");time.sleep(1);pathlib.Path('+repr(str(marker))+').write_text("escaped")'
+        worker=self.root/'native-worker.py'
+        worker.write_text('#!'+sys.executable+'\nimport subprocess,sys,time\nsubprocess.Popen([sys.executable,"-c",'+repr(descendant)+'])\ntime.sleep(20)\n')
+        worker.chmod(0o700)
+        def ask():
+            deadline=time.monotonic()+5
+            while not ready.exists() and time.monotonic()<deadline:time.sleep(.02)
+            self.question()
+        thread=threading.Thread(target=ask);thread.start()
+        result=run_codex(self.m,'T',aid,self.root,{},self.root/'native-result',str(worker),5)
+        thread.join();time.sleep(1.1)
+        self.assertIn('human answer pending',result['error'])
         self.assertFalse(marker.exists())
 
 
