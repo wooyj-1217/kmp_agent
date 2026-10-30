@@ -28,6 +28,12 @@ RESULT_SCHEMA={'type':'object','additionalProperties':False,'properties':{
 # The model schema and local validator share the same controlled vocabulary.
 RESULT_SCHEMA['properties']['criteria']['items']['required'].append('platform_results')
 RESULT_SCHEMA['properties']['criteria']['items']['properties']['platform_results']={'type':'array','items':{'type':'object','additionalProperties':False,'properties':{k:({'type':'array','items':{'type':'string'}} if k=='evidence' else {'type':'string'}) for k in ('platform','result','environment','command_or_steps','expected','observed','doctor','drive','cleanup','evidence')},'required':['platform','result','environment','command_or_steps','expected','observed','doctor','drive','cleanup','evidence']}}
+_platform_properties=RESULT_SCHEMA['properties']['criteria']['items']['properties']['platform_results']['items']['properties']
+_platform_properties['platform']['enum']=['android','ios','web','server']
+for _status in ('result','doctor','drive','cleanup'):
+    _platform_properties[_status]['enum']=sorted(RESULTS)
+    _platform_properties[_status]['description']='Exact status token only. Put explanations in observation or evidence files.'
+
 RESULT_SCHEMA['properties']['criteria']['items']['properties']['evidence']['description']='Exactly ONE existing relative file path in the review workspace. Not a sentence, URL, line reference or semicolon-separated paths. Write a qa-tools evidence file that cites any additional sources.'
 RESULT_SCHEMA['properties']['findings']['items']['properties']['evidence']['description']='Exactly ONE existing relative file path in the review workspace. Put observations and line references inside that file, not in this field.'
 _finding_properties=RESULT_SCHEMA['properties']['findings']['items']['properties']
@@ -43,6 +49,17 @@ def validate_result(value):
     if not isinstance(value['criteria'],list) or not isinstance(value['findings'],list):raise ValueError('QA lists required')
     for row in value['criteria']:
         if set(row)-{'platform_results'}!={'criterion_id','result','observation','evidence'} or not isinstance(row['criterion_id'],str) or not row['criterion_id'] or row['result'] not in RESULTS or not isinstance(row['observation'],str) or (row['evidence'] is not None and not isinstance(row['evidence'],str)):raise ValueError('invalid QA criterion')
+        if 'platform_results' in row:
+            platforms=row['platform_results']
+            if not isinstance(platforms,list):raise ValueError('QA platform_results must be a list')
+            seen=set()
+            for item in platforms:
+                if not isinstance(item,dict) or set(item)!=set(_platform_properties):raise ValueError('QA platform result must match complete contract')
+                if item['platform'] not in _platform_properties['platform']['enum'] or item['platform'] in seen:raise ValueError('invalid or duplicate QA platform')
+                seen.add(item['platform'])
+                if any(item[k] not in RESULTS for k in ('result','doctor','drive','cleanup')):raise ValueError('QA platform status must be an exact token; explanations belong in evidence')
+                if not all(isinstance(item[k],str) and item[k].strip() for k in ('environment','command_or_steps','expected','observed')):raise ValueError('QA platform observations must be concrete')
+                if not isinstance(item['evidence'],list) or any(not isinstance(x,str) or not x.strip() for x in item['evidence']) or item['result']=='PASS' and not item['evidence']:raise ValueError('QA platform evidence must be explicit paths')
     for f in value['findings']:
         if set(f)!=FINDING_FIELDS or f['kind'] not in KINDS or f['severity'] not in {'BLOCKER','MAJOR','MINOR'} or type(f['blocking']) is not bool:raise ValueError('invalid QA finding')
         if f['owner_role'] not in {'planning','design','development','verification','improvement','orchestrator'}:raise ValueError('invalid finding owner')
