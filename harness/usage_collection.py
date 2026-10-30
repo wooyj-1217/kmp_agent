@@ -114,6 +114,9 @@ def poll(manager, *, session_ids=None, source_overrides=None):
                     bound = {(run['agent_run_id'], b.get('session_id'), b.get('response_id'))
                              for task in current['tasks'].values() for run in task.get('executions', [])
                              for b in run.get('usage_bindings', [])}
+                    owners = {}
+                    for aid, native_session, native_response in bound:
+                        owners.setdefault((native_session, native_response), set()).add(aid)
                     pending_by_owner = {}
                     for event in source_events:
                         obs = event['observed']; response = obs.get('response_id')
@@ -124,7 +127,13 @@ def poll(manager, *, session_ids=None, source_overrides=None):
                         aids = {r['execution_id'] for r in matched}
                         if len(aids) == 1:
                             entry = matched[0]
-                            if (entry['execution_id'], session, response) in bound:
+                            existing = owners.get((session, response), set())
+                            if existing - {entry['execution_id']}:
+                                append_unique(directory / 'attribution-limits.jsonl', {'session_id': session,
+                                              'response_id': response, 'reason': 'existing_binding_conflict',
+                                              'executions': [entry['execution_id']]})
+                                continue
+                            if entry['execution_id'] in existing:
                                 continue
                             key = (entry['task_id'], entry['execution_id'], entry['run_id'])
                             group = pending_by_owner.setdefault(key, {'entry':entry, 'bindings':{}})
@@ -134,15 +143,13 @@ def poll(manager, *, session_ids=None, source_overrides=None):
                                           'reason': 'multiple_explicit_contexts_for_one_response', 'executions': sorted(aids)})
                     for (task_id, execution_id, run_id), group in pending_by_owner.items():
                         entry = group['entry']
-                        try:
-                            from harness.tasks import Tasks
-                            owner = manager if manager.run_id == run_id else Tasks(root, run_id)
-                            count += owner.bind_usage_batch(task_id, execution_id, list(group['bindings'].values()),
-                                                           entry['basis'] + '; incremental native collection')
-                        except ValueError:
-                            for binding in group['bindings'].values():
-                                append_unique(directory / 'attribution-limits.jsonl', {**binding,
-                                              'reason':'existing_binding_conflict', 'executions':[execution_id]})
+                        from harness.tasks import Tasks
+                        owner = manager if manager.run_id == run_id else Tasks(root, run_id)
+                        # A concurrent binding or policy rejection is a collection
+                        # error, not proof that every response conflicts. Retry on
+                        # the next poll using the refreshed ownership index.
+                        count += owner.bind_usage_batch(task_id, execution_id, list(group['bindings'].values()),
+                                                       entry['basis'] + '; incremental native collection')
                     observed.update(status='observing', usage_responses=len(source_events))
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     observed.update(status='collection_error', error=type(error).__name__ + ': ' + str(error))

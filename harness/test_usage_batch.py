@@ -67,6 +67,27 @@ class UsageBatchTests(unittest.TestCase):
         self.assertEqual(self.manager.read()['tasks']['POLL']['executions'][0]['usage_bindings'],bindings)
         self.assertEqual(poll(self.manager)['new_bindings'],0)
 
+    def test_poll_quarantines_only_existing_owner_conflict(self):
+        previous=self.begin("PREVIOUS");current=self.begin("CURRENT")
+        path,bindings=self.imported(2)
+        self.manager.bind_usage("PREVIOUS",previous["agent_run_id"],"main","r-1","existing exact owner")
+        register(self.manager,"CURRENT",current["agent_run_id"],"main",path=path,turn_id="turn")
+        self.assertEqual(poll(self.manager)["new_bindings"],1)
+        run=self.manager.read()["tasks"]["CURRENT"]["executions"][0]
+        self.assertEqual(run["usage_bindings"],[bindings[0]])
+        limits=[json.loads(line) for line in (self.root/".harness/usage/attribution-limits.jsonl").read_text().splitlines()]
+        self.assertEqual([entry["response_id"] for entry in limits],["r-1"])
+        self.assertEqual(poll(self.manager)["new_bindings"],0)
+
+    def test_batch_rejection_does_not_invent_response_conflicts(self):
+        run=self.begin("POLL");path,_=self.imported(2)
+        register(self.manager,"POLL",run["agent_run_id"],"main",path=path,turn_id="turn")
+        with patch.object(self.manager,"bind_usage_batch",side_effect=ValueError("concurrent state change")):
+            result=poll(self.manager)
+        self.assertEqual(result["sessions"][0]["status"],"collection_error")
+        self.assertFalse((self.root/".harness/usage/attribution-limits.jsonl").exists())
+        self.assertEqual(poll(self.manager)["new_bindings"],2)
+
     def test_append_many_is_atomic_idempotent_and_redacts_each_event(self):
         before=self.logger.path.read_bytes()
         good={'event_type':'synthetic','source_key':'batch-one','observed':{'password':'must-not-leak'}}
