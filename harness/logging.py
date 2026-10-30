@@ -347,6 +347,15 @@ class Logger:
 
     def command(self, run_id, command=None, task_id=UNKNOWN, agent_run_id=UNKNOWN,
                 attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None):
+        state_path = self.root / '.harness/tasks/tasks.yaml'
+        policy_state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        managed = None
+        if policy_state.get('execution_policy'):
+            if task_id not in policy_state.get('tasks', {}):
+                raise ValueError('strict managed commands require an explicit planned task')
+            from harness.tasks import Tasks
+            managed = Tasks(self.root, run_id)
+            managed.require_dispatch(task_id)
         start = self.run(run_id)
         if any(e["run_id"] == run_id and e["event_type"] == "run_finished" for e in self.read()):
             raise ValueError("run already finished")
@@ -381,8 +390,12 @@ class Logger:
                               "argv_sha256": digest(json.dumps(command).encode())})
         timer = time.monotonic()
         try:
-            proc = subprocess.run(command, cwd=cwd, capture_output=True)
-        except (OSError, KeyboardInterrupt) as error:
+            if managed is not None:
+                from harness.execution_policy import managed_command
+                proc = managed_command(managed, task_id, command, cwd, text=False)
+            else:
+                proc = subprocess.run(command, cwd=cwd, capture_output=True)
+        except (OSError, ValueError, KeyboardInterrupt) as error:
             self.append("command_finished", run_id, start["work_type"],
                         **context, observed={**metadata, "ended_at": now(), "elapsed_seconds": time.monotonic() - timer, "error_type": type(error).__name__,
                                   "returncode": UNKNOWN, "changed_files": changes(before, snapshot(self.root))})

@@ -33,11 +33,28 @@ function statusLabel(value) {
 function complianceLabel(value) {
   return ({PASS:'합의·상태 비교 계약 검토 통과',NON_COMPLIANT:'합의 목표와 불일치 확인',WEB_UNDECIDED:'웹 UI 범위 결정 전',RECHECK_REQUIRED:'합의·상태 비교 재검토 필요'})[value] || '합의·상태 비교 검증 미확인';
 }
+function executionPolicyDetail(t){
+ const gate=t.execution_gate,plan=t.work_plan;
+ if(!gate&&!plan)return '<h3>착수 계획·필수 답변</h3><p>실행 정책 적용 기록 없음</p>';
+ const labels={CLEAR:'착수 조건 확인됨',ALLOWED:'착수 조건 확인됨',BLOCKED:'착수 차단',NOT_CONFIGURED:'실행 정책 미설정'};
+ const questions=(data.required_questions||[]).filter(q=>q.affected_task_ids.includes(t.id));
+ return `<h3>착수 계획·필수 답변</h3><p>${esc(labels[gate?.status]||'착수 조건 미확인')} · 전체 계획 ${gate?.plan_registered?'등록됨':'미등록'} · 담당 계획 ${gate?.task_plan_registered?'등록됨':'미등록'}</p>${gate?.legacy_active_attempt?'<p>정책 활성화 전 시작한 시도 · 새 착수와 구분</p>':''}${questions.map(q=>`<p class="decision-alert">${q.status==='OPEN'?'답변 대기':'답변 출처 확인됨'}: ${esc(q.question)}${q.human_review_required?' · 사람의 추가 확인 필요':''}</p>`).join('')}${plan?detail('담당자가 등록한 세부 계획',`<ol>${plan.steps.map(s=>`<li>${esc(s.action)}<p>완료 조건: ${(s.completion_criteria||[]).map(esc).join(' · ')}</p><p>확인 방법: ${(s.verification||[]).map(esc).join(' · ')}</p></li>`).join('')}</ol>`):'<p>담당 세부 계획 기록 없음</p>'}`;
+}
+function executionPlanSection(){
+ const p=data.human_progress;
+ if(!p?.selected||!p.steps?.length)return '';
+ return `<section aria-label="현재 실행 전체 계획"><h2>현재 실행 전체 계획</h2><p>${esc(p.goal)}</p><p>${p.plan_registered?'사전 등록된 전체 계획':'전체 계획 미등록 · 연결된 작업만 표시'}</p>${p.steps.map(s=>`<article><p>${s.state==='complete'?'[x]':'[ ]'} <button data-task="${esc(s.task_id)}">${esc(s.name)}</button> · ${esc(s.status)}</p>${s.reason?`<p>${esc(s.reason)}</p>`:''}${s.doing?`<p>${esc(s.doing)}</p>`:''}</article>`).join('')}<small>필수 검토와 현재 근거가 확인된 단계만 완료로 표시합니다.</small></section>`;
+}
+function requiredQuestionsSection(){
+ const questions=(data.required_questions||[]).filter(q=>q.status==='OPEN');
+ if(!questions.length)return '';
+ return `<section aria-label="필수 답변 대기"><h2>필수 답변을 기다리는 작업</h2>${questions.map(q=>`<article><p><strong>${esc(q.question)}</strong></p><p>대기 작업: ${q.affected_task_ids.map(id=>esc(data.tasks.find(t=>t.id===id)?.title||id)).join(' · ')}</p><p>${q.human_review_required?'답변 내용을 추가 확인해야 합니다.':'실제 답변이 확인되기 전에는 관련 작업을 재개하지 않습니다.'}</p></article>`).join('')}</section>`;
+}
 function taskDetail(t) {
  const rows=data.agent_flow?.groups.flatMap(g=>g.nodes).flatMap(n=>n.tasks||[])||[],r=rows.find(r=>r.task_id===t.id),latest=(t.historical_reviews||[]).slice(-1)[0],v=t.verdict;
  const next=t.next&&!/^(연결 필요|후속 작업 연결 미확인)$/.test(t.next)?t.next:'다음 행동 미등록';
  const actor=r?.execution_kind==='MAIN_SESSION'?'메인 에이전트 직접 수행':r?.execution_kind==='INDEPENDENT_MODEL'?'독립 서브에이전트 수행':r?.execution_kind==='SYNTHETIC_PROCESS'?'합성 독립 실행 사례':'실행 주체 미확인';
- return `<h3>현재 상태와 다음 행동</h3><p>${badge(r?workStatus(r):statusLabel(t.raw_state))} ${badge(r?.execution_observation||'현재 실행 여부 미확인')}</p><p>${esc(actor)} · 마지막 활동 ${date(t.activity?.last_activity)}</p><p>다음 행동: ${esc(next)}</p><h3>작업 체크리스트</h3>${(t.criteria||[]).map(c=>`<p>${esc(c.description||c.id)} · ${esc(c.result||c.status||'미검증')}</p>`).join('')||'<p>체크리스트 기록 없음</p>'}<h3>최신 검증 결과와 현재 유효성</h3><p>${badge(({RECHECK_REQUIRED:'재검증 필요',PASS:'PASS',FAIL:'FAIL'})[v]||'미검증',v==='RECHECK_REQUIRED'?'warn':'')}</p><p>${esc(t.revalidation_summary||(t.reasons||[]).join(' / ')||'현재 유효성 근거 미확인')}</p>${latest?`<p>최근 기록: ${esc(latest.result)} · ${date(latest.reviewed_at)} · ${esc(latest.criterion)}</p>`:''}<h3>미해결 결함·차단·사용자 결정</h3><p>${esc(t.blocked||r?.reason||'연결된 차단 기록 없음')}</p>${(t.qa?.open_findings||[]).map(qaFindingCard).join('')}${(data.agent_flow?.decisions||[]).filter(d=>!d.task_id||d.task_id===t.id).map(d=>`<p class="decision-alert">사용자 결정 필요: ${esc(d.question)}</p>`).join('')}`;
+ return `<h3>현재 상태와 다음 행동</h3><p>${badge(r?workStatus(r):statusLabel(t.raw_state))} ${badge(r?.execution_observation||'현재 실행 여부 미확인')}</p><p>${esc(actor)} · 마지막 활동 ${date(t.activity?.last_activity)}</p><p>다음 행동: ${esc(next)}</p>${executionPolicyDetail(t)}<h3>작업 체크리스트</h3>${(t.criteria||[]).map(c=>`<p>${esc(c.description||c.id)} · ${esc(c.result||c.status||'미검증')}</p>`).join('')||'<p>체크리스트 기록 없음</p>'}<h3>최신 검증 결과와 현재 유효성</h3><p>${badge(({RECHECK_REQUIRED:'재검증 필요',PASS:'PASS',FAIL:'FAIL'})[v]||'미검증',v==='RECHECK_REQUIRED'?'warn':'')}</p><p>${esc(t.revalidation_summary||(t.reasons||[]).join(' / ')||'현재 유효성 근거 미확인')}</p>${latest?`<p>최근 기록: ${esc(latest.result)} · ${date(latest.reviewed_at)} · ${esc(latest.criterion)}</p>`:''}<h3>미해결 결함·차단·사용자 결정</h3><p>${esc(t.blocked||r?.reason||'연결된 차단 기록 없음')}</p>${(t.qa?.open_findings||[]).map(qaFindingCard).join('')}${(data.agent_flow?.decisions||[]).filter(d=>!d.task_id||d.task_id===t.id).map(d=>`<p class="decision-alert">사용자 결정 필요: ${esc(d.question)}</p>`).join('')}`;
 }
 function taskHistory(t){return detail('과거 검증·실행·보완 이력',`${qaDetail(t)}${(t.historical_reviews||[]).map(r=>`<p>당시 ${esc(r.result)} · ${esc(r.criterion)} · ${date(r.reviewed_at)} ${r.url?`<a href="${esc(r.url)}">검토 근거</a>`:'검증 근거 미확인'}</p>`).join('')}${json(t.activity?.events||[])}`,`history-${t.id}`)+detail('기술 상세와 원본 근거',`${delegationDetail(t)}${json(t)}`,`technical-${t.id}`);}
 function provenanceBanner(s) {

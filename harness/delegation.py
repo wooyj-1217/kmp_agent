@@ -190,6 +190,7 @@ class Development:
             self.update(tid,'RUNNING','native worker dispatch reserved')
             ws,out,before,head=self.workspace(tid,aid);packet=self.packet(parent,spec,execution,ws)
             packet_path=self.report(out,'delegation-input.json',packet)
+            self.tasks.require_dispatch(tid)
             result=worker(self.tasks,tid,aid,ws,packet,out/'process',parent['development_delegation']['executable'],parent['development_delegation']['timeout'])
             from harness.delegation_runtime import validate_result
             claim=validate_result(result['result']) if result.get('result') else None
@@ -212,6 +213,7 @@ class Development:
                 if name not in before:git(ws,'add','-N','--',name)
             (out/'changes.patch').write_bytes(git(ws,'diff','--binary','HEAD','--',*changed))
             with self.integration_lock:
+                self.tasks.require_dispatch(tid)
                 latest=self.tasks.read()['tasks'][tid]
                 if execution['baseline']!=tracking.baseline(latest) or any(self.tasks.artifact(v['path'])['sha256']!=v['sha256'] for v in latest['development_tracking']['baselines'].values()):raise ValueError('baseline changed during worker execution')
                 for name in changed:
@@ -243,6 +245,7 @@ class Development:
             self.update(tid,status,str(exc));return False
 
     def execute(self,parent_task_id,worker=None):
+        self.tasks.require_dispatch(parent_task_id)
         from harness.delegation_runtime import run_codex
         from harness.requirement_lineage import development_gate
         # Return historic completion without recertifying or rewriting it.

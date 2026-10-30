@@ -25,6 +25,9 @@ def _drain(child, timeout=5):
 
 
 def _communicate_stream(child, prompt, timeout, stream):
+    from harness.execution_policy import WorkerGate
+    execution_gate = WorkerGate(stream.manager, stream.task_id)
+    execution_gate.check()
     # Keep the old test-double/process contract; real pipes are drained concurrently.
     if not hasattr(child, 'stdout') or not hasattr(child, 'stdin'):
         return child.communicate(prompt, timeout=timeout)
@@ -52,6 +55,7 @@ def _communicate_stream(child, prompt, timeout, stream):
     for thread in child._usage_threads:
         thread.start()
     while True:
+        execution_gate.check()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise subprocess.TimeoutExpired('native worker', timeout)
@@ -61,6 +65,7 @@ def _communicate_stream(child, prompt, timeout, stream):
         except subprocess.TimeoutExpired:
             stream.tick()
     result = _drain(child)
+    execution_gate.check()
     stream.tick()
     return result
 
@@ -187,6 +192,7 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
     try:
         slot.__enter__()
         slot_acquired = True
+        manager.require_dispatch(task_id)
         child = subprocess.Popen(argv, cwd=workspace, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  text=True, start_new_session=True,env=worker_env)

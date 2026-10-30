@@ -176,6 +176,7 @@ class QA:
         return self.tasks._mutate('qa_verified_issue_resolution',op,qa_task_id)
 
     def execute(self,task_id,worker=None,repair=None,executable=None,timeout=None):
+        self.tasks.require_dispatch(task_id)
         context={'phase':'preflight','owned_runs':[]}
         try:
             return self._execute(task_id,worker,repair,executable,timeout,context)
@@ -270,7 +271,8 @@ class QA:
                 for index,argv in enumerate(config['commands']):
                     started=time.monotonic()
                     try:
-                        proc=subprocess.run(argv,cwd=workspace,capture_output=True,text=True,timeout=timeout)
+                        from harness.execution_policy import managed_command
+                        proc=managed_command(self.tasks,task_id,argv,workspace,timeout)
                         status='PASS' if proc.returncode==0 else 'FAIL';code=proc.returncode;output=proc.stdout+'\n'+proc.stderr
                     except (OSError,subprocess.TimeoutExpired) as exc:status='NOT_RUN';code=None;output=str(exc)
                     path=base/('command-'+str(index)+'.txt');path.write_text(output)

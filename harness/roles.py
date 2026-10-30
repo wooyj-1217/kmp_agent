@@ -205,6 +205,7 @@ class Roles:
         return result
 
     def accept(self, task_id, agent_run_id, response):
+        self.tasks._mutate('accept', lambda state: None, task_id)
         task = self.tasks.read()["tasks"][task_id]
         self.tasks._active(task, agent_run_id, "work")
         if task["state"] != "IN_PROGRESS":
@@ -325,6 +326,7 @@ class Roles:
         return self.tasks.read()["tasks"][task_id].get("delivery", {"scope": "input_interpretation_only"})
 
     def execute(self, task_id, role, worker=None, timeout=300):
+        self.tasks.require_dispatch(task_id)
         task=self.tasks.read()['tasks'][task_id]
         if task.get('qa_config'):
             if role!='verification' or worker is not None:raise ValueError('QA uses verification role and its configured adapter')
@@ -363,6 +365,7 @@ class Roles:
             try:
                 from harness.runtime_limits import model_slot
                 with model_slot(self.tasks,task_id,aid,timeout):
+                    self.tasks.require_dispatch(task_id)
                     child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                              stderr=subprocess.PIPE, text=True, start_new_session=True)
                     self.write(directory / f"dispatch-{index:03d}.json", {"pid": child.pid, "command": command,

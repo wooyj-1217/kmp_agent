@@ -73,6 +73,22 @@ class ProgressTests(unittest.TestCase):
     def test_human_decision_only_explicit_question_with_basis(self):
         self.data['scope']['decisions']=[{'requires_human':True,'status':'OPEN','question':'선택?', 'basis':'원문'}, {'requires_human':False,'status':'OPEN','question':'자동 보완','basis':'명세'}]
         p=project(self.data,self.raw);self.assertEqual(len(p['decisions']),1)
+    def test_required_question_overrides_observed_activity_and_cmd_shares_ledger(self):
+        self.add('작업',state='active',raw_state='BLOCKED')
+        self.data['required_questions']=[{'id':'Q','question':'어느 범위로 진행할까요?',
+            'status':'OPEN','affected_task_ids':['작업'],'options':[{'id':'all','label':'전체 범위'}]}]
+        p=project(self.data,self.raw)
+        self.assertEqual(p['steps'][0]['state'],'blocked')
+        self.assertEqual(p['decisions'][0]['question'],'어느 범위로 진행할까요?')
+        self.assertIn('답변 대기',message(p));self.assertIn('전체 범위',message(p))
+        self.data['required_questions'][0]['status']='ANSWERED'
+        self.assertIn('답변 확인 완료',message(project(self.data,self.raw)))
+    def test_missing_work_plan_is_visible_as_start_gate(self):
+        view=self.add('작업')
+        view['execution_gate']={'status':'BLOCKED','finish_status':'BLOCKED','reasons':['assigned detailed work plan required']}
+        p=project(self.data,self.raw)
+        self.assertEqual(p['steps'][0]['state'],'blocked')
+        self.assertIn('착수 조건 대기',message(p))
     def test_native_error_category_not_guessed_from_text(self):
         self.add('검증',state='blocked',raw_state='BLOCKED');self.raw['검증']['executions']=[{'kind':'work','failure':'network exploded'}]
         self.assertIsNone(project(self.data,self.raw)['steps'][0]['failure'])
