@@ -7,6 +7,7 @@
 - [design.md](design.md): 명세·시안·실제 시각 검토의 기록 필드.
 - [project-settings.json](project-settings.json): 제품별 결정 상태와 단계별 입력의 단일 참조. [단계 계약](../project-settings.md)을 적용한다.
 - [development-plan.md](development-plan.md): 개발 입력 해석·구현 위치·API/정책/실행·통합 검증 인계.
+- [작업 기록](../work-items/TEMPLATE.md): 변경 이유·결정·검증·커밋/PR/릴리스 연결. 현재 명세·맥락과 과거 기록의 역할은 [관리 규칙](../artifact-policy.md)을 따른다.
 
 <...>는 작성할 값이다. 해당 없음은 N/A와 이유를 기록한다.
 REQ ID와 기능 내 고유 FEAT-001-AC-001 형식의 수용 기준 ID를 기획→디자인→구현→검증에 유지한다. 삭제한 ID는 재사용하지 않는다. 미구현·미검증 참조를 증거처럼 채우지 않는다.
