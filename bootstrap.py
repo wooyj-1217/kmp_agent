@@ -16,6 +16,25 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent
 MANIFEST = ".kmp-agent/installation.json"
 JOURNAL = ".harness/install-transaction.json"
+# Git keeps the pinned commit and clean-worktree checks; only product runtime
+# files are materialized. Development sources and already installed releases
+# are never pruned in place.
+PRODUCT_PATTERNS = (
+    "/*",
+    "!/docs/examples/",
+    "!/docs/retrospective.md",
+    "!/docs/memo-real-trial-request.md",
+    "!/tools/*",
+    "/tools/check_pr_scope.py",
+    "!/harness/test_*.py",
+    "!/harness/run_tests.py",
+    "!/harness/trial.py",
+    "!/harness/role_trial.py",
+    "!/harness/star_trial.py",
+    "!/harness/role_example_worker.py",
+    "!/harness/dashboard_fixture.py",
+    "!/harness/request_link_render_check.js",
+)
 LAUNCHER = '''"""Stable project-owned entry point for the pinned tool."""
 import base64
 import json
@@ -107,6 +126,17 @@ def validate(code, commit=None):
     if commit and (git("rev-parse", "HEAD", cwd=code) != commit or git("status", "--porcelain", cwd=code)):
         raise ValueError("Installed release differs from its pinned Git commit")
     return version
+
+
+def file_profile(code, mode):
+    if mode == "development":
+        return "development"
+    patterns = code / ".git/info/sparse-checkout"
+    enabled = git("config", "--bool", "--default", "false", "--get", "core.sparseCheckout", cwd=code)
+    if (enabled == "true" and patterns.is_file()
+            and tuple(patterns.read_text().splitlines()) == PRODUCT_PATTERNS):
+        return "product-v1"
+    return "full-checkout"
 
 
 def acquire(target):
@@ -228,6 +258,9 @@ def fetch(target, source, ref):
     try:
         git("init", "--quiet", staging)
         git("-C", staging, "fetch", "--quiet", "--depth=1", "--", source, requested)
+        # Configure before checkout so tests/examples are not written and then
+        # deleted. Non-cone patterns support file-level exclusions.
+        git("-C", staging, "sparse-checkout", "set", "--no-cone", *PRODUCT_PATTERNS)
         git("-C", staging, "checkout", "--quiet", "--detach", "FETCH_HEAD")
         commit = git("rev-parse", "HEAD", cwd=staging)
         if re.fullmatch(r"[0-9a-fA-F]{40}", ref) and commit.lower() != ref.lower():
@@ -264,7 +297,8 @@ def install(target, source=None, ref=None, development=None, update=False):
                     raise ValueError("Restored checkout does not match installation metadata")
             validate(code, previous["commit"] if previous["mode"] == "installed" else None)
             context = load(code / "harness/context.py", "repeated_install_context")
-            return configure(target, code, previous, context.prepare(target))
+            reused = {**previous, "file_profile": file_profile(code, previous["mode"])}
+            return configure(target, code, reused, context.prepare(target))
         if development:
             code = Path(development).resolve()
             version = validate(code)
@@ -277,7 +311,8 @@ def install(target, source=None, ref=None, development=None, update=False):
         context = load(code / "harness/context.py", "candidate_project_context")
         config = context.prepare(target)
         manifest = {"schema_version": 1, "project_id": config["project_id"], "mode": mode, "source": source, "requested_ref": ref,
-                    "commit": commit, "version": version, "code_path": os.path.relpath(code, target)}
+                    "commit": commit, "version": version, "code_path": os.path.relpath(code, target),
+                    "file_profile": file_profile(code, mode)}
         if previous:
             manifest["previous"] = {k: previous[k] for k in ("mode", "source", "requested_ref", "commit", "version", "code_path")}
         return configure(target, code, manifest, config)
