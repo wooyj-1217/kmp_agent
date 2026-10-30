@@ -40,7 +40,7 @@ def execution_proof(task, run, events, registrations=()):
     usage_turns = {(e.get('source', {}).get('session_id'), e.get('observed', {}).get('response_id')):
                    e.get('observed', {}).get('turn_id') for e in events if e.get('event_type') == 'model_usage'}
     main = [r for r in native if not r.get('independent') and any(
-            session == r.get('session_id') and (response in r.get('response_ids', []) or
+            session == r.get('session_id') and (response in r['response_ids'] if r.get('response_ids') else
             r.get('turn_id') and usage_turns.get((session, response)) == r['turn_id'])
             for session, response in bound)]
     actor = 'independent_agent' if calls else 'main_session' if main and run.get('execution_mode') == 'current_agent' else 'unknown'

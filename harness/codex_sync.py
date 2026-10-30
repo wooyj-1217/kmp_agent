@@ -115,6 +115,7 @@ def handle(payload, trace=None):
     imported = incremental.collect(logger, source, mode="hook", trace=trace)
     if trace:
         trace("sync_finished", imported_events=imported, **{k:v for k,v in logger.last_collection.items() if k != "imported_events"})
+    logger_module.poll_registered_usage(logger, logger_module.native_session_id(first.get("payload", {})), source)
     return imported
 
 

@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 import hashlib
 import html
 import re
+import select
+import socket
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -15,6 +18,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, parse_qs, quote
 from harness.dashboard_usage import token_parts, enrich_usage, apply_recorded_labels
 from harness.dashboard_live import runtime_scopes, activity_view
+from harness.dashboard_events import NativeEvents
 from harness.dashboard_filter import filter_result
 
 STAGES = ['planning', 'design', 'development', 'verification', 'report']
@@ -277,9 +281,14 @@ def task_view(root, task, scope, tasks):
         h = sha(path) if path.is_relative_to(root) and path.is_file() else None
         bindings.append({'path': a.get('path'), 'frozen_sha256': a.get('sha256'), 'current_sha256': h,
                          'state': '일치' if h == a.get('sha256') else '변경 또는 원본 누락'})
+    if task.get('_filter_partial'):
+        verdict='UNKNOWN'; compliance='UNKNOWN'; status='선택 실행만 표시 · 작업 전체 판정 제외'
+        reasons.append('다른 버전 또는 기간의 실행을 제외한 일부 보기')
     return {'id': tid, 'title': mapping.get('display_title') or task.get('title', tid), 'stage': mapping.get('stage'),
             'status': status, 'verdict': verdict, 'compliance': compliance, 'active': bool(active), 'raw_state': state,
             'criterion_applicability': criterion_applicability,
+            'execution_gate': task.get('execution_gate'),
+            'work_plan': task.get('work_plan'),
             'scope': task.get('scope'), 'result': mapping.get('result_summary') if summary_current else None,
             'revalidation_summary': mapping.get('revalidation_summary') if summary_current else None,
             'display_kind': mapping.get('display_kind') if summary_current else None,
@@ -297,14 +306,22 @@ def task_view(root, task, scope, tasks):
             'review_id': review.get('agent_run_id') if review else None}
 
 
-def usage_view(events, scope, taskviews, pricing, source_tasks=None):
+def usage_view(events, scope, taskviews, pricing, source_tasks=None, collision_events=None):
+    from harness.dashboard_usage import native_identity_conflict
     allowed = set(scope.get('agent_run_ids', []))
     bindings = {}
     for tid, task in (source_tasks or {}).items():
         for run in task.get('executions', []):
             for b in run.get('usage_bindings', []):
                 bindings.setdefault((b.get('session_id'), b.get('response_id')), set()).add((tid, run.get('agent_run_id')))
-    selected = []; conflicts = set()
+    selected = []; conflicts = set(); identity_conflicts = set()
+    collision_values={}; global_collisions=set()
+    for original in collision_events or events:
+        if original.get('event_type')!='model_usage':continue
+        obs=original.get('observed',{});key=(original.get('source',{}).get('session_id'),obs.get('response_id'))
+        value=(obs.get('usage'),obs.get('model'),obs.get('usage_semantics'))
+        if key in collision_values and collision_values[key]!=value:global_collisions.add(key)
+        collision_values[key]=value
     for event in events:
         if event.get('event_type') != 'model_usage':
             continue
@@ -316,6 +333,11 @@ def usage_view(events, scope, taskviews, pricing, source_tasks=None):
                 conflicts.add(key)
             event = {**event, 'task_id': within[0][0], 'agent_run_id': within[0][1]}
         if event.get('agent_run_id') in allowed:
+            if key in global_collisions:conflicts.add(key)
+            if native_identity_conflict(event):
+                conflicts.add(key)
+                identity_conflicts.add(key)
+                continue
             canonical=[tid for tid,task in (source_tasks or {}).items() if any(r.get('agent_run_id')==event.get('agent_run_id') for r in task.get('executions',[]))]
             if len(canonical)==1:
                 if event.get('task_id') not in (None,'',UNKNOWN,canonical[0]):conflicts.add(key)
@@ -348,10 +370,12 @@ def usage_view(events, scope, taskviews, pricing, source_tasks=None):
         cost = sum(a*b for a, b in zip(tokens, rates))/1e6 if len(rates) == 3 and all(type(x) in (int, float) and x >= 0 for x in rates) and rate.get('as_of') and rate.get('source') else None
         t = next((t for t in taskviews if t['id'] == tid and any(r['id'] == aid for r in t['runs'])), None)
         rows.append({'project_id': (source_tasks or {}).get(tid,{}).get('project_id'), 'task': t['title'] if t else '귀속 불명', 'stage': LABELS.get(t['stage'], '귀속 불명') if t else '귀속 불명', 'hour': str(e.get('timestamp') or '시각 미확인')[:13], 'occurred_at':e.get('timestamp'), 'session_id':key[0], 'response_id':key[1], 'agent_run_id':aid, 'task_id':tid, 'attribution':'원장 명시 연결' if key in bindings else '이벤트 직접 연결', 'semantics':e.get('observed',{}).get('usage_semantics') or '기록에 의미 구분 없음', 'tokens': sum(tokens), 'normal_input': tokens[0], 'cached_input': tokens[1], 'output': tokens[2], 'cost': cost, 'model': model})
-    return {'rows': rows, 'excluded': excluded, 'conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'응답 값 또는 명시 귀속 충돌 · 합산 제외'} for k in sorted(conflicts,key=str)], 'pricing': pricing, 'coverage': '연결된 응답만 집계합니다. 실행 전체 수집 완전성은 미확인입니다.'}
+    return {'rows': rows, 'excluded': excluded,
+            'identity_conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'native_identity_conflict','tokens':None} for k in sorted(identity_conflicts,key=str)],
+            'conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'원본 세션/스레드 ID 불일치 · 합산 제외' if k in identity_conflicts else '응답 값 또는 명시 귀속 충돌 · 합산 제외'} for k in sorted(conflicts,key=str)], 'pricing': pricing, 'coverage': '연결된 응답만 집계합니다. 실행 전체 수집 완전성은 미확인입니다.'}
 
 
-def snapshot(root, scope_id=None, start=None, end=None):
+def snapshot(root, scope_id=None, start=None, end=None, agent_version=None, project_id=None):
     root = Path(root).resolve()
     state = load(root / '.harness/tasks/tasks.yaml', {'tasks': {}})
     registry = load(root / '.harness/dashboard-scopes.json', {'project_name': root.name, 'scopes': []})
@@ -403,6 +427,20 @@ def snapshot(root, scope_id=None, start=None, end=None):
     for s in scopes:
         active=any(activity_view(tasks[tid],s,events)['kind']=='observed' for tid in s.get('tasks',{}) if tid in tasks)
         choices.append({'id':s['id'],'name':s.get('name',s['id']),'active':active,'project_id':s.get('project_id'),'work_type':s.get('work_type')})
+    if state.get('execution_policy'):
+        from harness.execution_policy import status as execution_status
+        selected_run=(scope or {}).get('recorded_run_id') or (scope or {}).get('plan_run_id')
+        for task in tasks.values():
+            if task.get('execution_contract'):
+                task['execution_gate']=execution_status(state,task,selected_run)
+    source_tasks=tasks
+    if project_id:
+        if project_id not in {t.get('project_id') for t in tasks.values()}: raise ValueError('unknown project selection')
+        if scope and scope.get('project_id') != project_id: raise ValueError('scope outside selected project')
+        tasks={tid:t for tid,t in tasks.items() if t.get('project_id')==project_id}
+    proof_events=events
+    from harness.dashboard_versions import select as select_versions
+    tasks, events, scope, version_options, run_versions, filtered = select_versions(tasks, events, scope, agent_version, start, end, bool(project_id))
     views = [task_view(root, tasks[tid], scope, tasks) for tid in (scope or {}).get('tasks', {}) if tid in tasks]
     for view in views:
         view['delegation']={k:tasks[view['id']][k] for k in ('parent_task_id','development_area','delegation_state','delegation_reason','changed_files','verification_evidence','child_task_ids','contract_change_request','change_reference') if k in tasks[view['id']]}
@@ -452,7 +490,8 @@ def snapshot(root, scope_id=None, start=None, end=None):
         stages.append({'name': LABELS[name], 'note': (scope or {}).get('stage_notes', {}).get(name), 'status': status,
                        'completion_evidence_missing':not valid_contract, 'active': any(t['active'] for t in members), 'count': len(members)})
     scoped_events = [e for e in events if e.get('agent_run_id') in (scope or {}).get('agent_run_ids', [])]
-    versions = sorted({str(e.get('harness', {}).get('version')) for e in scoped_events if e.get('harness', {}).get('version')})
+    selected_version_keys={run_versions.get(aid,'UNKNOWN') for aid in (scope or {}).get('agent_run_ids',[])}
+    versions = sorted({str(o['identity']['version']) for o in version_options if o['key'] in selected_version_keys and o['identity']})
     history = [{'title': t.get('title', tid), 'id': tid, 'kind': t.get('execution_scope'), 'state': t.get('state'), 'feature': t.get('feature_id')} for tid, t in tasks.items()]
     overall = '전체 완료 여부 확인 불가'
     if scope:
@@ -471,35 +510,92 @@ def snapshot(root, scope_id=None, start=None, end=None):
             'artifacts': [{**reference(root, r), 'kind': r.get('kind'), 'featured': r.get('featured', True), 'interactive_preview': r.get('interactive_preview', False), 'derived_from': r.get('derived_from', []), 'approval': r.get('approval', '승인 여부 미확인')} for r in (scope or {}).get('artifacts', [])],
             'comparisons': [{**c, 'images': [reference(root, a) for a in c.get('images', [])]} for c in (scope or {}).get('comparisons', [])],
             'related_history': [{'title': tasks.get(r['task_id'], {}).get('title', '원본 작업 누락'), 'state': tasks.get(r['task_id'], {}).get('state', UNKNOWN), **r} for r in (scope or {}).get('related_history', [])],
-            'versions': versions, 'harness_identities':list({json.dumps(e.get('harness',{}),sort_keys=True):e.get('harness',{}) for e in scoped_events if e.get('harness')}.values()), 'gaps': gaps, 'invalid_log_lines': bad,
+            'versions': versions, 'harness_identities':[o['identity'] for o in version_options if o['key'] in selected_version_keys and o['identity']], 'agent_versions':version_options, 'agent_version':agent_version, 'filtered_subset':filtered, 'project_filter':project_id, 'gaps': gaps, 'invalid_log_lines': bad,
             'last_activity': max((e['timestamp'] for e in scoped_events if e.get('timestamp')), default=None),
             'last_collection': datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat() if path.exists() else None,
-            'refreshed_at': stamp(), 'usage': apply_recorded_labels(enrich_usage(root, usage_view(events, scope or {}, views, registry.get('pricing', {}), tasks), scope or {}),tasks,events,root,state)}
+            'refreshed_at': stamp(), 'usage': apply_recorded_labels(enrich_usage(root, usage_view(events, scope or {}, views, registry.get('pricing', {}), source_tasks, proof_events), scope or {}),tasks,proof_events,root,state)}
     result['rework_links']=[{'task_id':e.get('task_id'),'from_task_id':e.get('observed',{}).get('from_task_id')} for e in events if e.get('event_type')=='stage_rework_created']
     result['execution_plan']=state.get('execution_plans',{}).get((scope or {}).get('recorded_run_id'))
+    visible_ids={v['id'] for v in views}
+    result['required_questions']=[{
+        'id':q['id'], 'question':q['question'], 'status':q['status'],
+        'human_review_required':q.get('human_review_required',False),
+        'options':q.get('options',[]),
+        'affected_task_ids':[tid for tid in q.get('propagated_task_ids',[]) if tid in visible_ids]
+    } for q in state.get('required_questions',{}).values()
+       if visible_ids.intersection(q.get('propagated_task_ids',[]))]
     from harness.project_progress import summarize
-    result['project_progress']=summarize(root,tasks,events,scopes,(scope or {}).get('project_id'),state.get('execution_plans',{}))
+    decision_scopes=([scope] if scope else [s for s in scopes if set(s.get('tasks',{})) & set(tasks)]) if filtered else scopes
+    result['project_progress']=summarize(root,tasks,events,decision_scopes,(scope or {}).get('project_id'),state.get('execution_plans',{}))
     from harness.agent_flow import project as agent_flow
     result['agent_flow']=agent_flow(root,tasks,events,state.get('issues',[]),result['project_progress'],list((scope or {}).get('tasks',{})),state.get('execution_plans',{}),(scope or {}).get('provenance'))
     result['last_activity']=max((g['last_activity'] for g in result['agent_flow']['groups'] if g.get('last_activity')),default=result['last_activity'])
     result=filter_result(result,events,start,end)
     from harness.human_progress import project, message
     result['human_progress']=project(result,tasks,root)
+    if filtered:
+        result['overall']='선택 조건에 해당하는 일부 기록 · 전체 완료 여부 확인 불가'
+        result['project_progress']['scope']='선택 실행·기간·Agent 버전의 교집합'
+        result['project_progress']['note']='선택한 기록의 일부 보기입니다. 프로젝트 전체 완료를 뜻하지 않습니다.'
+        result['usage']['universe']['scope']='선택 실행·프로젝트·기간·Agent 버전에 해당하는 수집 기록'
+        result['usage']['universe']['note']='선택 조건의 분모입니다. 수집 누락과 프로젝트 전체 사용량은 미확인입니다.'
+        result['readiness']=[]
+        result['related_history']=[]
+        result['execution_plan']=None
+        for stage in result['stages']:
+            stage.update(status='선택 기록 · 단계 전체 완료 여부 확인 불가',completion_evidence_missing=True)
+        result['human_progress']['filtered_subset']=True
     result['human_progress']['agent_message']=message(result['human_progress'])
     return result
 
 
-def serve(root, port):
+def create_server(root, port):
     root = Path(root).resolve(); assets = Path(__file__).with_name('dashboard_assets')
+    events = NativeEvents(root)
     class Handler(BaseHTTPRequestHandler):
+        def event_stream(self):
+            origin = self.headers.get('Origin')
+            if origin and origin != 'http://' + self.headers.get('Host', ''):
+                self.send_error(403); return
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', "default-src 'self'; object-src 'none'; base-uri 'none'")
+            self.end_headers()
+            revision = events.revision
+            def send(kind):
+                payload = json.dumps({'revision': revision, 'status': events.status})
+                self.wfile.write(('id: ' + revision + '\nevent: ' + kind + '\ndata: ' + payload + '\n\n').encode())
+                self.wfile.flush()
+            try:
+                send('connected')
+                heartbeat = time.monotonic()
+                while not events.closed:
+                    if events.status != 'native':
+                        send('manual'); return
+                    current = events.wait(revision)
+                    # Check only the network peer, never read state for a heartbeat.
+                    if select.select([self.connection], [], [], 0)[0] and not self.connection.recv(1, socket.MSG_PEEK):
+                        return
+                    if current != revision:
+                        revision = current
+                        send('changed')
+                    elif time.monotonic() - heartbeat >= 10:
+                        self.wfile.write(b': keepalive\n\n'); self.wfile.flush()
+                        heartbeat = time.monotonic()
+            except (OSError, ValueError):
+                return
         def do_GET(self):
             if self.headers.get('Host', '').split(':')[0] not in {'127.0.0.1', 'localhost'}:
                 self.send_error(403); return
             parsed = urlparse(self.path); query = parse_qs(parsed.query)
+            if parsed.path == '/api/events':
+                self.event_stream(); return
             interactive = False
             try:
                 if parsed.path == '/api/snapshot':
-                    body = json.dumps(snapshot(root, query.get('scope', [None])[0],query.get('from',[None])[0],query.get('to',[None])[0]), ensure_ascii=False).encode(); mime = 'application/json'
+                    body = json.dumps(snapshot(root, query.get('scope', [None])[0],query.get('from',[None])[0],query.get('to',[None])[0],query.get('agent_version',[None])[0],query.get('project',[None])[0]), ensure_ascii=False).encode(); mime = 'application/json'
                 elif parsed.path == '/evidence':
                     tasks = load(root / '.harness/tasks/tasks.yaml', {}).get('tasks', {})
                     registry = load(root / '.harness/dashboard-scopes.json', {})
@@ -557,9 +653,33 @@ def serve(root, port):
                 self.send_error(422, 'Input missing, invalid or not allowed; source records unchanged')
         def log_message(self, *_):
             pass
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    class Server(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def server_close(self):
+            events.close()
+            super().server_close()
+
+        def shutdown(self):
+            events.close()
+            super().shutdown()
+
+    try:
+        server = Server(('127.0.0.1', port), Handler)
+    except BaseException:
+        events.close()
+        raise
+    server.events = events
+    return server
+
+
+def serve(root, port):
+    server = create_server(root, port)
     print(f'http://127.0.0.1:{server.server_port}', flush=True)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 if __name__ == '__main__':

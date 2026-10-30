@@ -37,6 +37,13 @@ def record_failure(manager,task_id,context,error):
     def cleanup(state):
         task=state['tasks'].get(task_id)
         if not task:return
+        from harness.execution_policy import pending
+        if pending(state,task_id):
+            record['execution_status']='WAITING_REQUIRED_ANSWER'
+            record['recorded_runs']=[r['agent_run_id'] for r in task.get('executions',[]) if r['agent_run_id'] in owned]
+            task.setdefault('qa_failures',[]).append(copy.deepcopy(record))
+            manager._event(state,'qa_execution_waiting',task,context.get('agent_run_id',log.UNKNOWN),observed=record)
+            return
         closed=[]
         for run in task.get('executions',[]):
             if run['agent_run_id'] not in owned:continue

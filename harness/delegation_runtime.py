@@ -25,6 +25,12 @@ def _drain(child, timeout=5):
 
 
 def _communicate_stream(child, prompt, timeout, stream):
+    from harness.execution_policy import WorkerGate
+    # This pipe utility also accepts standalone streams; managed adapters supply
+    # the native manager/task and independently gate before their Popen call.
+    execution_gate = WorkerGate(stream.manager, stream.task_id) if hasattr(stream, 'manager') and hasattr(stream, 'task_id') else None
+    check = execution_gate.check if execution_gate else lambda: None
+    check()
     # Keep the old test-double/process contract; real pipes are drained concurrently.
     if not hasattr(child, 'stdout') or not hasattr(child, 'stdin'):
         return child.communicate(prompt, timeout=timeout)
@@ -52,6 +58,7 @@ def _communicate_stream(child, prompt, timeout, stream):
     for thread in child._usage_threads:
         thread.start()
     while True:
+        check()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise subprocess.TimeoutExpired('native worker', timeout)
@@ -61,6 +68,7 @@ def _communicate_stream(child, prompt, timeout, stream):
         except subprocess.TimeoutExpired:
             stream.tick()
     result = _drain(child)
+    check()
     stream.tick()
     return result
 
@@ -179,6 +187,7 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
     logger.append('command_started', manager.run_id, task['work_type'], **context,
                   observed={**metadata, 'started_at': started_at})
     child, returncode, error, stdout, stderr = None, 127, None, '', ''
+    group_stopped = False
     worker_env=os.environ.copy()
     cache=workspace/'.worker-cache';cache.mkdir(exist_ok=True)
     worker_env.update(GRADLE_USER_HOME=str(cache/'gradle'),KONAN_DATA_DIR=str(cache/'konan'),XDG_CACHE_HOME=str(cache/'xdg'),CARGO_TARGET_DIR=str(cache/'cargo'))
@@ -187,6 +196,7 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
     try:
         slot.__enter__()
         slot_acquired = True
+        manager.require_dispatch(task_id)
         child = subprocess.Popen(argv, cwd=workspace, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  text=True, start_new_session=True,env=worker_env)
@@ -203,15 +213,9 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
         error = type(exc).__name__
         returncode = 124 if isinstance(exc, subprocess.TimeoutExpired) else 130
         if child is not None:
-            try:
-                os.killpg(child.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                stdout, stderr = _drain(child, timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid, signal.SIGKILL)
-                stdout, stderr = _drain(child, timeout=5)
+            from harness.execution_policy import stop_owned_group
+            stdout, stderr = stop_owned_group(child, _drain, timeout=5)
+            group_stopped = True
     except (OSError, ValueError) as exc:
         error = type(exc).__name__ + ': ' + str(exc)
         if isinstance(exc, TimeoutError):
@@ -221,19 +225,9 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
         try:
             # A log/adapter failure immediately after Popen must not orphan a
             # model process or release its shared slot while it still runs.
-            if child is not None and child.returncode is None:
-                try:
-                    os.killpg(child.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    stdout, stderr = _drain(child, timeout=5)
-                except subprocess.TimeoutExpired:
-                    try:
-                        os.killpg(child.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    stdout, stderr = _drain(child, timeout=5)
+            if child is not None and not group_stopped and (error is not None or child.returncode is None):
+                from harness.execution_policy import stop_owned_group
+                stdout, stderr = stop_owned_group(child, _drain, timeout=5)
         finally:
             if slot_acquired:
                 slot.__exit__(None, None, None)

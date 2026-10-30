@@ -187,8 +187,8 @@ def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, forc
     source = Path(source).expanduser().resolve()
     with source.open('rb') as f:
         first = json.loads(f.readline())
-    meta = first.get('payload', {}); session = meta.get('session_id', meta.get('id'))
-    if first.get('type') != 'session_meta' or not session:
+    meta = first.get('payload', {}); session = module.native_session_id(meta)
+    if first.get('type') != 'session_meta' or not session or session == module.UNKNOWN:
         raise ValueError('session metadata unavailable')
     directory = logger.directory / 'cursors'
     directory.mkdir(mode=0o700, exist_ok=True)
@@ -222,7 +222,7 @@ def collect(logger, source, *, mode='hook', trace=None, before_cursor=None, forc
                 actual_first = json.loads(f.readline())
                 actual_meta = actual_first.get('payload',{})
                 if (actual_first.get('type') != 'session_meta'
-                        or actual_meta.get('session_id',actual_meta.get('id')) != session):
+                        or module.native_session_id(actual_meta) != session):
                     raise ValueError('session source changed during acquisition; retry')
                 f.seek(0)
                 offset = cursor.get('offset', 0)

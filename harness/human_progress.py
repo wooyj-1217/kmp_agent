@@ -32,6 +32,8 @@ def project(result, source_tasks, root=None):
     if not result.get('selected'):
         return {'goal':None,'steps':[],'current':[],'completion_conditions':[],'message':'실행을 선택하거나 작업 범위를 등록해야 진행 단계를 확인할 수 있습니다.','decisions':[],'selected':False}
     views={t['id']:t for t in result.get('tasks',[])}
+    required_questions=result.get('required_questions',[])
+    if isinstance(required_questions,dict):required_questions=list(required_questions.values())
     # Group only explicit native parent links. Never group by title/role guesses.
     rework_parent={e.get('task_id'):e.get('from_task_id') for e in result.get('rework_links',[]) if e.get('from_task_id') in views}
     def parent(tid):
@@ -90,6 +92,14 @@ def project(result, source_tasks, root=None):
         if applicability.get('status')=='EXCLUDED':
             state='excluded' if valid_exclusion else 'blocked';reason=applicability['reason'] if valid_exclusion else '적용 제외 승인·현재 기준이 바뀌어 재확인 필요'
         if cyclic:state='blocked';reason='작업의 부모·선행 연결에 순환이 있어 계획 순서를 확인해야 합니다.'
+        questions=[q for q in required_questions if q.get('status')=='OPEN' and
+                   set(q.get('affected_task_ids',q.get('propagated_task_ids',[]))) & {m['id'] for m in members}]
+        gates=[m.get('execution_gate') or source_tasks.get(m['id'],{}).get('execution_gate') or {} for m in members]
+        plan_wait=[g for g in gates if g.get('status')=='BLOCKED' and (not running or g.get('finish_status')=='BLOCKED')]
+        if state!='complete' and questions:
+            state='blocked';reason='사용자 필수 답변 대기: '+'; '.join(q['question'] for q in questions)
+        elif state!='complete' and plan_wait:
+            state='blocked';reason='착수 조건 대기: '+'; '.join(dict.fromkeys(r for g in plan_wait for r in g.get('reasons',[])))
         label=('적용 제외' if state=='excluded' else LABELS[state])+((' · 재검증' if state=='active' else ' · 재검증 필요') if any(m.get('verdict')=='RECHECK_REQUIRED' for m in members) else '')
         steps.append({'task_id':tid,'phase':(scope.get('tasks',{}).get(tid,{}) or {}).get('stage') or raw.get('pipeline_stage') or '미분류','number':index,'name':t['title'],'state':state,'status':label,
             'conditions':conditions,'result':t.get('result') or ('필수 검토와 현재 근거 확인' if complete else '완료 보고 · 유효한 검증 근거 확인 필요' if t.get('raw_state')=='DONE' else None),
@@ -97,11 +107,17 @@ def project(result, source_tasks, root=None):
             'reason':reason,'next':t.get('next') or ('관련 결과·필수 검증 확인' if state=='waiting' else None),
             'children':[{'task_id':m['id'],'name':m['title'],'role':m.get('activity',{}).get('role_label'),'area':m.get('activity',{}).get('area_label'),'kind':m.get('activity',{}).get('kind'),'status':m.get('activity',{}).get('status'),'verdict':m.get('verdict')} for m in members if m['id']!=tid],
             'attempts':retries,'dependencies':[views[d]['title'] for d in sorted(dependencies[tid])],
-            'failure':failure,'activity_observation':'최근 실행 기록 관측 · 프로세스 생존 미확인' if running else '현재 수행 중인 작업은 확인되지 않았습니다.'})
+            'failure':failure,'required_questions':[q['id'] for q in questions],
+            'work_plan_registered':bool(raw.get('work_plan')),
+            'activity_observation':'최근 실행 기록 관측 · 프로세스 생존 미확인' if running else '현재 수행 중인 작업은 확인되지 않았습니다.'})
     # Keep parallel active steps; no single phase percentage or made-up idle state.
     current=[s['number'] for s in steps if s['state']=='active']
     if not current:current=[s['number'] for s in steps if s['state']=='blocked'][:1] or [s['number'] for s in steps if s['state']=='waiting'][:1]
     decisions=[{'question':d['question'],'basis':d['basis']} for d in scope.get('decisions',[]) if d.get('requires_human') is True and d.get('status')=='OPEN' and d.get('question') and d.get('basis')]
+    decisions += [{'question':q['question'],'basis':{'required_question_id':q['id']},
+                   'status':q['status'],'options':q.get('options',[]),
+                   'human_review_required':q.get('human_review_required',False)}
+                  for q in required_questions if q.get('status')=='OPEN']
     for step in steps:
         failure=step.get('failure') or {}
         if failure.get('requires_human') is True and failure.get('question') and failure.get('evidence'):
@@ -113,7 +129,7 @@ def project(result, source_tasks, root=None):
                 changes.append({'type':e['type'],'at':e.get('at'),'task':t['title'],'details':e.get('details',{})})
     return {'selected':True,'project':result.get('project','프로젝트 미등록'),'plan_registered':bool(plan),'plan_history':plan.get('history',[]),'goal':scope.get('goal') or scope.get('name') or '목표 미등록','steps':steps,'current':current,
         'completion_conditions':[{'task':s['name'],'conditions':s['conditions']} for s in steps],
-        'decisions':decisions,'changes':changes,'cycle_detected':cyclic,
+        'decisions':decisions,'required_questions':required_questions,'changes':changes,'cycle_detected':cyclic,
         'historical':scope.get('provenance',{}).get('kind')=='POSTHOC_CONNECTION' or scope.get('provenance',{}).get('group_kind')=='HISTORICAL_RUN',
         'period_limited':bool(result.get('period',{}).get('active')),
         'message':'작업 순서이며 시간 기준 진행률이 아닙니다. 단계 완료는 관련 필수 검토·현재 근거 확인 기준입니다.',
@@ -144,6 +160,11 @@ def message(progress, start=False):
             category={'PRODUCT_DEFECT':'제품 결함','HARNESS_DEFECT':'하네스 결함','ENVIRONMENT':'시험 환경 문제','UNKNOWN':'원인 분류 미확인'}[failure['category']]
             lines.append('  - '+category+' · '+(failure.get('next_action') or '다음 조치 기록 필요'))
     lines += ['', '사용자 결정: '+('; '.join(d['question'] for d in progress['decisions']) or '근거와 함께 등록된 결정 요청 없음')]
+    for question in progress.get('required_questions',[]):
+        label='답변 대기' if question['status']=='OPEN' else '답변 확인 완료'
+        lines.append('- '+label+': '+question['question'])
+        if question['status']=='OPEN' and question.get('options'):lines.append('  선택: '+' / '.join(o['label'] for o in question['options']))
+        if question.get('human_review_required'):lines.append('  자유 서술의 의미 확인이 필요하여 계속 대기합니다.')
     if not progress.get('plan_registered'):lines.append('전체 Todo 계획은 미등록입니다. 연결된 기존 작업 체크리스트이며 계획 완전성은 미확인입니다.')
     lines.append('현재 실행 작업의 상태이며 프로젝트 전체 완료 판정과 별개입니다.')
     if start:lines+=['완료 조건: '+'; '.join(s['name']+': '+', '.join(s['conditions']) for s in steps),progress['message']]

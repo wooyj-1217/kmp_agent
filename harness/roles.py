@@ -205,6 +205,7 @@ class Roles:
         return result
 
     def accept(self, task_id, agent_run_id, response):
+        self.tasks._mutate('accept', lambda state: None, task_id)
         task = self.tasks.read()["tasks"][task_id]
         self.tasks._active(task, agent_run_id, "work")
         if task["state"] != "IN_PROGRESS":
@@ -326,6 +327,8 @@ class Roles:
 
     def execute(self, task_id, role, worker=None, timeout=300):
         task=self.tasks.read()['tasks'][task_id]
+        if task['state'] != 'DONE':
+            self.tasks.require_dispatch(task_id, preflight=True)
         if task.get('qa_config'):
             if role!='verification' or worker is not None:raise ValueError('QA uses verification role and its configured adapter')
             from harness.qa import QA
@@ -363,6 +366,7 @@ class Roles:
             try:
                 from harness.runtime_limits import model_slot
                 with model_slot(self.tasks,task_id,aid,timeout):
+                    self.tasks.require_dispatch(task_id)
                     child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                              stderr=subprocess.PIPE, text=True, start_new_session=True)
                     self.write(directory / f"dispatch-{index:03d}.json", {"pid": child.pid, "command": command,
@@ -378,15 +382,8 @@ class Roles:
                         stream = WorkerStream(self.tasks, task_id, aid, call_id)
                         stdout, stderr = _communicate_stream(child, prompt, timeout, stream)
                     except BaseException as interrupted:
-                        try:
-                            os.killpg(child.pid, signal.SIGTERM)
-                        except ProcessLookupError:
-                            pass
-                        try:
-                            partial_stdout, partial_stderr = _drain(child, timeout=5)
-                        except subprocess.TimeoutExpired:
-                            os.killpg(child.pid, signal.SIGKILL)
-                            partial_stdout, partial_stderr = _drain(child, timeout=5)
+                        from harness.execution_policy import stop_owned_group
+                        partial_stdout, partial_stderr = stop_owned_group(child, _drain, timeout=5)
                         try:
                             partial = {"stdout": partial_stdout} if worker else self.collect_codex(task_id, aid, partial_stdout)
                         except (OSError, ValueError):

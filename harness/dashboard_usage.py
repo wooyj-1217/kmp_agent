@@ -7,6 +7,20 @@ from functools import lru_cache
 LABELS = {'기획':'기획', '디자인':'디자인', '구현':'개발', '검증':'검증', '수정':'수정·재작업', '보고서':'리포트', '공통':'공통'}
 
 
+def native_identity_conflict(event):
+    """Quarantine a proven thread mismatch, never infer missing historical IDs.
+
+    Older child imports could stamp the parent's session ID on the event.
+    Both native IDs must be present before rejecting that recorded identity;
+    missing metadata continues through the existing UNKNOWN policy.
+    """
+    session = (event.get('source') or {}).get('session_id')
+    thread = (event.get('observed') or {}).get('thread_id')
+    def known(value):
+        return isinstance(value, str) and bool(value.strip()) and value != 'UNKNOWN'
+    return known(session) and known(thread) and session != thread
+
+
 def token_parts(u, semantics='per_response_increment'):
     if semantics != 'per_response_increment' or not isinstance(u, dict):
         return None
@@ -91,6 +105,8 @@ def enrich_usage(root, usage, scope):
     usage['scope_info'].update(responses=len(rows),period=[dates[0],dates[-1]] if dates else [],
                                attribution='원장에 기록된 응답–작업 연결 · 단계는 별도 사후 분류')
     usage['totals']={k:sum(r[k] for r in rows) for k in ('tokens','normal_input','cached_input','output')}
+    if not rows and usage.get('identity_conflicts'):
+        usage['totals']={k:None for k in ('tokens','normal_input','cached_input','output')}
     usage['totals']['cost_unknown_responses']=sum(r['cost'] is None for r in rows)
     # Price reference is a dated comparison scenario, NOT an observed actual billing route.
     pricing=(usage.get('comparison') or {}).get('pricing_reference')
@@ -108,6 +124,10 @@ def enrich_usage(root, usage, scope):
 
 def apply_recorded_labels(usage,tasks,events,root=None,state=None):
     from harness.dashboard_live import recorded_stage,ROLES
+    registered = None
+    if root is not None:
+        from harness.usage_context import read_registrations
+        registered = read_registrations(root, state=state if state is not None else {'tasks':tasks}, events=events)
     names={'planning':'기획','design':'디자인','development':'개발','verification':'검증','report':'리포트','conflict':'라벨 충돌'}
     for r in usage['rows']:
         r['response_stage']=r['stage']
@@ -121,7 +141,7 @@ def apply_recorded_labels(usage,tasks,events,root=None,state=None):
                  classification='명시 연결 · 시작 당시 작업 단계' if stage else '작업 단계 근거 없음')
         if root is not None and run:
             from harness.usage_context import resolve,PURPOSES,REPETITIONS,ACTORS,development_owners
-            ctx=resolve(root,state or {'tasks':tasks},task,run,events)
+            ctx=resolve(root,state if state is not None else {'tasks':tasks},task,run,events,registrations=registered)
             r.update(purpose=PURPOSES[ctx['purpose']],purpose_code=ctx['purpose'],
                      repetition=REPETITIONS[ctx['repetition']],actor=ACTORS[ctx['actor']],
                      development_owner=({'not_applicable':'해당 없음','unknown':'개발 담당 기록 없음',**development_owners()}).get(ctx['development_owner']),
