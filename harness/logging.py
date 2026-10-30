@@ -38,6 +38,20 @@ def redact(value):
     return value
 
 
+def native_session_id(meta):
+    """Codex child id is the native thread; session_id may name its parent."""
+    return meta.get("id") or meta.get("session_id") or UNKNOWN
+
+
+def poll_registered_usage(logger, session_id, source_path=None):
+    """Bind only previously explicit registrations after lifecycle collection."""
+    package_root = str(Path(__file__).resolve().parents[1])
+    if package_root not in sys.path:
+        sys.path.insert(0, package_root)
+    from harness.usage_collection import poll_registered
+    return poll_registered(logger.root, session_id, source_path=source_path)
+
+
 def source_identity(record, session_id):
     payload = record.get("payload", {})
     ids = {k: payload[k] for k in ("id", "event_id", "session_id", "thread_id", "turn_id", "root_turn_id", "response_id", "call_id") if k in payload}
@@ -110,50 +124,79 @@ class Logger:
     def append(self, event_type, run_id=UNKNOWN, work_type=UNKNOWN, observed=None,
                summary=None, source=None, source_key=None, feature_id=UNKNOWN,
                task_id=UNKNOWN, agent_run_id=UNKNOWN, user_statement=None):
-        # One lock protects deduplication, sequence allocation and durable append.
+        return self.append_many([dict(event_type=event_type, run_id=run_id, work_type=work_type,
+            observed=observed, summary=summary, source=source, source_key=source_key,
+            feature_id=feature_id, task_id=task_id, agent_run_id=agent_run_id,
+            user_statement=user_statement)])[0]
+
+    def append_many(self, records):
+        """One lock/read; validate and serialize the entire batch before writing.
+
+        Results preserve input order, including None for already durable source keys.
+        Per-response events remain distinct. Durable outbox replay is idempotent.
+        """
         with self.path.open("a+", encoding="utf-8") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             handle.seek(0)
             existing = [json.loads(line) for line in handle if line.strip()]
-            if event_type == "human_intervention":
-                details = summary or {}
-                required = ("source_session_id", "source_message_id", "source_event_id", "basis", "role", "stage")
-                if (any(not details.get(k) or details[k] == UNKNOWN for k in required)
-                        or any(v in (None, "", UNKNOWN) for v in (feature_id, task_id, run_id, agent_run_id))
-                        or details.get("classification") not in INTERVENTION_CLASSES):
-                    raise ValueError("human_intervention requires linked source, execution context, classification and basis")
-                message = next((e for e in existing if e["event_id"] == details["source_event_id"]), None)
-                if (not message or message["event_type"] != "session_message"
-                        or message["observed"].get("role") != "user"
-                        or message["source"].get("session_id") != details["source_session_id"]
-                        or message["observed"].get("message_id") != details["source_message_id"]):
-                    raise ValueError("intervention source must be an imported user message")
-            if source_key and any(e.get("source_key") == source_key for e in existing):
-                return None
-            start = next((e for e in existing if e.get("event_type") == "run_started" and e.get("run_id") == run_id), {})
-            context = start.get("execution_context", self.context)
-            event = {
-                "schema_version": 2, "redaction_version": 1, "event_id": str(uuid.uuid4()),
-                "sequence": len(existing) + 1, "recorded_at": now(),
-                "event_type": event_type, "work_type": work_type,
-                "run_id": run_id, "feature_id": feature_id, "task_id": task_id,
-                "agent_run_id": agent_run_id,
-                "harness": self.harness,
-                "project_id": context["project_id"], "verification_scope": context["verification_scope"],
-                "execution_context": context,
-                "observed": observed or {}, "agent_summary": summary or {},
-                "source": source or {"kind": "logger_runtime"},
-                "source_key": source_key,
-            }
-            if user_statement is not None:
-                event["user_statement"] = user_statement
-            event = redact(event)
-            handle.seek(0, 2)
-            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-            os.fchmod(handle.fileno(), 0o600)
-            return event
+            keys = {e['source_key'] for e in existing if e.get('source_key')}
+            by_id = {e['event_id']:e for e in existing}
+            starts = {}
+            for event in existing:
+                if event.get('event_type') == 'run_started':
+                    starts.setdefault(event.get('run_id'),event)
+            prepared = []; results = []
+            for record in records:
+                event_type = record['event_type']
+                run_id = record.get('run_id', UNKNOWN)
+                work_type = record.get('work_type', UNKNOWN)
+                feature_id = record.get('feature_id', UNKNOWN)
+                task_id = record.get('task_id', UNKNOWN)
+                agent_run_id = record.get('agent_run_id', UNKNOWN)
+                summary = record.get('summary') or {}
+                source_key = record.get('source_key')
+                if event_type == 'human_intervention':
+                    required = ('source_session_id','source_message_id','source_event_id','basis','role','stage')
+                    if (any(not summary.get(k) or summary[k] == UNKNOWN for k in required)
+                            or any(v in (None,'',UNKNOWN) for v in (feature_id,task_id,run_id,agent_run_id))
+                            or summary.get('classification') not in INTERVENTION_CLASSES):
+                        raise ValueError('human_intervention requires linked source, execution context, classification and basis')
+                    message = by_id.get(summary['source_event_id'])
+                    if (not message or message['event_type'] != 'session_message'
+                            or message['observed'].get('role') != 'user'
+                            or message['source'].get('session_id') != summary['source_session_id']
+                            or message['observed'].get('message_id') != summary['source_message_id']):
+                        raise ValueError('intervention source must be an imported user message')
+                if source_key and source_key in keys:
+                    results.append(None)
+                    continue
+                context = starts.get(run_id,{}).get('execution_context',self.context)
+                event = {'schema_version':2, 'redaction_version':1, 'event_id':str(uuid.uuid4()),
+                    'sequence':len(existing)+len(prepared)+1, 'recorded_at':now(),
+                    'event_type':event_type, 'work_type':work_type, 'run_id':run_id,
+                    'feature_id':feature_id, 'task_id':task_id, 'agent_run_id':agent_run_id,
+                    'harness':self.harness, 'project_id':context['project_id'],
+                    'verification_scope':context['verification_scope'], 'execution_context':context,
+                    'observed':record.get('observed') or {}, 'agent_summary':summary,
+                    'source':record.get('source') or {'kind':'logger_runtime'}, 'source_key':source_key}
+                if record.get('user_statement') is not None:
+                    event['user_statement'] = record['user_statement']
+                event = redact(event)
+                # Serialization failures also occur before any byte is appended.
+                prepared.append((event,json.dumps(event,ensure_ascii=False)+'\n'))
+                results.append(event)
+                by_id[event['event_id']] = event
+                if event_type == 'run_started':
+                    starts.setdefault(run_id,event)
+                if source_key:
+                    keys.add(source_key)
+            if prepared:
+                handle.seek(0,2)
+                handle.write(''.join(encoded for _,encoded in prepared))
+                handle.flush()
+                os.fsync(handle.fileno())
+                os.fchmod(handle.fileno(),0o600)
+            return results
 
     def record_intervention(self, context, session_id, turn_id, classification, basis, evidence,
                             message_id=UNKNOWN, request_item="1"):
@@ -373,6 +416,7 @@ class Logger:
             self.write_metadata("last-sync.json", metadata)
             self.resolve_interventions()
             self.last_collection = {**stats, "elapsed_seconds": time.monotonic()-started}
+            poll_registered_usage(self, metadata["source_session_id"], metadata["source_path"])
             return imported
         path = Path(session_path).resolve()
         imported = 0
@@ -388,7 +432,7 @@ class Logger:
                     break
                 raise
         meta = next((r["payload"] for _, _, r in records if r.get("type") == "session_meta"), {})
-        session = meta.get("session_id", meta.get("id", UNKNOWN))
+        session = native_session_id(meta)
         # Partial final lines are skipped and retried on the next sync.
         if records:
             for number, line, record in records:
@@ -649,8 +693,8 @@ def resolve_session(explicit=None, session_id=None):
     with path.open() as handle:
         first = json.loads(next(handle))
     meta = first.get("payload", {}) if first.get("type") == "session_meta" else {}
-    actual_id = meta.get("session_id", meta.get("id"))
-    if not actual_id or (session_id and actual_id != session_id):
+    actual_id = native_session_id(meta)
+    if not actual_id or actual_id == UNKNOWN or (session_id and actual_id != session_id):
         raise ValueError("session source identity mismatch")
     return path
 

@@ -41,8 +41,11 @@ class Tasks:
         temporary.replace(self.path)
 
     def _flush(self, state):
-        for event in state["outbox"]:
-            self.logger.append(**event)
+        if len(state["outbox"]) > 1 and all(e["event_type"] == "usage_attributed" for e in state["outbox"]):
+            self.logger.append_many(state["outbox"])
+        else:
+            for event in state["outbox"]:
+                self.logger.append(**event)
         if state["outbox"]:
             state["outbox"] = []
             self._save(state)
@@ -87,6 +90,14 @@ class Tasks:
 
     def read(self):
         return self._mutate("read", lambda state: copy.deepcopy(state))
+
+    def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
+        from harness.completion import configure
+        return configure(self, task_id, context_paths, usage_required, context_required, exception_reason)
+
+    def record_context_maintenance(self, task_id, work_execution_id, report_path):
+        from harness.completion import record
+        return record(self, task_id, work_execution_id, report_path)
 
     def configure_development(self, task_id, baselines, code_paths=None, api_required=False, service_version=None, change_id=None):
         from harness.development_tracking import configure
@@ -168,6 +179,8 @@ class Tasks:
         from harness.development_tracking import SCOPES
         if execution_scope is not None and execution_scope not in SCOPES:
             raise ValueError("execution_scope must be code_implementation/documentation/input_interpretation_only")
+        from harness.completion import inherited_contract
+        completion = inherited_contract(self, work_type)
         refs = [self.artifact(p) for p in inputs]
         task = {"feature_id": feature_id, "task_id": task_id, "role": role, "title": title,
                 "project_id": self.context["project_id"], "verification_scope": self.context["verification_scope"],
@@ -183,6 +196,9 @@ class Tasks:
             task['pipeline_stage']=pipeline_stage
         self._event(state, "task_registered", task, observed={"state": "TODO", "inputs": refs},
                     summary={"role": role, "title": title, "scope": scope})
+        if completion is not None:
+            task['completion_contract'] = completion
+            self._event(state, 'completion_configured', task, observed=copy.deepcopy(completion))
         return copy.deepcopy(task)
 
     def register_execution_plan(self, **configuration):
@@ -484,6 +500,9 @@ class Tasks:
                 checked.append({**result, "evidence": evidence, "tested_outputs": copy.deepcopy(task["outputs"])})
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
+            if passed:
+                from harness.completion import gate as completion_gate
+                completion_gate(self, state, task)
             passed = passed and (not task["visual_required"] or task["design_status"]["visual_review"] == "PASS")
             passed = passed and (task["role"] != "design" or task["design_status"]["specification"] == "COMPLETE")
             from harness.project_contract import review_gate
@@ -689,6 +708,60 @@ class Tasks:
             return True
         return self._mutate("bind_usage", operation, task_id)
 
+    def bind_usage_batch(self, task_id, agent_run_id, bindings, reason):
+        """Validate one owner's entire batch before appending any attribution."""
+        if not isinstance(bindings, list) or any(not isinstance(binding, dict) for binding in bindings):
+            raise ValueError('bindings list required')
+        requested = []
+        seen = set()
+        for binding in bindings:
+            key = (binding.get('session_id'), binding.get('response_id'))
+            if any(not isinstance(value, str) or not value or value == UNKNOWN for value in key):
+                raise ValueError('explicit session_id and response_id required')
+            if key not in seen:
+                requested.append(key)
+                seen.add(key)
+
+        def operation(state):
+            task = state['tasks'][task_id]
+            matches = [r for r in task['executions'] if r['agent_run_id'] == agent_run_id]
+            if len(matches) != 1:
+                raise ValueError('unknown agent_run_id')
+            run = matches[0]
+            owners = {}
+            for other in state['tasks'].values():
+                for execution in other['executions']:
+                    for binding in execution['usage_bindings']:
+                        key = (binding['session_id'], binding['response_id'])
+                        owners.setdefault(key, set()).add(execution['agent_run_id'])
+            pending = []
+            for key in requested:
+                existing = owners.get(key, set())
+                if existing - {agent_run_id}:
+                    raise ValueError('response already attributed to another execution')
+                if not existing:
+                    pending.append(key)
+            if not pending:
+                return 0
+            wanted = set(pending)
+            source_ids = {}
+            for event in self.logger.read():
+                if event['event_type'] != 'model_usage':
+                    continue
+                key = (event['source'].get('session_id'), event['observed'].get('response_id'))
+                if key in wanted:
+                    source_ids.setdefault(key, []).append(event['event_id'])
+            if any(key not in source_ids for key in pending):
+                raise ValueError('response usage must be imported before attribution')
+            for session_id, response_id in pending:
+                binding = {'session_id':session_id, 'response_id':response_id}
+                run['usage_bindings'].append(binding)
+                self._event(state, 'usage_attributed', task, agent_run_id,
+                            observed={**binding, 'source_event_ids':source_ids[(session_id,response_id)]},
+                            summary={'attribution':'agent_declared', 'reason':reason})
+            return len(pending)
+        return self._mutate('bind_usage_batch', operation, task_id)
+
     def report(self):
         state = self.read()
         events = self.logger.read()
@@ -724,7 +797,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["register", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["register", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)

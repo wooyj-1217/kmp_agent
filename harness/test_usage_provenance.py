@@ -158,7 +158,7 @@ class HistoricalProvenanceTests(unittest.TestCase):
         expected = 'unreleased_worktree' if value['dirty'] is True else 'unconfirmed'
         self.assertEqual(value['release_status'], expected)
         self.assertNotEqual(value['release_status'], 'installed')
-        self.assertEqual(value['version'], '0.2.0')
+        self.assertEqual(value['version'], (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip())
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 from harness.dashboard_live import time_value
-from harness.dashboard_usage import token_parts
+from harness.dashboard_usage import token_parts, native_identity_conflict
 
 
 def filter_result(result,events,start=None,end=None):
@@ -26,14 +26,19 @@ def filter_result(result,events,start=None,end=None):
             s.update(count=len(members),active=any(t['active'] for t in members),note=None)
     usage=result['usage'];rows=usage['rows']
     usage['totals']={k:sum(r[k] for r in rows) for k in ('tokens','normal_input','cached_input','output')}
+    if not rows and usage.get('identity_conflicts'):
+        usage['totals']={k:None for k in ('tokens','normal_input','cached_input','output')}
     usage['totals']['cost_unknown_responses']=sum(r['cost'] is None for r in rows)
     dates=sorted(r['occurred_at'] for r in rows if r.get('occurred_at'))
     usage['scope_info'].update(responses=len(rows),period=[dates[0],dates[-1]] if dates else [],tasks=len(result['tasks']),role_executions=sum(sum(overlap(r) for r in t['runs']) for t in result['tasks']) if lo or hi else sum(len(t['runs']) for t in result['tasks']))
     if lo or hi:result['last_activity']=max((e.get('timestamp') for e in events if e.get('agent_run_id') in {r['id'] for t in result['tasks'] for r in t['runs']} and within(e.get('timestamp')) and e.get('timestamp')),default=None)
-    unique={};conflicts=set();invalid=0
+    unique={};conflicts=set();invalid=0;identity_conflicts=set()
     for e in events:
         if e.get('event_type')!='model_usage' or not within(e.get('timestamp')):continue
         o=e.get('observed') or {};key=((e.get('source') or {}).get('session_id'),o.get('response_id'))
+        if native_identity_conflict(e):
+            identity_conflicts.add(key)
+            continue
         if not all(v and v!='UNKNOWN' for v in key):invalid+=1;continue
         value=(o.get('model'),o.get('usage'),o.get('usage_semantics'))
         if key in unique and unique[key]!=value:conflicts.add(key)
@@ -42,9 +47,11 @@ def filter_result(result,events,start=None,end=None):
     invalid+=sum(v is None for v in valid.values());valid={k:v for k,v in valid.items() if v is not None}
     bound={(r['session_id'],r['response_id']) for r in rows}
     selected=set(valid)&bound
-    usage['universe']={'scope':'이 저장소에 수집된 로그 · 다른/미확인 프로젝트 포함, 제품 전체 분모 아님','responses':len(valid),'tokens':sum(sum(v) for v in valid.values()),
+    usage['universe']={'scope':'이 저장소에 수집된 로그 · 다른/미확인 프로젝트 포함, 제품 전체 분모 아님','responses':len(valid),'tokens':sum(sum(v) for v in valid.values()) if valid or not identity_conflicts else None,
       'selected_responses':len(selected),'selected_tokens':sum(sum(valid[k]) for k in selected),
       'outside_selected_responses':len(set(valid)-selected),'outside_selected_tokens':sum(sum(valid[k]) for k in set(valid)-selected),
-      'conflicting_responses':len(conflicts),'invalid_or_missing':invalid,'collection_omissions':'UNKNOWN',
+      'conflicting_responses':len(conflicts),'invalid_or_missing':invalid,
+      'identity_conflicts':[{'session_id':k[0],'response_id':k[1],'reason':'native_identity_conflict','tokens':None} for k in sorted(identity_conflicts,key=str)],
+      'collection_omissions':'UNKNOWN',
       'note':'선택 밖은 다른 실행·연결 없음·범위 제외가 섞여 있어 모두 메모 제품 비용이나 귀속 불명으로 단정하지 않음.'}
     return result
