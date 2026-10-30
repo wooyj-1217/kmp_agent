@@ -101,11 +101,18 @@ class NativeEvents:
             result = subprocess.run(["rtk", "proxy", "git", "ls-files", "-z", "--cached",
                                      "--others", "--exclude-standard", "--", *code_scopes],
                                     cwd=self.root, capture_output=True, text=True)
-            if result.returncode == 0:
-                for name in result.stdout.split("\0"):
-                    target = self.root / name
-                    if name and target.resolve().is_relative_to(self.root) and not name.startswith((".harness/", ".kmp-agent/")):
-                        targets.append(target)
+            names = set(result.stdout.split("\0")) if result.returncode == 0 else set()
+            # A staged deletion remains part of capture() through HEAD. Watch
+            # that exact path if it is recreated, including ignored directories.
+            head = subprocess.run(["rtk", "proxy", "git", "ls-tree", "-r", "--name-only", "-z",
+                                   "HEAD", "--", *code_scopes],
+                                  cwd=self.root, capture_output=True, text=True)
+            if head.returncode == 0:  # Unborn repositories have no HEAD tree.
+                names.update(head.stdout.split("\0"))
+            for name in names:
+                target = self.root / name
+                if name and target.resolve().is_relative_to(self.root) and not name.startswith((".harness/", ".git/", ".kmp-agent/")):
+                    targets.append(target)
         git_targets = []
         if code_scopes:
             result = subprocess.run(["rtk", "proxy", "git", "rev-parse", "--git-dir", "--git-common-dir"],
