@@ -56,6 +56,38 @@ rtk proxy python3 .kmp-agent/agent.py usage-poll --run-id RUN
 
 완료 점검은 최신 work execution의 정확한 등록·원본 수치·바인딩을 검사한다. 하나라도 없거나 pending/충돌이면 `completion usage UNKNOWN`으로 PASS를 거부한다. 캐시·추론 상세와 누적 스냅샷은 추가 합산하지 않는다. 이 점검 시점 이후 새로 생성될 마지막 응답까지 미리 수집했다고 주장하지 않는다. 종료 hook 뒤 추가량은 같은 등록 문맥에서 갱신될 수 있다.
 
+## 같은 native 턴을 여러 작업이 공유한 경우
+
+사용자 후속 요청이 실행 중인 턴으로 들어오면, 서로 다른 작업에 같은 `session_id/turn_id`를 등록할 수 있다. 턴 하나를 두 작업의 전체 사용량으로 합산하지 않는다. 이 충돌은 미연결로 남기며 완료 점검도 계속 차단한다. 역할이나 작업을 바꾸면 정확한 response ID 집합을 등록하고, 같은 턴의 이전 소유 범위를 확인한다.
+
+이미 겹친 broad 등록이 있다면 원본을 고쳐 쓰거나 완료 점검을 끄지 않는다. `usage_collection.revise_registrations`는 원등록 두 개를 명시하고, 원래 등록한 동일 native 파일의 고정 prefix 길이·SHA-256·실제 사용자 기록 위치와 정확 response 집합을 검증한다. 이전 작업의 기존 binding은 그대로 유지하고, 새 요청 뒤의 실제 응답을 현재 작업에 연결한다. 시간 근접·작업 제목으로 나누지 않는다.
+
+```python
+revision = revise_registrations(
+    manager,
+    supersedes=[previous_registration_id, current_registration_id],
+    replacements=[
+        {"registration_id": previous_registration_id,
+         "side": "before", "response_ids": previous_bound_response_ids},
+        {"registration_id": current_registration_id,
+         "side": "after", "response_ids": current_native_response_ids},
+    ],
+    evidence={"source_path": registered_native_path,
+              "source_bytes": fixed_prefix_bytes,
+              "source_sha256": fixed_prefix_sha256,
+              "boundary_line": actual_user_record_line},
+    reason="확인된 native 사용자 요청 경계로 같은 턴의 작업 소유를 구분",
+)
+poll(manager)
+resolve_attribution_limits(manager, revision["id"])
+```
+
+호출 전에 해당 prefix의 실제 `model_usage`를 수집해야 한다. 입력은 코드 예시의 이름을 추측해 채우지 말고 실제 원본에서 확인한다. `registration-revisions.jsonl`과 `attribution-resolutions.jsonl`에 감사 근거만 추가하며 `sessions.jsonl`, 원본 충돌, 기존 binding, DONE 결과는 보존한다. 원등록 파일 경로 불일치·수치 충돌·응답 누락·다른 소유 침범은 거부한다.
+
+충돌 해소는 유효 등록·실제 usage·현재 단일 binding 소유가 일치하는 해당 충돌에만 적용한다. 위조·구식 해소 기록이나 새로 생긴 중복 소유는 계속 차단한다. 좁힌 범위 뒤에 생긴 응답은 같은 실행의 정확한 response ID로 별도 등록·수집한다. 고정 prefix의 정정 근거를 미래 응답의 자동 소유 선언으로 확대하지 않는다.
+
+완료·출처·대시보드는 같은 유효 등록과 미해결 충돌을 읽는다. 조회는 요청 안에서 이미 읽은 전체 원장·이벤트·등록 검증을 공유하며, 표시 필터 때문에 전역 충돌 근거를 제거하지 않는다.
+
 ## 맥락 정리와 메인의 수락
 
 메인이 [맥락 정리 담당](roles/context-maintainer.md)을 실제로 호출한다. 담당은 관련 문서를 대조·수정하고 결과와 제안을 반환한다. 메인은 이를 읽고 별도로 수락한다. 아래 보고서를 감시 대상 맥락 파일 자체로 지정해서 자기 해시를 다시 요구하는 구조는 허용하지 않는다.

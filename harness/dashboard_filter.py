@@ -43,6 +43,7 @@ def filter_result(result,events,start=None,end=None):
         value=(o.get('model'),o.get('usage'),o.get('usage_semantics'))
         if key in unique and unique[key]!=value:conflicts.add(key)
         unique[key]=value
+    conflicts.update((c['session_id'],c['response_id']) for c in usage.get('conflicts',[]) if (c['session_id'],c['response_id']) in unique)
     valid={k:token_parts(v[1],v[2]) for k,v in unique.items() if k not in conflicts}
     invalid+=sum(v is None for v in valid.values());valid={k:v for k,v in valid.items() if v is not None}
     bound={(r['session_id'],r['response_id']) for r in rows}

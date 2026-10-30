@@ -124,6 +124,10 @@ def enrich_usage(root, usage, scope):
 
 def apply_recorded_labels(usage,tasks,events,root=None,state=None):
     from harness.dashboard_live import recorded_stage,ROLES
+    registered = None
+    if root is not None:
+        from harness.usage_context import read_registrations
+        registered = read_registrations(root, state=state if state is not None else {'tasks':tasks}, events=events)
     names={'planning':'기획','design':'디자인','development':'개발','verification':'검증','report':'리포트','conflict':'라벨 충돌'}
     for r in usage['rows']:
         r['response_stage']=r['stage']
@@ -137,7 +141,7 @@ def apply_recorded_labels(usage,tasks,events,root=None,state=None):
                  classification='명시 연결 · 시작 당시 작업 단계' if stage else '작업 단계 근거 없음')
         if root is not None and run:
             from harness.usage_context import resolve,PURPOSES,REPETITIONS,ACTORS,development_owners
-            ctx=resolve(root,state or {'tasks':tasks},task,run,events)
+            ctx=resolve(root,state if state is not None else {'tasks':tasks},task,run,events,registrations=registered)
             r.update(purpose=PURPOSES[ctx['purpose']],purpose_code=ctx['purpose'],
                      repetition=REPETITIONS[ctx['repetition']],actor=ACTORS[ctx['actor']],
                      development_owner=({'not_applicable':'해당 없음','unknown':'개발 담당 기록 없음',**development_owners()}).get(ctx['development_owner']),

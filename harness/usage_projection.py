@@ -38,9 +38,6 @@ def project(root, task_id=None, execution_id=None, mode='tasks', include_childre
     finished = {e.get('run_id') for e in events if e['event_type'] == 'run_finished'}
     ended = {e.get('agent_run_id') for e in events if e['event_type'] in {'agent_run_finished', 'agent_run_failed'}}
     snapshot_count = 0
-    limits_path = root / '.harness/usage/attribution-limits.jsonl'
-    limits = {(r['session_id'], r['response_id']) for r in
-              (json.loads(l) for l in limits_path.read_text().splitlines() if l.strip())} if limits_path.exists() else set()
     for tid, task in tasks.items():
         for run in task.get('executions', []):
             runs[run['agent_run_id']] = (task, run)
@@ -52,8 +49,10 @@ def project(root, task_id=None, execution_id=None, mode='tasks', include_childre
             facts[key].append(e)
         elif e['event_type'] == 'usage_snapshot':
             snapshot_count += 1
-    registered = read_registrations(root)
-    contexts = {aid: resolve(root, state, task, run, events) for aid, (task, run) in runs.items()}
+    registered = read_registrations(root, state=state, events=events)
+    from harness.usage_revision import unresolved_limits
+    limits = unresolved_limits(root, state, events, registered)
+    contexts = {aid: resolve(root, state, task, run, events, registrations=registered) for aid, (task, run) in runs.items()}
     rows = []; quarantine = []
     for key, source_events in facts.items():
         invalid_identity = [e for e in source_events if native_identity_conflict(e)]

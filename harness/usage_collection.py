@@ -4,6 +4,7 @@ No global 'current role', timestamp slicing, text classification or new model ca
 Exact main turn/response ownership is declared by the performing agent.
 """
 import argparse
+import contextlib
 import fcntl
 import json
 import os
@@ -15,7 +16,7 @@ from harness.usage_context import VERSION, digest
 
 def append_unique(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    value = dict(value); value['id'] = digest(value)
+    value = dict(value); value['id'] = digest({k: v for k, v in value.items() if k != 'id'})
     with path.open('a+') as f:
         fcntl.flock(f, fcntl.LOCK_EX); f.seek(0)
         if any(json.loads(l).get('id') == value['id'] for l in f if l.strip()):
@@ -24,13 +25,72 @@ def append_unique(path, value):
     return True
 
 
-def registrations(root):
+def registrations(root, state=None, events=None):
+    from harness.usage_revision import effective_registrations
+    return effective_registrations(root, state=state, events=events)
+
+
+@contextlib.contextmanager
+def collection_lock(root):
+    directory = Path(root) / '.harness/usage'
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / 'collection.lock').open('a+') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def revise_registrations(manager, *, supersedes, replacements, evidence, reason):
+    """Narrow immutable broad registrations using exact native source evidence."""
+    from harness.usage_revision import _validate, record_id
     from harness.usage_provenance import read_jsonl
-    return read_jsonl(Path(root) / '.harness/usage/sessions.jsonl')
+    value = {'version': VERSION, 'supersedes': supersedes, 'replacements': replacements,
+             'evidence': evidence, 'reason': reason}
+    value['id'] = record_id(value)
+    with collection_lock(manager.root):
+        previous = read_jsonl(manager.root / '.harness/usage/registration-revisions.jsonl')
+        if any(r == value for r in previous):
+            registrations(manager.root)  # Still validate evidence on idempotent retries.
+            return value
+        state = manager.read(); events = manager.logger.read()
+        _validate(manager.root, value, registrations(manager.root, state=state, events=events), state, events)
+        append_unique(manager.root / '.harness/usage/registration-revisions.jsonl', value)
+    return value
+
+
+def resolve_attribution_limits(manager, revision_id):
+    """Record only conflict resolutions proved by the current exact bound owner."""
+    from harness.usage_revision import record_id, unresolved_limits
+    from harness.usage_provenance import read_jsonl
+    added = 0
+    with collection_lock(manager.root):
+        state = manager.read(); events = manager.logger.read()
+        regs = registrations(manager.root, state=state, events=events)
+        if not any(r.get('revision_id') == revision_id for r in regs):
+            raise ValueError('verified effective revision required')
+        directory = manager.root / '.harness/usage'
+        for limit in read_jsonl(directory / 'attribution-limits.jsonl'):
+            key = (limit.get('session_id'), limit.get('response_id'))
+            owners = [r for r in regs if r.get('revision_id') == revision_id and r.get('session_id') == key[0] and key[1] in r.get('response_ids', [])]
+            if len(owners) != 1:
+                continue
+            value = {'version': VERSION, 'limit_id': record_id(limit), 'revision_id': revision_id,
+                     'execution_id': owners[0]['execution_id']}
+            candidate = dict(value, id=record_id(value))
+            if key not in unresolved_limits(manager.root, state, events, regs, resolutions=[candidate], limits=[limit]):
+                added += append_unique(directory / 'attribution-resolutions.jsonl', value)
+    return added
 
 
 def register(manager, task_id, execution_id, session_id, *, path=None, turn_id=None,
              response_ids=None, independent=False, call_id=None, import_scope='session'):
+    with collection_lock(manager.root):
+        return _register_locked(manager, task_id, execution_id, session_id, path=path, turn_id=turn_id,
+                                response_ids=response_ids, independent=independent, call_id=call_id,
+                                import_scope=import_scope)
+
+
+def _register_locked(manager, task_id, execution_id, session_id, *, path=None, turn_id=None,
+                     response_ids=None, independent=False, call_id=None, import_scope='session'):
     state = manager.read(); task = state['tasks'][task_id]
     run = next((r for r in task['executions'] if r['agent_run_id'] == execution_id), None)
     if not run:

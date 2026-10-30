@@ -72,8 +72,12 @@ class Tasks:
             self._flush(state)  # Recover durable events after a previous interruption.
             from harness.development_tracking import refresh
             refresh(self, state)
+            from harness.decisions import refresh_waits
+            refresh_waits(self, state)
             original = copy.deepcopy(state)
             try:
+                from harness.execution_policy import gate
+                gate(self, state, task_id, action)
                 result = operation(state)
             except (ValueError, KeyError) as error:
                 task = original["tasks"].get(task_id)
@@ -84,12 +88,39 @@ class Tasks:
                     self._flush(original)
                 raise
             refresh(self, state)
+            refresh_waits(self, state)
             self._save(state)
             self._flush(state)
             return result
 
     def read(self):
         return self._mutate("read", lambda state: copy.deepcopy(state))
+
+    def configure_execution_policy(self, root_session_path, root_session_id, **configuration):
+        from harness.execution_policy import configure
+        return configure(self, root_session_path, root_session_id, **configuration)
+
+    def configure_task_plan(self, task_id, work_plan, reason):
+        from harness.execution_policy import configure_plan
+        return configure_plan(self, task_id, work_plan, reason)
+
+    def bind_execution_session(self, root_session_path, root_session_id):
+        from harness.execution_policy import bind_session
+        return bind_session(self, root_session_path, root_session_id)
+
+    def open_question(self, question_id, question, affected_task_ids, options=None, **configuration):
+        from harness.decisions import open_question
+        return open_question(self, question_id, question, affected_task_ids, options, **configuration)
+
+    def answer_question(self, question_id, **configuration):
+        from harness.decisions import answer_question
+        return answer_question(self, question_id, **configuration)
+
+    def question_status(self):
+        return copy.deepcopy(self.read().get('required_questions', {}))
+
+    def require_dispatch(self, task_id, preflight=False):
+        return self._mutate('dispatch_preflight' if preflight else 'dispatch', lambda state: None, task_id)
 
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure
@@ -192,6 +223,8 @@ class Tasks:
                                   "visual_review": "NOT_RUN", "visual_evidence": None},
                 "visual_required": visual_required}
         state["tasks"][task_id] = task
+        from harness.execution_policy import inherit
+        inherit(state, task, self.run_id)
         if pipeline_stage is not None:
             task['pipeline_stage']=pipeline_stage
         self._event(state, "task_registered", task, observed={"state": "TODO", "inputs": refs},
@@ -326,6 +359,10 @@ class Tasks:
             # Copy the context before emitting start; later task edits never relabel it.
             run['usage_context'] = frozen(state, task, run, usage_context)
             task["executions"].append(run)
+            if task.get('execution_contract'):
+                run['execution_contract'] = copy.deepcopy(task['execution_contract'])
+                run['execution_contract'].update(state['execution_policy_bindings'][self.run_id])
+                run['execution_contract']['run_id'] = self.run_id
             if not review:
                 task["state"] = "IN_PROGRESS"
                 self._event(state, "task_state_changed", task, run["agent_run_id"], observed={"from": "READY", "to": "IN_PROGRESS"})
@@ -354,7 +391,11 @@ class Tasks:
     def resume(self, task_id, agent_run_id, decision):
         def operation(state):
             task = state["tasks"][task_id]
-            run = self._active(task, agent_run_id, "work")
+            matching = [r for r in task['executions'] if r['agent_run_id'] == agent_run_id and not r.get('ended_at')]
+            kind = matching[0]['kind'] if len(matching) == 1 else 'work'
+            run = self._active(task, agent_run_id, kind)
+            if kind != 'work' and not run.get('required_question_wait'):
+                raise ValueError('only question-checkpointed reviews can be resumed')
             if task["state"] != "BLOCKED" or not self._valid_artifact(run.get("checkpoint", {})):
                 raise ValueError("resume requires a valid checkpoint")
             from harness.development_tracking import ensure
@@ -363,12 +404,13 @@ class Tasks:
             run.setdefault("decisions", []).append(ref)
             from harness.sequential import wait_end
             wait_end(self, state, task, run, "RELEASED")
-            task.update(state="IN_PROGRESS", blocked_reason=None)
+            restored_state = 'IN_REVIEW' if kind == 'review' else 'IN_PROGRESS'
+            task.update(state=restored_state, blocked_reason=None)
             self._event(state, "role_resumed", task, agent_run_id,
-                        observed={"decision": ref, "checkpoint": run["checkpoint"], "from": "BLOCKED", "to": "IN_PROGRESS"})
+                        observed={"decision": ref, "checkpoint": run["checkpoint"], "from": "BLOCKED", "to": restored_state})
         return self._mutate("resume", operation, task_id)
 
-    def fail(self, task_id, agent_run_id, reason, failure_category="UNKNOWN", failure_evidence=None, next_action=None, requires_human=None, decision_question=None):
+    def fail(self, task_id, agent_run_id, reason, failure_category="UNKNOWN", failure_evidence=None, next_action=None, requires_human=None, decision_question=None, cancel_question_wait=False):
         if failure_category not in {"PRODUCT_DEFECT","HARNESS_DEFECT","ENVIRONMENT","UNKNOWN"} or (requires_human is not None and not isinstance(requires_human,bool)):
             raise ValueError("invalid explicit failure classification")
         if (failure_category!="UNKNOWN" or requires_human is True) and not failure_evidence:
@@ -379,6 +421,11 @@ class Tasks:
         def operation(state):
             task = state["tasks"][task_id]
             run = self._active(task, agent_run_id, "work")
+            from harness.execution_policy import pending
+            if pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
+                self._event(state, 'required_question_worker_stopped', task, agent_run_id,
+                            observed={'reason': reason, 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
+                return
             if task["state"] not in {"IN_PROGRESS", "BLOCKED"} or not reason:
                 raise ValueError("failure requires active work and cause")
             previous = task["state"]
@@ -588,6 +635,8 @@ class Tasks:
             from harness.development_tracking import refresh
             refresh(self, state)
             source, target = state["tasks"][source_id], state["tasks"][target_id]
+            from harness.execution_policy import gate as execution_gate
+            execution_gate(self, state, target_id, 'ready')
             from harness.development_tracking import ensure
             ensure(self, state, source, "handoff_source")
             latest_review = source["reviews"][-1]["agent_run_id"] if source["reviews"] else None
@@ -769,6 +818,8 @@ class Tasks:
         report["execution_context"] = copy.deepcopy(self.context)
         report["features"] = {}
         for task in report["tasks"].values():
+            from harness.execution_policy import status as execution_status
+            task['execution_gate'] = execution_status(state, task, self.run_id)
             for run in task["executions"]:
                 selected = {}
                 for b in run["usage_bindings"]:
@@ -797,11 +848,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["register", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)
-    if args.action == "collection-report":
+    if args.action == 'question-status':
+        result = tasks.question_status()
+    elif args.action == "collection-report":
         result = tasks.collection_report()
     elif args.action in {"show", "refresh-validation"}:
         result = tasks.report()
