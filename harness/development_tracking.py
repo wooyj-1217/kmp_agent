@@ -5,27 +5,40 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+from harness.tracking_io import run_git, capture_budget
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def git(root, *args):
-    result = subprocess.run(["rtk", "proxy", "git", *args], cwd=root, capture_output=True)
+def git(root, *args, input=None):
+    result = run_git(root, *args, input=input)
     if result.returncode:
         raise ValueError("target Git inspection failed: " + " ".join(args[:2]))
     return result.stdout
 
 
 def capture(manager, task):
+    with capture_budget(manager.root, task['task_id']):
+        return _capture(manager, task)
+
+
+def _capture(manager, task):
     config = task["development_tracking"]
     root = manager.root
     if Path(git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve() != root:
         raise ValueError("task root must be the target Git repository root")
     head = git(root, "rev-parse", "HEAD").decode().strip()
     names = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").decode().split("\0")
-    names += git(root, "ls-tree", "-r", "--name-only", "-z", head).decode().split("\0")
+    tree = git(root, "ls-tree", "-r", "-z", head).split(b"\0")
+    committed_ids = {}
+    for entry in tree:
+        if not entry: continue
+        meta, name = entry.split(b"\t", 1)
+        mode, kind, oid = meta.split()
+        if kind == b'blob': committed_ids[name.decode()] = oid.decode()
+    names += [entry.split(b"\t",1)[1].decode() for entry in tree if entry]
     paths = config["code_paths"]
     files = {}
     for name in sorted(set(names) - {""}):
@@ -37,12 +50,22 @@ def capture(manager, task):
         if path.is_symlink():
             raise ValueError("symlink code state unsupported; cannot certify validation")
         files[name] = digest(path.read_bytes()) if path.is_file() else None
+    # Immutable OIDs preserve HEAD identity while one batch avoids F processes.
+    oids=list(dict.fromkeys(committed_ids[name] for name in files if name in committed_ids))
+    committed_hashes={}
+    if oids:
+        data=git(root,'cat-file','--batch',input=('\n'.join(oids)+'\n').encode());position=0
+        for oid in oids:
+            newline=data.index(b'\n',position);header=data[position:newline].split();position=newline+1
+            if len(header)!=3 or header[0].decode()!=oid or header[1]!=b'blob':raise ValueError('invalid immutable Git blob batch')
+            size=int(header[2]);blob=data[position:position+size];position+=size
+            if len(blob)!=size or data[position:position+1]!=b'\n':raise ValueError('truncated immutable Git blob batch')
+            position+=1;committed_hashes[oid]=digest(blob)
+        if position!=len(data):raise ValueError('unexpected Git blob batch data')
     changed = {}
     for name, checksum in files.items():
-        result = subprocess.run(["rtk", "proxy", "git", "show", head + ":" + name], cwd=root, capture_output=True)
-        committed = digest(result.stdout) if result.returncode == 0 else None
-        if committed != checksum:
-            changed[name] = {"head_sha256": committed, "working_sha256": checksum}
+        committed=committed_hashes.get(committed_ids.get(name))
+        if committed != checksum: changed[name]={'head_sha256':committed,'working_sha256':checksum}
     status = git(root, "status", "--porcelain=v1", "--untracked-files=all").decode()
     status = [line for line in status.splitlines() if not line[3:].startswith((".harness/", ".kmp-agent/"))]
     index = [entry for entry in git(root, "ls-files", "--stage", "-z").decode().split("\0")
@@ -144,13 +167,22 @@ def refresh(manager, state):
                         task["validation_status"][key] = status
                         manager._event(state, "development_validation_invalidated", task, key, observed=status)
             continue
+        current = None
+        capture_error = None
+        captured = False
         for review in task["reviews"]:
+            if task.get('validation_status',{}).get(review['agent_run_id'],{}).get('state') == 'RECHECK_REQUIRED':
+                continue  # Invalidated history stays invalid; no automatic PASS inheritance.
             proof = review.get("development_evidence")
             if not proof:
                 continue
             reasons = []
             try:
-                current = capture(manager, task)
+                if not captured:
+                    captured = True
+                    try: current = capture(manager, task)
+                    except (ValueError,OSError,KeyError,TypeError) as error: capture_error = error
+                if capture_error: raise ValueError('current capture unavailable') from capture_error
                 if current["state_sha256"] != proof["code_state"]["state_sha256"]:
                     reasons.append("code state changed or impact unknown")
                 if baseline(task) != proof["baseline"]:
@@ -255,8 +287,7 @@ def _configure(manager, state, task_id, baselines, code_paths=None, api_required
 
 def submitted_in_head(manager, head, refs):
     for ref in refs:
-        result = subprocess.run(["rtk", "proxy", "git", "show", head + ":" + ref["path"]],
-                                cwd=manager.root, capture_output=True)
+        result = run_git(manager.root, "show", head + ":" + ref["path"])
         if result.returncode or digest(result.stdout) != ref["sha256"]:
             return False
     return True

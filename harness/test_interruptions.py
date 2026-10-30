@@ -63,7 +63,8 @@ class InterruptionTests(unittest.TestCase):
         copy.write_bytes(self.source.read_bytes())
         self.assertEqual(self.recover(copy)["recovered_events"], 0)
         self.assertEqual(self.state_path.read_bytes(), before_state)
-        self.assertEqual(first["resume_plan"]["completed_tasks_to_skip"], ["TASK-001"])
+        self.assertEqual(first["resume_plan"]["completed_tasks_to_skip"], [])
+        self.assertIn('TASK-001', first['resume_plan']['revalidation_required'])
         self.assertEqual(first["resume_plan"]["unfinished_tasks"], [])
 
     def test_user_claim_without_source_stays_unknown_and_masked(self):

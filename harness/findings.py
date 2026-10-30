@@ -18,16 +18,29 @@ def blocking(state, task):
             and (task["role"] != "planning" or i["owner"] == "planning") and is_blocking(i)]
 
 
-def record(manager, task_id, kind, screen, ui_state, observed, expected, severity, recheck, evidence, synthetic=False, impacts=None):
+def record(manager, task_id, kind, screen, ui_state, observed, expected, severity, recheck, evidence, synthetic=False, impacts=None, root_cause=None, confidence="CONFIRMED"):
     def operation(state):
         task = state["tasks"][task_id]
         if kind not in {"design", "requirements", "policy"} or severity not in {"BLOCKER", "MAJOR", "MINOR"}:
             raise ValueError("invalid issue kind/severity")
         if not all((screen, ui_state, observed, expected, recheck)):
             raise ValueError("issue needs screen/state, observation, expectation and recheck criteria")
+        if confidence not in {'CONFIRMED','SUSPECTED'} or root_cause is not None and (not isinstance(root_cause,str) or not root_cause.strip()):
+            raise ValueError('finding requires supported confidence and explicit root cause')
         issues = state.setdefault("issues", [])
+        if root_cause is not None:
+            previous=next((i for i in issues if i['task_id']==task_id and i.get('root_cause')==root_cause),None)
+            if previous:
+                ref=manager.artifact(evidence)
+                previous.setdefault('history',[]).append({'event':'reobserved','evidence':ref,'observed':observed,'confidence':confidence})
+                if previous['status']=='RESOLVED': previous['status']='OPEN'
+                if severity=='BLOCKER' or severity=='MAJOR' and previous['severity']=='MINOR':previous['severity']=severity
+                if confidence=='CONFIRMED':previous['confidence']=confidence
+                manager._event(state,'issue_reobserved',task,observed={'issue_id':previous['id'],'evidence':ref})
+                return copy.deepcopy(previous)
         issue = {"id": f"ISSUE-{len(issues)+1:03d}", "feature_id": task["feature_id"], "task_id": task_id,
             "folder": task.get("role_contract", task.get("delivery", {})).get("folder"),
+            "root_cause": root_cause, "confidence": confidence,
             "owner": "design" if kind == "design" else "planning", "kind": kind, "screen": screen,
             "ui_state": ui_state, "observed": observed, "expected": expected, "severity": severity,
             "recheck": recheck, "evidence": manager.artifact(evidence), "synthetic": bool(synthetic),

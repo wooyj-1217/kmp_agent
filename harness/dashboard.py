@@ -208,6 +208,12 @@ def task_view(root, task, scope, tasks):
                 reasons.append('구조·상태·시각 비교 근거가 부족합니다')
             if reasons:
                 verdict = 'RECHECK_REQUIRED'
+    from harness.verification import current_reasons, artifact_status
+    if review:
+        extra = current_reasons(SimpleNamespace(root=root), task, review)
+        if extra:
+            reasons.extend(extra)
+            verdict = 'RECHECK_REQUIRED'
     applied = {a.get('path'): a.get('sha256') for a in task.get('inputs', [])}
     input_alignment = 'CURRENT'
     for ref in (scope or {}).get('approved_baselines', []):
@@ -271,7 +277,8 @@ def task_view(root, task, scope, tasks):
                                 'state': '동일' if current_hash and current_hash == o.get('sha256') else '변경/누락'})
             execution = next((r for r in runs if r['agent_run_id'] == record['agent_run_id']), {})
             archived.append({'criterion': result['criterion_id'], 'result': result['result'],
-                             'integrity': 'PASS' if artifact_valid(root, a) else 'UNKNOWN',
+                             'integrity': 'PASS' if artifact_valid(root, a) else artifact_status(root, a)['state'],
+                             'recovery': artifact_status(root, a)['recovery'],
                              'url': '/evidence?task=' + quote(tid) + '&review=' + quote(record['agent_run_id']) + '&criterion=' + quote(result['criterion_id']),
                              'snapshot_sha256': a.get('snapshot_sha256'), 'tested_files': matches,
                              'reviewed_at': execution.get('ended_at') or execution.get('started_at')})
@@ -284,11 +291,31 @@ def task_view(root, task, scope, tasks):
     if task.get('_filter_partial'):
         verdict='UNKNOWN'; compliance='UNKNOWN'; status='선택 실행만 표시 · 작업 전체 판정 제외'
         reasons.append('다른 버전 또는 기간의 실행을 제외한 일부 보기')
+    verification_summary = None
+    if task.get('verification_contract'):
+        contract=task['verification_contract']; rows=[]
+        latest_results={x['criterion_id']:x for x in (review or {}).get('results',[])}
+        for definition in contract['criteria']:
+            result=latest_results.get(definition['id'],{})
+            platforms=[]
+            try:
+                if artifact_valid(root,result.get('evidence')):
+                    platforms=json.loads((root/result['evidence']['snapshot']).read_text()).get('platform_results',[])
+            except (OSError,ValueError,KeyError): pass
+            rows.append({'id':definition['id'],'required':next(c['required'] for c in task['criteria'] if c['id']==definition['id']),
+                         'kind':definition['kind'],'result':'UNKNOWN' if task.get('_filter_partial') else 'RECHECK_REQUIRED' if verdict=='RECHECK_REQUIRED' else result.get('result','NOT_RUN'),
+                         'platforms':[{'platform':p,'result':'UNKNOWN' if task.get('_filter_partial') else 'RECHECK_REQUIRED' if verdict=='RECHECK_REQUIRED' else next((x.get('result','NOT_RUN') for x in platforms if x.get('platform')==p),'NOT_RUN')} for p in definition['platforms']]})
+        verification_summary={'goal':contract['goal'],'integrator':contract['integrator'],'criteria':rows,
+                              'required':sum(c['required'] for c in rows),'passed':sum(c['required'] and c['result']=='PASS' for c in rows)}
     return {'id': tid, 'title': mapping.get('display_title') or task.get('title', tid), 'stage': mapping.get('stage'),
             'status': status, 'verdict': verdict, 'compliance': compliance, 'active': bool(active), 'raw_state': state,
             'criterion_applicability': criterion_applicability,
             'execution_gate': task.get('execution_gate'),
             'work_plan': task.get('work_plan'),
+            'verification_summary': verification_summary,
+            'verification_contract': task.get('verification_contract'),
+            'verification_required': bool(task.get('verification_required')),
+            'goal': task.get('verification_contract', {}).get('goal'),
             'scope': task.get('scope'), 'result': mapping.get('result_summary') if summary_current else None,
             'revalidation_summary': mapping.get('revalidation_summary') if summary_current else None,
             'display_kind': mapping.get('display_kind') if summary_current else None,

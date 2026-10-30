@@ -56,7 +56,11 @@ class ReviewGateFixes(unittest.TestCase):
         task=self.manager.read()['tasks']['planning'];proof=task['reviews'][0]['results'][0]['evidence']
         (self.root/proof['snapshot']).unlink()
         data=workspace(self.root)
-        self.assertEqual(data['requests'][0]['status'],'완료 보고 · 검증 미확인')
+        self.assertEqual(data['requests'][0]['status'],'재검증 필요')
+        self.assertEqual(next(t for t in data['tasks'] if t['task_id']=='planning')['state'],'DONE')
+        current=self.manager.read()['tasks']['planning']
+        self.assertEqual(current['reviews'][0]['results'][0]['result'],'PASS')
+        self.assertEqual(current['validation_status'][current['reviews'][0]['agent_run_id']]['state'],'RECHECK_REQUIRED')
 
     def test_conflicts_unknown_links_and_active_recheck_are_explicit(self):
         tasks={'T':{'state':'DONE'}}

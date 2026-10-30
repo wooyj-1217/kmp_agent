@@ -109,6 +109,9 @@ def configure(manager, task_id, dependency_relations=None, shared_modules=None, 
         data["source"] = "role_declared"
         data["declared_at"] = log.now()
         task["collection"] = data
+        if active and (task.get('verification_contract') or any(t.get('verification_contract') and any(not r.get('ended_at') for r in t['executions']) for t in state['tasks'].values())):
+            from harness.execution_ownership import gate
+            gate(manager, state, task, active[0]['kind'] == 'review')
         if active:
             active[0].setdefault("collection_declarations", []).append(copy.deepcopy(data))
         manager._event(state, "task_collection_configured", task, agent_run_id or UNKNOWN, observed={"before": old, "after": data})

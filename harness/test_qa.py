@@ -16,6 +16,33 @@ class QATest(unittest.TestCase):
     def worker(self,w,p):
         (w/'qa-tools').mkdir(exist_ok=True);(w/'qa-tools'/'proof.txt').write_text('Read product.txt: hello; compare request.md')
         return {'criteria':[{'criterion_id':'Q','result':'PASS','observation':'exact expected content','evidence':'qa-tools/proof.txt'}],'findings':[],'recommendation':'PASS','summary':'read fixture'}
+    def configure_receipt_contract(self):
+        from harness.test_verification_procedure import example
+        (self.root/'procedure.json').write_text(json.dumps(example()))
+        (self.root/'environment.json').write_text('{"fixture":"web-1"}')
+        self.configure()
+        self.m.configure_verification('QA',procedure='procedure.json',environment='environment.json',criteria=[{'id':'Q','platforms':['web'],'method':'fixture journey','evidence_required':True,'kind':'execution'}],writable_paths=['.harness'],forbidden_paths=[],integrator='main',goal='verify fixture')
+        self.m.configure_collection('QA',shared_resources=[])
+
+    def test_configured_receipts_use_isolated_qa_and_preserve_proof(self):
+        self.configure_receipt_contract()
+        def worker(w,p):
+            result=self.worker(w,p)
+            result['criteria'][0]['platform_results']=[{'platform':'web','result':'PASS','environment':'synthetic web fixture','command_or_steps':'read fixture and compare original','expected':'hello','observed':'hello','doctor':'PASS','drive':'PASS','cleanup':'PASS','evidence':['qa-tools/proof.txt']}]
+            return result
+        attempt=self.qa.execute('QA',worker)
+        self.assertEqual(attempt['outcome'],'PASS',attempt)
+        task=self.m.read()['tasks']['QA']
+        self.assertEqual(task['state'],'DONE')
+        self.assertTrue(task['reviews'][0]['verification_evidence']['evidence'])
+        for ref in task['reviews'][0]['verification_evidence']['evidence']:
+            self.assertTrue(self.m._valid_artifact(ref))
+
+    def test_configured_qa_generic_pass_is_not_platform_proof(self):
+        self.configure_receipt_contract()
+        self.assertNotEqual(self.qa.execute('QA',self.worker)['outcome'],'PASS')
+        self.assertNotEqual(self.m.read()['tasks']['QA']['state'],'DONE')
+
     def test_native_verification_role(self):
         self.configure();self.assertEqual(self.m.read()['tasks']['QA']['role'],'verification')
     def test_evidence_and_actual_command_pass(self):

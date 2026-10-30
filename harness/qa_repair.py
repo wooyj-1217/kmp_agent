@@ -93,12 +93,26 @@ def _owner_review(qa,qa_task_id,attempt,owner,context):
         problems.append('QA scope does not cover owner code paths')
     if any(data.get('target_manifest',{}).get(r['path'])!=r['sha256'] for r in outputs if not r['path'].startswith('.harness/')):
         problems.append('QA target does not cover owner outputs')
+    review_id=str(uuid.uuid4())
+    contract=owner.get('verification_contract')
+    if contract:
+        if problems:raise ValueError('current QA owner acceptance unavailable: '+ '; '.join(problems))
+        if task.get('validation_status',{}).get((qa_review or {}).get('agent_run_id'),{}).get('state')=='RECHECK_REQUIRED':raise ValueError('QA requires recheck')
+        runtime=data.get('runtime') or {}
+        if data.get('review_execution')!='INDEPENDENT_PROCESS' or not runtime.get('thread_ids') or not runtime.get('pid'):
+            raise ValueError('contract owner acceptance requires actual independent model provenance')
+        from harness.verification import context as verification_context
+        owner_basis=verification_context(manager,owner)
+        qa_basis=verification_context(manager,task)
+        if any(owner_basis[k]!=qa_basis[k] for k in ('procedure_sha256','environment_sha256')):raise ValueError('QA procedure/environment differs from owner')
+        actor='qa-native:'+':'.join(runtime['thread_ids'])
+    else:actor=None
     rows=[];links=data.get('repair_criteria',{});definitions=data.get('repair_criteria_definitions',{})
     for criterion in owner['criteria']:
         ids=links.get(criterion['id'],[]);evidence={q:data.get('evidence_refs',{}).get(q) for q in ids}
         valid=(not problems and bool(ids) and definitions.get(criterion['id'])==criterion
                and all(data.get('criteria',{}).get(q)=='PASS' and current_review.get(q,{}).get('result')=='PASS'
-                       and current_review[q].get('evidence',{}).get('sha256')==ref['sha256']
+                       and (bool(contract) or current_review[q].get('evidence',{}).get('sha256')==ref['sha256'])
                        and manager._valid_artifact(current_review[q]['evidence'])
                        and evidence[q] and manager._valid_artifact(evidence[q]) for q in ids))
         result='PASS' if valid else 'NOT_RUN'
@@ -108,6 +122,18 @@ def _owner_review(qa,qa_task_id,attempt,owner,context):
                'tested_outputs':{r['path']:r['sha256'] for r in outputs},'problems':problems,
                'claim_scope':data.get('claim_scope','LEGACY_UNCERTIFIED')}
         if not valid:proof['problems']=problems+['criterion lacks matching current QA PASS and evidence']
+        if contract:
+            if not valid or len(ids)!=1:raise ValueError('owner criterion lacks exact current independent QA criterion')
+            qid=ids[0]
+            source_ref=current_review[qid]['evidence']
+            source=json.loads((manager.root/source_ref['snapshot']).read_text())
+            own_def=next(c for c in contract['criteria'] if c['id']==criterion['id'])
+            qa_def=next(c for c in task['verification_contract']['criteria'] if c['id']==qid)
+            if any(own_def[k]!=qa_def[k] for k in ('kind','method','platforms')):raise ValueError('mapped QA criterion verification method differs')
+            if source.get('task_id')!=qa_task_id or source.get('criterion_id')!=qid or source.get('review_run_id')!=attempt.get('review_run_id') or any(source.get(k)!=v for k,v in qa_basis.items()):raise ValueError('QA criterion receipt target/basis mismatch')
+            proof.update(**owner_basis,task_id=owner['task_id'],criterion_id=criterion['id'],review_run_id=review_id,
+                         actor_id=actor,kind=own_def['kind'],method=own_def['method'],platform_results=copy.deepcopy(source['platform_results']),
+                         source_qa={'task_id':qa_task_id,'review_run_id':qa_review['agent_run_id'],'agent_run_id':attempt['agent_run_id'],'report':ref,'criterion_id':qid,'receipt':source_ref})
         if owner.get('development_tracking'):
             from harness.development_tracking import capture,baseline
             proof.update(code_state_sha256=capture(manager,owner)['state_sha256'],baseline=baseline(owner))
@@ -117,8 +143,8 @@ def _owner_review(qa,qa_task_id,attempt,owner,context):
         dest.write_text(json.dumps(proof,ensure_ascii=False,indent=2))
         rows.append({'criterion_id':criterion['id'],'result':result,'evidence':str(dest.relative_to(manager.root))})
     context['phase']='owner_begin_review'
-    review_id=str(uuid.uuid4());context['owned_runs'].append(review_id)
-    review=manager.begin(owner['task_id'],'verification',review=True,execution_mode='local_check',agent_run_id=review_id)
+    context['owned_runs'].append(review_id)
+    review=manager.begin(owner['task_id'],'verification',review=True,execution_mode='local_check',agent_run_id=review_id,actor_id=actor)
     context['phase']='owner_review'
     outcome=manager.review(owner['task_id'],review['agent_run_id'],rows,'explicit QA criterion IDs, current target and preserved per-criterion evidence; no whole-PASS copy')
     return {'outcome':outcome,'criteria':rows,'review_run_id':review['agent_run_id']}
