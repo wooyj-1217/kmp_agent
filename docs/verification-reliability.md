@@ -92,3 +92,17 @@ pstack 기준 커밋 `4dd1d05818d19792e7cd6e818f1667f95f7e1dbe`에서 create-ver
 참고: https://github.com/cursor/plugins/tree/4dd1d05818d19792e7cd6e818f1667f95f7e1dbe/pstack
 
 쓰기 범위는 제출 산출물과 시작/제출 시 전체 로컬 파일 스냅샷 차이로 검사한다(기존 logger의 .git/.harness 및 설치 releases 제외 규칙). 선언 code_paths 바깥의 금지 파일 변경도 제출을 거부한다. OS 쓰기 자체를 차단하는 sandbox가 아니며 에이전트가 직접 수행한 raw shell을 감시하지 않는다. 자원 배타 검사는 계약 작업 또는 활성 계약 작업과 겹치는 작업에 적용한다. 기존 미구성 경로를 새 계약 준수로 표시하지 않는다.
+
+## 잠금 진단과 실제 QA 인계 후속
+
+원장 상태·소유권 검사는 계속 같은 잠금 안에서 수행한다. `tracking_io`는 Git 1회 5초·capture 전체 15초·원장 잠금 획득 10초의 기본 상한을 둔다. 잠금 획득 실패는 명시적 TimeoutError이며 과거 상태를 현재 PASS로 반환하거나 부분 상태를 쓰지 않는다. Git 시간 초과는 자신이 만든 프로세스 그룹만 종료·회수하고 불확실한 검증을 재검증 대상으로 남긴다. 로컬 파일 I/O와 원장 연산 전체의 강제 선점·OS 전체 중단을 보장하지 않는다.
+
+capture는 immutable Git blob OID의 batch 조회로 파일별 프로세스를 제거한다. 같은 refresh 안에서는 task별 캡처만 재사용하고 mutation 전후 사이에는 재사용하지 않는다. 이미 RECHECK_REQUIRED인 과거 결과는 그대로 보존하며 자동 CURRENT 복귀가 없으므로 재캡처하지 않는다. binary·특수 파일명·삭제·untracked·staged·mode를 포함한 기존 state_sha256 의미는 유지한다.
+
+`KMP_AGENT_DIAGNOSTICS=1`은 기존 프로젝트 `.harness/logs/inspection-diagnostics.jsonl`에 잠금 대기/획득/해제, capture, Git 실행/종료·elapsed를 raw 진단으로 남긴다. 작업 상태나 새 이벤트 원장이 아니며 상세 인자·환경 비밀값을 기록하지 않는다.
+
+새 계약 owner의 완료에는 기존 `qa_repair` 인계 경로를 사용한다. 같은 target/owner task를 `QA.configure(...,repair_task_id=target,repair_criteria={owner_id:[qa_id]})`로 명시하고 실제 모델 QA를 실행한 뒤 `QA.accept_owner(qa_task_id)`로 인계한다. 각 owner 기준은 정확히 한 QA 기준의 동일 method/kind/platform 계약·절차·환경·실제 receipt에 연결해야 한다. 새 계약의 독립 provenance가 없는 callable 합성 QA는 이 완료 경로에서 거부된다. 이전 미구성 legacy 인계 정책을 실제 모델 실행으로 소급 승격하지 않는다.
+
+작성자 receipt는 사람이 작성하지 않고 기존 실제 QA 관찰·artifact를 공통 어댑터가 정확히 변환한다. 최종 review의 원장 잠금 안에서 최신 QA 시도·기준 매핑·고정 정의·코드 범위·원본 receipt와 관찰 일치를 다시 검사한다. precheck 후 매핑 변경이나 관찰 변조도 거부한다. 인계가 검토 실행을 만든 뒤 실패하면 그 invocation이 소유한 실행만 기존 failure 경로로 닫는다. 이미 완료한 QA 재실행은 하지 않으며 코드가 바뀌면 정상 재개/제출과 별도 retest QA가 필요하다.
+
+첫 후속 로컬 계측에서 파일이 적은 병렬 fixture는 기존 70.6초/1,526 Git 호출, 수정 후 77.1초/1,494 호출로 포괄적인 속도 개선이 아니었다. 파일 16개 capture에서는 state_sha256 및 기존 필드가 일치했고 23→8 Git 호출(0.83→0.28초)을 확인했다. 모든 숫자는 해당 로컬 합성 조건의 관측이며 제품 성능으로 일반화하지 않는다. raw 근거와 실제 모델 결과는 적용 프로젝트 로컬 후속 기록을 참조한다.

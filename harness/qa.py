@@ -145,6 +145,20 @@ class QA:
         self.tasks._mutate('configure_qa',op,task_id)
         return config
 
+    def accept_owner(self, task_id):
+        """Re-use an explicit current QA attempt; never rerun or copy whole PASS."""
+        from harness.qa_repair import _owner_review
+        state=self.tasks.read();task=state['tasks'][task_id];config=task['qa_config']
+        owner=state['tasks'][config['repair_task_id']]
+        if owner['state']!='IN_REVIEW' or not config['attempts']:raise ValueError('submitted owner and explicit QA attempt required')
+        context={'phase':'owner_result_processing','owned_runs':[]}
+        try:return _owner_review(self,task_id,config['attempts'][-1],owner,context)
+        except BaseException as error:
+            if context['owned_runs']:
+                from harness.qa_failure import record_failure
+                record_failure(self.tasks,owner['task_id'],context,error)
+            raise
+
     def _generated(self,config,task):
         from harness.qa_policy import generated_paths as check_generated
         target=self.tasks.read()['tasks'][config['target_task_id']]

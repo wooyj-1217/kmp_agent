@@ -66,8 +66,8 @@ class Tasks:
             "source_key": "task-event:" + str(uuid.uuid4())})
 
     def _mutate(self, action, operation, task_id=UNKNOWN):
-        with (self.directory / "state.lock").open("a+") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        from harness.tracking_io import state_lock
+        with state_lock(self.root, self.directory / "state.lock", action):
             state = json.loads(self.path.read_text()) if self.path.exists() else {"schema_version": 1, "tasks": {}, "outbox": []}
             self._flush(state)  # Recover durable events after a previous interruption.
             from harness.development_tracking import refresh
@@ -189,10 +189,11 @@ class Tasks:
                 with frozen.open("xb") as handle:
                     os.fchmod(handle.fileno(), 0o600)
                     handle.write(sanitized)
-        git = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True)
+        from harness.tracking_io import run_git
+        git = run_git(self.root, "rev-parse", "HEAD")
         return {"path": str(path.relative_to(self.root)), "sha256": logging.digest(data),
                 "snapshot": str(frozen.relative_to(self.root)), "snapshot_sha256": checksum,
-                "git_commit": git.stdout.strip() if git.returncode == 0 else UNKNOWN}
+                "git_commit": git.stdout.decode().strip() if git.returncode == 0 else UNKNOWN}
 
     def _valid_artifact(self, artifact):
         if not artifact or "snapshot" not in artifact or "snapshot_sha256" not in artifact:
@@ -582,7 +583,7 @@ class Tasks:
                     raise ValueError("PASS requires evidence")
                 checked.append({**result, "evidence": evidence, "tested_outputs": copy.deepcopy(task["outputs"])})
             from harness.verification import review_gate as verification_gate
-            verification_proof = verification_gate(self, task, run, checked)
+            verification_proof = verification_gate(self, task, run, checked, state)
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
             if passed:

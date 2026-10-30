@@ -74,7 +74,7 @@ def context(manager, task):
             'procedure_sha256':contract['procedure']['sha256'],'environment_sha256':contract['environment']['sha256']}
 
 
-def review_gate(manager, task, run, results):
+def review_gate(manager, task, run, results, state=None):
     if not task.get('verification_contract'): return None
     basis=context(manager,task)
     work=[r for r in task['executions'] if r['kind']=='work'][-1]
@@ -90,6 +90,33 @@ def review_gate(manager, task, run, results):
         if row['result']!='PASS': continue
         report=json.loads((manager.root/row['evidence']['snapshot']).read_text())
         definition=next(c for c in task['verification_contract']['criteria'] if c['id']==row['criterion_id'])
+        source=report.get('source_qa')
+        if source:
+            if state is None:raise ValueError('QA acceptance needs atomic state validation')
+            qa=state['tasks'].get(source['task_id'],{})
+            latest=(qa.get('qa_config',{}).get('attempts') or [{}])[-1]
+            if qa.get('state')!='DONE' or latest.get('agent_run_id')!=source['agent_run_id'] or latest.get('review_run_id')!=source['review_run_id'] or latest.get('report')!=source['report'] or qa.get('qa_config',{}).get('target_task_id')!=task['task_id']:
+                raise ValueError('QA source is not the latest exact target attempt')
+            qa_review=next((r for r in qa.get('reviews',[]) if r['agent_run_id']==source['review_run_id']),{})
+            if qa.get('validation_status',{}).get(source['review_run_id'],{}).get('state')=='RECHECK_REQUIRED' or current_reasons(manager,qa,qa_review):raise ValueError('QA evidence requires recheck')
+            from harness.qa import scoped_manifest
+            config=qa['qa_config']
+            if scoped_manifest(manager.root,config['manifest_scope'],config.get('generated_paths',[]))!=config['target_manifest']:raise ValueError('QA target code changed')
+            qrow=next((r for r in qa_review.get('results',[]) if r['criterion_id']==source['criterion_id']),{})
+            cid=row['criterion_id'];qid=source['criterion_id']
+            if config.get('repair_task_id')!=task['task_id'] or config.get('repair_criteria',{}).get(cid)!=[qid] or config.get('repair_criteria_definitions',{}).get(cid)!=next(c for c in task['criteria'] if c['id']==cid):
+                raise ValueError('QA criterion ownership mapping changed')
+            qdef=next((c for c in qa.get('verification_contract',{}).get('criteria',[]) if c['id']==qid),{})
+            if any(qdef.get(k)!=definition[k] for k in ('kind','method','platforms')):raise ValueError('QA criterion contract differs from owner')
+            if context(manager,qa)['procedure_sha256']!=basis['procedure_sha256'] or context(manager,qa)['environment_sha256']!=basis['environment_sha256']:raise ValueError('QA procedure/environment differs from owner')
+            if qrow.get('result')!='PASS' or qrow.get('evidence')!=source['receipt'] or artifact_status(manager.root,source['report'])['state']!='VALID' or artifact_status(manager.root,source['receipt'])['state']!='VALID':raise ValueError('QA source receipt missing, changed or not PASS')
+            source_receipt=json.loads((manager.root/source['receipt']['snapshot']).read_text())
+            qa_report=json.loads((manager.root/source['report']['snapshot']).read_text())
+            runtime=qa_report.get('runtime') or {}
+            if qa_report.get('review_execution')!='INDEPENDENT_PROCESS' or not runtime.get('pid') or not runtime.get('thread_ids') or report.get('actor_id')!='qa-native:'+':'.join(runtime['thread_ids']):raise ValueError('independent model source provenance missing')
+            if qa_report.get('criterion_definitions')!=qa['criteria'] or qa_report.get('repair_criteria')!=config.get('repair_criteria') or qa_report.get('repair_criteria_definitions')!=config.get('repair_criteria_definitions'):raise ValueError('QA source definitions changed')
+            if source_receipt.get('task_id')!=source['task_id'] or source_receipt.get('criterion_id')!=qid or source_receipt.get('review_run_id')!=source['review_run_id'] or report.get('platform_results')!=source_receipt.get('platform_results'):
+                raise ValueError('owner platform observations differ from exact QA receipt')
         if report.get('task_id')!=task['task_id'] or report.get('criterion_id')!=row['criterion_id'] or report.get('review_run_id')!=run['agent_run_id'] or report.get('actor_id')!=run['actor_id']:
             raise ValueError('receipt must bind exact task, criterion and reviewer execution')
         if any(report.get(k)!=v for k,v in basis.items()) or report.get('tested_outputs')!=expected_outputs or report.get('code_state_sha256')!=code:
