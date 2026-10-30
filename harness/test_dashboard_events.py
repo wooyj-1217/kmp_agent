@@ -115,6 +115,47 @@ class DashboardEventsTest(unittest.TestCase):
         self.changed(old)
         self.assertFalse(any("objects" in path.parts for path in self.events._handles))
 
+    def test_development_sources_in_unborn_repository(self):
+        subprocess.run(["rtk", "proxy", "git", "init"], cwd=self.root,
+                       check=True, capture_output=True)
+        source = self.root / "src/main.py"
+        source.parent.mkdir()
+        source.write_text("before")
+        old = self.events.revision
+        self.task.write_text(json.dumps({"tasks": {"T": {
+            "development_tracking": {"code_paths": ["src"]}}}}))
+        old = self.changed(old)
+        source.write_text("after")
+        self.changed(old)
+        self.assertEqual(self.events.status, "native")
+
+    def test_head_tracked_ignored_file_is_watched_after_staged_deletion(self):
+        def git(*args):
+            subprocess.run(["rtk", "proxy", "git", *args], cwd=self.root,
+                           check=True, capture_output=True)
+        git("init")
+        git("config", "user.email", "test@example.test")
+        git("config", "user.name", "Test")
+        (self.root / ".gitignore").write_text("build/\n")
+        source = self.root / "build/code.py"
+        source.parent.mkdir()
+        source.write_text("initial")
+        git("add", ".gitignore")
+        git("add", "-f", "build/code.py")
+        git("commit", "-m", "initial")
+        old = self.events.revision
+        self.task.write_text(json.dumps({"tasks": {"T": {
+            "development_tracking": {"code_paths": ["build"]}}}}))
+        old = self.changed(old)
+        git("rm", "build/code.py")
+        old = self.changed(old)
+        source.parent.mkdir(exist_ok=True)
+        source.write_text("recreated")
+        old = self.changed(old)
+        source.write_text("edited after recreation")
+        self.changed(old)
+        self.assertIn(source.resolve(), self.events._handles)
+
     def test_burst_is_coalesced_and_same_content_atomic_replace_is_silent(self):
         old = self.events.revision
         number = self.events._number
