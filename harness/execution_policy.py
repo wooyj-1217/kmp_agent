@@ -168,7 +168,7 @@ def gate(manager, state, task_id, action):
     if task['state'] == 'DONE':
         if action == 'handoff':
             return  # Completed source history may be handed to a separately gated target.
-        raise ValueError('completed task history does not permit a new managed execution')
+        raise ValueError('completed task history does not permit a new managed execution: task already completed')
     questions = pending(state, task_id)
     if questions:
         raise ValueError('required human answer pending: ' + ', '.join(questions))
