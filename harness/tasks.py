@@ -72,6 +72,8 @@ class Tasks:
             self._flush(state)  # Recover durable events after a previous interruption.
             from harness.development_tracking import refresh
             refresh(self, state)
+            from harness.verification import refresh as refresh_verification
+            refresh_verification(self, state)
             from harness.decisions import refresh_waits
             refresh_waits(self, state)
             original = copy.deepcopy(state)
@@ -88,6 +90,8 @@ class Tasks:
                     self._flush(original)
                 raise
             refresh(self, state)
+            from harness.verification import refresh as refresh_verification
+            refresh_verification(self, state)
             refresh_waits(self, state)
             self._save(state)
             self._flush(state)
@@ -121,6 +125,10 @@ class Tasks:
 
     def require_dispatch(self, task_id, preflight=False):
         return self._mutate('dispatch_preflight' if preflight else 'dispatch', lambda state: None, task_id)
+
+    def configure_verification(self, task_id, **configuration):
+        from harness.verification import configure
+        return configure(self, task_id, **configuration)
 
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure
@@ -222,6 +230,13 @@ class Tasks:
                 "design_status": {"specification": "NOT_STARTED", "mockup": "NOT_PRODUCED",
                                   "visual_review": "NOT_RUN", "visual_evidence": None},
                 "visual_required": visual_required}
+        policy_path = self.root / '.harness/verification-policy.json'
+        if policy_path.exists():
+            policy = json.loads(policy_path.read_text())
+            if not isinstance(policy, dict) or set(policy) != {'required_work_types'} or not isinstance(policy['required_work_types'], list) or not policy['required_work_types'] or any(k not in logging.KINDS for k in policy['required_work_types']):
+                raise ValueError('verification policy requires supported required_work_types')
+            if work_type in policy['required_work_types']:
+                task['verification_required'] = self.artifact('.harness/verification-policy.json')
         state["tasks"][task_id] = task
         from harness.execution_policy import inherit
         inherit(state, task, self.run_id)
@@ -268,6 +283,8 @@ class Tasks:
             task = state["tasks"][task_id]
             if task.get('applicability',{}).get('status')=='EXCLUDED':
                 raise ValueError('excluded Todo is not complete or executable; record an applicability decision first')
+            if task.get('verification_required') and not task.get('verification_contract'):
+                raise ValueError('required verification contract missing before ready')
             from harness.stage_readiness import gate as readiness_gate
             reason=readiness_gate(self,state,task)
             if reason:raise ValueError(reason)
@@ -307,12 +324,14 @@ class Tasks:
             return copy.deepcopy(value)
         return self._mutate('configure_usage_context', operation, task_id)
 
-    def begin(self, task_id, role, review=False, execution_mode="current_agent", usage_context=None, agent_run_id=None):
+    def begin(self, task_id, role, review=False, execution_mode="current_agent", usage_context=None, agent_run_id=None, actor_id=None):
         def operation(state):
             task = state["tasks"][task_id]
             from harness.stage_readiness import gate as readiness_gate
             reason=readiness_gate(self,state,task,[] if review else None)
             if reason:raise ValueError(reason)
+            if task.get('verification_required') and not task.get('verification_contract'):
+                raise ValueError('required verification contract missing before execution')
             expected = "IN_REVIEW" if review else "READY"
             if task["state"] != expected or role not in ROLES or (not review and role != task["role"]):
                 raise ValueError("state or role does not permit execution")
@@ -332,11 +351,18 @@ class Tasks:
                 dependency_gate(state, task)
             from harness.development_tracking import ensure, execution_scope
             ensure(self, state, task, "begin_review" if review else "begin")
+            if task.get('verification_contract') or any(t.get('verification_contract') and any(not r.get('ended_at') for r in t['executions']) for t in state['tasks'].values()):
+                from harness.execution_ownership import gate as ownership_gate
+                ownership_gate(self, state, task, review)
+            if task.get('verification_contract'):
+                from harness.verification import context, text
+                context(self, task)
+                if not text(actor_id): raise ValueError('verification contract requires explicit actor_id before execution')
             reserved_id=agent_run_id or str(uuid.uuid4())
             if not isinstance(reserved_id,str) or str(uuid.UUID(reserved_id))!=reserved_id or any(r['agent_run_id']==reserved_id for t in state['tasks'].values() for r in t.get('executions',[])):
                 raise ValueError('execution ID must be a new canonical UUID')
             run = {"agent_run_id": reserved_id, "run_id": self.run_id,
-                   "execution_context": copy.deepcopy(self.context),
+                   "actor_id": actor_id, "execution_context": copy.deepcopy(self.context),
                    "feature_id": task["feature_id"], "task_id": task_id, "role": role,
                    "kind": "review" if review else "work", "execution_mode": execution_mode,
                    "execution_scope": execution_scope(task),
@@ -351,6 +377,8 @@ class Tasks:
                 check_peers(state, task)
                 run["baseline"] = baseline(task)
                 run["code_state_start"] = capture(self, task)
+            if task.get('verification_contract'):
+                run['ownership_files_start'] = logging.snapshot(self.root)
             from harness.sequential import begin
             begin(self, task, run)
             for field in ('parent_task_id','development_area','coordination_plan_id'):
@@ -400,6 +428,11 @@ class Tasks:
                 raise ValueError("resume requires a valid checkpoint")
             from harness.development_tracking import ensure
             ensure(self, state, task, "resume", run)
+            if task.get('verification_contract') or any(t.get('verification_contract') and any(not r.get('ended_at') for r in t['executions']) for t in state['tasks'].values()):
+                from harness.execution_ownership import gate as ownership_gate
+                from harness.verification import context
+                ownership_gate(self, state, task, kind == 'review')
+                if task.get('verification_contract'): context(self, task)
             ref = self.artifact(decision)
             run.setdefault("decisions", []).append(ref)
             from harness.sequential import wait_end
@@ -454,6 +487,9 @@ class Tasks:
             ensure(self, state, task, "submit", run)
             document_outputs(task, outputs, design_status)
             refs = [self.artifact(p) for p in outputs]
+            if task.get('verification_contract'):
+                from harness.verification import submission_gate
+                submission_gate(self, task, run, outputs)
             if task.get("development_tracking"):
                 from harness.development_tracking import capture, baseline, check_peers
                 from harness.development_tracking import validate_baseline
@@ -545,6 +581,8 @@ class Tasks:
                 if result["result"] == "PASS" and evidence is None:
                     raise ValueError("PASS requires evidence")
                 checked.append({**result, "evidence": evidence, "tested_outputs": copy.deepcopy(task["outputs"])})
+            from harness.verification import review_gate as verification_gate
+            verification_proof = verification_gate(self, task, run, checked)
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
             if passed:
@@ -568,6 +606,8 @@ class Tasks:
                 passed = passed and all(task["design_status"].get("checks", {}).get(k, {}).get("result") == "PASS"
                                         for k in ("structure", "interaction", "visual"))
             record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"])}
+            if verification_proof is not None:
+                record['verification_evidence'] = verification_proof
             basis=review_basis(self,state,task)
             if basis is not None:
                 from harness.stage_readiness import contract_hash
@@ -634,6 +674,8 @@ class Tasks:
         def operation(state):
             from harness.development_tracking import refresh
             refresh(self, state)
+            from harness.verification import refresh as refresh_verification
+            refresh_verification(self, state)
             source, target = state["tasks"][source_id], state["tasks"][target_id]
             from harness.execution_policy import gate as execution_gate
             execution_gate(self, state, target_id, 'ready')
@@ -848,7 +890,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "configure-verification", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)

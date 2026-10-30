@@ -26,6 +26,8 @@ RESULT_SCHEMA={'type':'object','additionalProperties':False,'properties':{
 
 
 # The model schema and local validator share the same controlled vocabulary.
+RESULT_SCHEMA['properties']['criteria']['items']['required'].append('platform_results')
+RESULT_SCHEMA['properties']['criteria']['items']['properties']['platform_results']={'type':'array','items':{'type':'object','additionalProperties':False,'properties':{k:({'type':'array','items':{'type':'string'}} if k=='evidence' else {'type':'string'}) for k in ('platform','result','environment','command_or_steps','expected','observed','doctor','drive','cleanup','evidence')},'required':['platform','result','environment','command_or_steps','expected','observed','doctor','drive','cleanup','evidence']}}
 RESULT_SCHEMA['properties']['criteria']['items']['properties']['evidence']['description']='Exactly ONE existing relative file path in the review workspace. Not a sentence, URL, line reference or semicolon-separated paths. Write a qa-tools evidence file that cites any additional sources.'
 RESULT_SCHEMA['properties']['findings']['items']['properties']['evidence']['description']='Exactly ONE existing relative file path in the review workspace. Put observations and line references inside that file, not in this field.'
 _finding_properties=RESULT_SCHEMA['properties']['findings']['items']['properties']
@@ -40,7 +42,7 @@ def validate_result(value):
     if value['recommendation'] not in {'PASS','REWORK','BLOCKED','NOT_RUN'} or not isinstance(value['summary'],str):raise ValueError('invalid QA recommendation')
     if not isinstance(value['criteria'],list) or not isinstance(value['findings'],list):raise ValueError('QA lists required')
     for row in value['criteria']:
-        if set(row)!={'criterion_id','result','observation','evidence'} or not isinstance(row['criterion_id'],str) or not row['criterion_id'] or row['result'] not in RESULTS or not isinstance(row['observation'],str) or (row['evidence'] is not None and not isinstance(row['evidence'],str)):raise ValueError('invalid QA criterion')
+        if set(row)-{'platform_results'}!={'criterion_id','result','observation','evidence'} or not isinstance(row['criterion_id'],str) or not row['criterion_id'] or row['result'] not in RESULTS or not isinstance(row['observation'],str) or (row['evidence'] is not None and not isinstance(row['evidence'],str)):raise ValueError('invalid QA criterion')
     for f in value['findings']:
         if set(f)!=FINDING_FIELDS or f['kind'] not in KINDS or f['severity'] not in {'BLOCKER','MAJOR','MINOR'} or type(f['blocking']) is not bool:raise ValueError('invalid QA finding')
         if f['owner_role'] not in {'planning','design','development','verification','improvement','orchestrator'}:raise ValueError('invalid finding owner')
@@ -225,7 +227,7 @@ class QA:
             context['phase']='begin';context['owned_runs']=[];context.pop('agent_run_id',None)
             if task['state']!='READY':self.tasks.ready(task_id)
             reserved_id=str(uuid.uuid4());context.update(agent_run_id=reserved_id,owned_runs=[reserved_id])
-            run=self.tasks.begin(task_id,'verification',agent_run_id=reserved_id,execution_mode='independent_process' if worker is None else 'local_check')
+            run=self.tasks.begin(task_id,'verification',actor_id='qa-producer:'+reserved_id,agent_run_id=reserved_id,execution_mode='independent_process' if worker is None else 'local_check')
             aid=run['agent_run_id'];context.update(agent_run_id=aid,owned_runs=[aid],phase='prepare_workspace');base=self.root/'.harness'/'qa'/task_id/aid;workspace=base/'workspace';base.mkdir(parents=True)
             source_before=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))
             shutil.copytree(self.root,workspace,ignore=shutil.ignore_patterns('.git','.harness','.kmp-agent','.codex','.agents','__pycache__','.worker-cache'))
@@ -239,6 +241,9 @@ class QA:
             packet['human_progress']=progress
             packet['human_progress_message']=message(progress)
             packet['progress_instructions']='Use the same native checklist at major transitions. Keep repair/retest within its task; identify product/harness/environment failures only with evidence; report unexecuted checks honestly.'
+            if task.get('verification_contract'):
+                packet['verification_contract']=copy.deepcopy(task['verification_contract'])
+                packet['instructions']+=' Return platform_results for every criterion platform in verification_contract: exact environment, command_or_steps, expected, observed, doctor/drive/cleanup verdicts, and relative observation evidence paths. Build/API success never substitutes for a required UI journey. Missing tools/devices/auth must remain NOT_RUN/BLOCKED, never weaken expectations.'
             packet['requirement_lineage']=lineage_comparison or {'semantic_review':'NOT_ESTABLISHED','legacy_inputs':'authority not certified'}
             if lineage_comparison:
                 packet['instructions']+=' Independently read the literal user source and approved requirements, not just the derived inventory. Detect missing original items, changed values/behavior and exclusions. Agent-authored documents are never user authority. Verify exact approval evidence. Return baseline_gap/baseline_contradiction to planning; do not invent policy. A HARNESS_TRIAL PASS is execution-path evidence only, never product compliance.'
@@ -342,15 +347,18 @@ class QA:
             self.tasks.submit(task_id,aid,[str(md.relative_to(self.root))],'QA evidence produced; acceptance requires native review')
             context['phase']='begin_review'
             review_id=str(uuid.uuid4());context['owned_runs'].append(review_id)
-            review=self.tasks.begin(task_id,'verification',review=True,execution_mode='local_check',agent_run_id=review_id)
+            review=self.tasks.begin(task_id,'verification',review=True,actor_id='qa-evidence-gate:'+review_id,execution_mode='local_check',agent_run_id=review_id)
             context['phase']='review'
             review_rows=[{'criterion_id':c['id'],'result':'PASS' if passed and checked.get(c['id'])=='PASS' else 'FAIL' if checked.get(c['id'])=='FAIL' else 'NOT_RUN','evidence':str(report_path.relative_to(self.root))} for c in task['criteria']]
+            if task.get('verification_contract'):
+                from harness.verification import qa_receipts
+                review_rows=qa_receipts(self.tasks,task_id,review,result,review_rows,workspace,base)
             self.tasks.review(task_id,review['agent_run_id'],review_rows,'QA '+outcome+'; local evidence check, not self approval')
             context['phase']='findings'
             attempt={'agent_run_id':aid,'review_run_id':review['agent_run_id'],'outcome':outcome,'report':self.tasks.artifact(str(report_path.relative_to(self.root))),'finding_ids':[],'repair':'NOT_RUN'}
             for f in (result or {}).get('findings',[]):
                 kind='design' if f['owner_role']=='design' else 'policy' if f['kind']=='baseline_contradiction' else 'requirements'
-                issue=self.tasks.issue(task_id=config['target_task_id'],kind=kind,screen=f['code_ref'],ui_state=config['stage'],observed=f['actual'],expected=f['expected'],severity=f['severity'],recheck='; '.join(f['repro']) or f['reason_code'],evidence=str(report_path.relative_to(self.root)))
+                issue=self.tasks.issue(task_id=config['target_task_id'],kind=kind,screen=f['code_ref'],ui_state=config['stage'],observed=f['actual'],expected=f['expected'],severity=f['severity'],recheck='; '.join(f['repro']) or f['reason_code'],evidence=str(report_path.relative_to(self.root)),root_cause=json.dumps([f['owner_role'],f['kind'],f['reason_code'],f['code_ref'],f['baseline_ref'],f['expected']],sort_keys=True))
                 def annotate(s,issue_id=issue['id'],finding=f):
                     entry=next(i for i in s['issues'] if i['id']==issue_id);entry['qa_finding']=copy.deepcopy(finding);entry['owner']=finding['owner_role'];entry['qa_task_id']=task_id
                 self.tasks._mutate('qa_finding',annotate,task_id);attempt['finding_ids'].append(issue['id'])

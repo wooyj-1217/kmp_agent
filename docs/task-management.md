@@ -154,3 +154,7 @@ JSON에는 해당 메서드의 이름 있는 인자를 넣는다. 예: ready는 
 
 시험 결과 조회: `rtk proxy python3 harness/trial.py report --run-id <run_id>`; 보고서는 `.harness/logs/task-trial.json`에 기록한다.
 재현 순서는 trial.py의 init → 기획 문서 작성 → submit-planning → review-planning → start-design → 디자인 문서 작성 → submit-design → review-design → report다. 기존 상태를 덮어쓰지 않으므로 새 시험은 새 루트·ID로 수행한다.
+
+## 완료 증거 계약
+
+새 작업의 기준별 방법·플랫폼·환경·관찰 증거·검토 주체 연결은 [증거에 따른 완료와 재개](verification-reliability.md)를 따른다. 프로젝트 필수 정책은 신규 작업에 고정하며 과거 결과를 소급 인증하지 않는다. [검증 절차 생성·검사](verification-procedures.md)는 프로젝트 소유 명령·기능 경로를 사용하며 생성/형식 검사와 실제 실행을 구분한다.
