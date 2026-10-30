@@ -169,10 +169,10 @@ def _matches(registration, event):
 def _usage(manager, state, task, run):
     from harness.usage_collection import registrations
     from harness.dashboard_usage import token_parts, native_identity_conflict
-    regs = registrations(manager.root)
-    from harness.usage_provenance import read_jsonl
-    limits = {(r.get('session_id'), r.get('response_id')) for r in
-              read_jsonl(manager.root / '.harness/usage/attribution-limits.jsonl')}
+    events = [e for e in manager.logger.read() if e.get('event_type') == 'model_usage']
+    regs = registrations(manager.root, state=state, events=events)
+    from harness.usage_revision import unresolved_limits
+    limits = unresolved_limits(manager.root, state, events, regs)
     own = [r for r in regs if r.get('task_id') == task['task_id'] and r.get('execution_id') == run['agent_run_id'] and r.get('run_id') == run['run_id']]
     if not own:
         raise ValueError('completion usage UNKNOWN: missing exact session/turn registration')
@@ -180,7 +180,6 @@ def _usage(manager, state, task, run):
         raise ValueError('completion usage UNKNOWN: registration lacks exact session/turn identity')
     if any(r.get('independent') and run.get('execution_mode') != 'independent_process' for r in own):
         raise ValueError('completion usage UNKNOWN: independent session/execution mode mismatch')
-    events = [e for e in manager.logger.read() if e.get('event_type') == 'model_usage']
     keys = {(b.get('session_id'), b.get('response_id')) for b in run.get('usage_bindings', [])}
     if not keys:
         raise ValueError('completion usage UNKNOWN: missing bound model_usage')

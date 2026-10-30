@@ -226,7 +226,7 @@ def recover(root):
     root = Path(root)
     state = json.loads((root / '.harness/tasks/tasks.yaml').read_text())
     events = read_events(root)
-    registrations = read_registrations(root)
+    registrations = read_registrations(root, state=state, events=events)
     path = root / '.harness/usage/classifications.jsonl'
     path.parent.mkdir(parents=True, exist_ok=True)
     added = 0
@@ -254,12 +254,12 @@ def read_events(root):
     return read_jsonl(Path(root) / '.harness/logs/events.jsonl')
 
 
-def read_registrations(root):
-    from harness.usage_provenance import read_jsonl
-    return read_jsonl(Path(root) / '.harness/usage/sessions.jsonl')
+def read_registrations(root, state=None, events=None):
+    from harness.usage_collection import registrations
+    return registrations(root, state=state, events=events)
 
 
-def resolve(root, state, task, run, events):
+def resolve(root, state, task, run, events, registrations=None):
     path = Path(root) / '.harness/usage/classifications.jsonl'
     found = []
     if path.exists():
@@ -268,7 +268,9 @@ def resolve(root, state, task, run, events):
                 r = json.loads(line)
                 if r['execution_id'] == run['agent_run_id'] and r['task_id'] == task['task_id'] and r['version'] == VERSION:
                     found.append(r)
-    current = derive(state, task, run, events, read_registrations(root))
+    if registrations is None:
+        registrations = read_registrations(root, state=state, events=events)
+    current = derive(state, task, run, events, registrations)
     if found:
         match = [r for r in found if r['context'] == current and r['context']['evidence_sha256'] == current['evidence_sha256'] and
                  digest(r.get('evidence')) == current['evidence_sha256'] and
