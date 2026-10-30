@@ -59,14 +59,8 @@ def open_question(manager, question_id, question, affected_task_ids, options=Non
         if not isinstance(affected_task_ids, list) or not affected_task_ids or any(t not in state['tasks'] for t in affected_task_ids):
             raise ValueError('explicit existing affected tasks required')
         records, raw = native_records(policy['root_session_path'], policy['root_session_id'])
-        affected = set(affected_task_ids)
-        changed = True
-        while changed:
-            before = len(affected)
-            affected.update(tid for tid, t in state['tasks'].items()
-                            if set(t.get('dependencies', [])) & affected or t.get('parent_task_id') in affected
-                            or t.get('qa_config', {}).get('target_task_id') in affected)
-            changed = len(affected) != before
+        from harness.execution_policy import dependency_closure
+        affected = dependency_closure(state, affected_task_ids)
         q = {'id': question_id, 'run_id': manager.run_id, 'question': question,
              'status': 'OPEN', 'answer_mode': answer_mode, 'options': options,
              'question_item_id': question_item_id,
