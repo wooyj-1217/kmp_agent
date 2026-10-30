@@ -126,6 +126,27 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.question('Q2')
         with self.assertRaises(ValueError): self.m.answer_question('Q2', **proof)
 
+    def test_same_record_ordinal_in_distinct_root_sessions_is_not_answer_reuse(self):
+        self.activate();self.question('FIRST')
+        proof=self.reply('Apply strict policy')
+        self.m.answer_question('FIRST',**proof)
+        second_session='00000000-0000-4000-8000-000000000002'
+        second_path=self.native.with_name('second-root.jsonl')
+        second_records=[{'type':'session_meta','payload':{'id':second_session,'source':'cli'}}]
+        second_path.write_text(json.dumps(second_records[0])+'\n')
+        later=Tasks(self.root,'second-run')
+        later.bind_execution_session(str(second_path),second_session)
+        later.open_question('SECOND','Choose the policy',['U'],[{'id':'yes','label':'Apply strict policy'}])
+        later.open_question('UNUSED','Choose another policy',['U'],[{'id':'other','label':'Different option'}])
+        second_records.extend(self.records[1:])
+        second_path.write_text(''.join(json.dumps(r)+'\n' for r in second_records))
+        result=later.answer_question('SECOND',**proof)
+        self.assertEqual(result['status'],'ANSWERED')
+        self.assertEqual(result['answer']['source']['session_id'],second_session)
+        self.assertEqual(result['answer']['source']['record_ordinal'],proof['record_ordinal'])
+        with self.assertRaisesRegex(ValueError,'already used'):
+            later.answer_question('UNUSED',**proof)
+
     def test_actual_app_user_message_and_structured_prompt_binding(self):
         self.activate(); self.question()
         call = {'type': 'response_item', 'payload': {'type': 'function_call',

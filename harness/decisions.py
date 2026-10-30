@@ -210,7 +210,8 @@ def answer_question(manager, question_id, record_ordinal, payload_sha256,
             raise ValueError('invalid native structured choice; keep waiting') from error
         for other in state['required_questions'].values():
             previous = other.get('answer') or {}
-            if previous.get('source', {}).get('record_ordinal') != record_ordinal:
+            previous_source = previous.get('source', {})
+            if (previous_source.get('session_id'), previous_source.get('record_ordinal')) != (locator['session_id'], record_ordinal):
                 continue
             old_item = (previous.get('structured_prompt') or {}).get('question_item_id')
             if not structured or not old_item or old_item == structured['question_item_id']:
