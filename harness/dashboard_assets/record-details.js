@@ -36,7 +36,7 @@ function complianceLabel(value) {
 function executionPolicyDetail(t){
  const gate=t.execution_gate,plan=t.work_plan;
  if(!gate&&!plan)return '<h3>착수 계획·필수 답변</h3><p>실행 정책 적용 기록 없음</p>';
- const labels={CLEAR:'착수 조건 확인됨',ALLOWED:'착수 조건 확인됨',BLOCKED:'착수 차단',NOT_CONFIGURED:'실행 정책 미설정'};
+ const labels={CLEAR:'착수 조건 확인됨',ALLOWED:'착수 조건 확인됨',BLOCKED:'착수 차단',NOT_CONFIGURED:'실행 정책 미설정',HISTORICAL:'완료된 이력 · 새 실행 불가'};
  const reasonLabels={'required human answer pending':'필수 답변을 기다리고 있습니다.','current run native root session binding required':'현재 실행의 메인 대화 원본을 연결해야 합니다.','whole execution plan membership required':'현재 실행의 전체 계획에 작업을 연결해야 합니다.','assigned detailed work plan required':'현재 실행의 담당 세부 계획을 등록해야 합니다.'};
  const reasons=(gate?.reasons||[]).map(r=>reasonLabels[r]||'착수 조건을 추가 확인해야 합니다.');
  const questions=(data.required_questions||[]).filter(q=>q.affected_task_ids.includes(t.id));

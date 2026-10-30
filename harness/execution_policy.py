@@ -229,9 +229,9 @@ def status(state, task, run_id=None):
         if not task_plan: reasons.append('assigned detailed work plan required')
     finish_reasons = ['required human answer pending'] if qids else []
     if not legacy and task['state'] != 'DONE': finish_reasons = reasons[:]
-    return {'status': 'BLOCKED' if reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
+    return {'status': 'HISTORICAL' if task['state'] == 'DONE' else 'BLOCKED' if reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
             'start_status': 'BLOCKED' if reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
-            'finish_status': 'BLOCKED' if finish_reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
+            'finish_status': 'HISTORICAL' if task['state'] == 'DONE' else 'BLOCKED' if finish_reasons else 'ALLOWED' if active else 'NOT_CONFIGURED',
             'question_ids': qids, 'reasons': reasons, 'finish_reasons': finish_reasons,
             'plan_registered': bool(member), 'task_plan_registered': task_plan,
             'contract_active': active, 'legacy_active_attempt': legacy,

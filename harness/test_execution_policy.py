@@ -327,7 +327,12 @@ class ExecutionPolicyTests(unittest.TestCase):
                 managed_command(self.m,'T',[sys.executable,'-c','print(456)'],self.root)
             spawn.assert_not_called()
         self.assertEqual(self.m.read()['tasks']['T']['state'],'DONE')
-        self.assertEqual(self.m.report()['tasks']['T']['execution_gate']['start_status'],'BLOCKED')
+        historical=self.m.report()['tasks']['T']['execution_gate']
+        self.assertEqual(historical['start_status'],'BLOCKED')
+        self.assertEqual(historical['status'],'HISTORICAL')
+        self.assertEqual(historical['finish_status'],'HISTORICAL')
+        self.assertTrue(historical['historical_done'])
+        self.assertEqual(self.m.read()['tasks']['T']['state'],'DONE')
 
     def test_role_interrupt_kills_term_ignoring_pipe_detached_descendant(self):
         self.activate(); self.plan(); self.m.ready('T')
