@@ -83,6 +83,24 @@ class OwnerContractTests(unittest.TestCase):
             for ref in proof['platform_results'][0]['evidence']:
                 self.assertEqual(artifact_status(self.root,ref)['state'],'VALID')
 
+    def test_missing_upstream_qa_artifacts_invalidates_accepted_owner(self):
+        self.execute_qa();self.qa.accept_owner('QA')
+        owner=self.owner();review=owner['reviews'][-1]
+        receipt=json.loads((self.root/review['results'][0]['evidence']['snapshot']).read_text())
+        for key in ('report','receipt'):
+            with self.subTest(key=key):
+                path=self.root/receipt['source_qa'][key]['snapshot']
+                original=path.read_bytes();path.unlink()
+                from harness.verification import current_reasons
+                self.assertTrue(current_reasons(self.m,owner,review))
+                path.write_bytes(b'corrupt upstream QA artifact')
+                self.assertTrue(current_reasons(self.m,owner,review))
+                path.write_bytes(original)
+        self.assertFalse(current_reasons(self.m,owner,review))
+        (self.root/receipt['source_qa']['receipt']['snapshot']).unlink()
+        refreshed=self.owner()
+        self.assertEqual(refreshed['validation_status'][review['agent_run_id']]['state'],'RECHECK_REQUIRED')
+
     def test_synthetic_local_worker_is_not_actual_model_provenance(self):
         self.execute_qa(native_metadata=False)
         with self.assertRaisesRegex(ValueError,'actual independent model provenance'):

@@ -117,6 +117,8 @@ def review_gate(manager, task, run, results, state=None):
             if qa_report.get('criterion_definitions')!=qa['criteria'] or qa_report.get('repair_criteria')!=config.get('repair_criteria') or qa_report.get('repair_criteria_definitions')!=config.get('repair_criteria_definitions'):raise ValueError('QA source definitions changed')
             if source_receipt.get('task_id')!=source['task_id'] or source_receipt.get('criterion_id')!=qid or source_receipt.get('review_run_id')!=source['review_run_id'] or report.get('platform_results')!=source_receipt.get('platform_results'):
                 raise ValueError('owner platform observations differ from exact QA receipt')
+            # Keep the provenance chain live after acceptance, not just at transfer.
+            proofs.extend(copy.deepcopy([source['report'], source['receipt']]))
         if report.get('task_id')!=task['task_id'] or report.get('criterion_id')!=row['criterion_id'] or report.get('review_run_id')!=run['agent_run_id'] or report.get('actor_id')!=run['actor_id']:
             raise ValueError('receipt must bind exact task, criterion and reviewer execution')
         if any(report.get(k)!=v for k,v in basis.items()) or report.get('tested_outputs')!=expected_outputs or report.get('code_state_sha256')!=code:

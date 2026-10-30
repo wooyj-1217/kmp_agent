@@ -103,7 +103,7 @@ capture는 immutable Git blob OID의 batch 조회로 파일별 프로세스를 �
 
 새 계약 owner의 완료에는 기존 `qa_repair` 인계 경로를 사용한다. 같은 target/owner task를 `QA.configure(...,repair_task_id=target,repair_criteria={owner_id:[qa_id]})`로 명시하고 실제 모델 QA를 실행한 뒤 `QA.accept_owner(qa_task_id)`로 인계한다. 각 owner 기준은 정확히 한 QA 기준의 동일 method/kind/platform 계약·절차·환경·실제 receipt에 연결해야 한다. 새 계약의 독립 provenance가 없는 callable 합성 QA는 이 완료 경로에서 거부된다. 이전 미구성 legacy 인계 정책을 실제 모델 실행으로 소급 승격하지 않는다.
 
-작성자 receipt는 사람이 작성하지 않고 기존 실제 QA 관찰·artifact를 공통 어댑터가 정확히 변환한다. 최종 review의 원장 잠금 안에서 최신 QA 시도·기준 매핑·고정 정의·코드 범위·원본 receipt와 관찰 일치를 다시 검사한다. precheck 후 매핑 변경이나 관찰 변조도 거부한다. 인계가 검토 실행을 만든 뒤 실패하면 그 invocation이 소유한 실행만 기존 failure 경로로 닫는다. 이미 완료한 QA 재실행은 하지 않으며 코드가 바뀌면 정상 재개/제출과 별도 retest QA가 필요하다.
+작성자 receipt는 사람이 작성하지 않고 기존 실제 QA 관찰·artifact를 공통 어댑터가 정확히 변환한다. 최종 review의 원장 잠금 안에서 최신 QA 시도·기준 매핑·고정 정의·코드 범위·원본 receipt와 관찰 일치를 다시 검사한다. precheck 후 매핑 변경이나 관찰 변조도 거부한다. 인계 시 원본 QA report와 기준별 receipt의 artifact 참조도 완료 증거에 보존한다. 완료 뒤 이 원본 스냅샷이 누락되거나 해시가 달라지면 현재 완료 근거를 재검증 대상으로 표시한다. 인계가 검토 실행을 만든 뒤 실패하면 그 invocation이 소유한 실행만 기존 failure 경로로 닫는다. 이미 완료한 QA 재실행은 하지 않으며 코드가 바뀌면 정상 재개/제출과 별도 retest QA가 필요하다.
 
 batch 조회는 파일별 Git subprocess를 줄이기 위한 변경이다. 전체 작업의 속도 개선을 보장하지 않는다. 시간 제한·해시 동일성·독립 QA의 회귀 시험은 공통 저장소에 두고, 일회성 계측과 실제 모델 실행의 raw 근거는 적용 프로젝트 로컬에 보존한다.
 
