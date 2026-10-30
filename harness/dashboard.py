@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 import hashlib
 import html
 import re
+import select
+import socket
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -15,6 +18,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse, parse_qs, quote
 from harness.dashboard_usage import token_parts, enrich_usage, apply_recorded_labels
 from harness.dashboard_live import runtime_scopes, activity_view
+from harness.dashboard_events import NativeEvents
 from harness.dashboard_filter import filter_result
 
 STAGES = ['planning', 'design', 'development', 'verification', 'report']
@@ -496,13 +500,49 @@ def snapshot(root, scope_id=None, start=None, end=None):
     return result
 
 
-def serve(root, port):
+def create_server(root, port):
     root = Path(root).resolve(); assets = Path(__file__).with_name('dashboard_assets')
+    events = NativeEvents(root)
     class Handler(BaseHTTPRequestHandler):
+        def event_stream(self):
+            origin = self.headers.get('Origin')
+            if origin and origin != 'http://' + self.headers.get('Host', ''):
+                self.send_error(403); return
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', "default-src 'self'; object-src 'none'; base-uri 'none'")
+            self.end_headers()
+            revision = events.revision
+            def send(kind):
+                payload = json.dumps({'revision': revision, 'status': events.status})
+                self.wfile.write(('id: ' + revision + '\nevent: ' + kind + '\ndata: ' + payload + '\n\n').encode())
+                self.wfile.flush()
+            try:
+                send('connected')
+                heartbeat = time.monotonic()
+                while not events.closed:
+                    if events.status != 'native':
+                        send('manual'); return
+                    current = events.wait(revision)
+                    # Check only the network peer, never read state for a heartbeat.
+                    if select.select([self.connection], [], [], 0)[0] and not self.connection.recv(1, socket.MSG_PEEK):
+                        return
+                    if current != revision:
+                        revision = current
+                        send('changed')
+                    elif time.monotonic() - heartbeat >= 10:
+                        self.wfile.write(b': keepalive\n\n'); self.wfile.flush()
+                        heartbeat = time.monotonic()
+            except (OSError, ValueError):
+                return
         def do_GET(self):
             if self.headers.get('Host', '').split(':')[0] not in {'127.0.0.1', 'localhost'}:
                 self.send_error(403); return
             parsed = urlparse(self.path); query = parse_qs(parsed.query)
+            if parsed.path == '/api/events':
+                self.event_stream(); return
             interactive = False
             try:
                 if parsed.path == '/api/snapshot':
@@ -564,9 +604,33 @@ def serve(root, port):
                 self.send_error(422, 'Input missing, invalid or not allowed; source records unchanged')
         def log_message(self, *_):
             pass
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    class Server(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def server_close(self):
+            events.close()
+            super().server_close()
+
+        def shutdown(self):
+            events.close()
+            super().shutdown()
+
+    try:
+        server = Server(('127.0.0.1', port), Handler)
+    except BaseException:
+        events.close()
+        raise
+    server.events = events
+    return server
+
+
+def serve(root, port):
+    server = create_server(root, port)
     print(f'http://127.0.0.1:{server.server_port}', flush=True)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 if __name__ == '__main__':
