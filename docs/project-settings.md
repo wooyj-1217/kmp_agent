@@ -4,6 +4,8 @@
 
 상태는 CONFIRMED(확정), PROPOSED(제안), UNDECIDED(미정), NOT_APPLICABLE(해당 없음)이다. 해당 없음에도 이유가 필요하다. 제안은 착수 승인으로 취급하지 않는다. implementation_targets의 확정 value는 선택한 실제 타깃 ID 배열이다. UI 기술·버전·지원 범위·공유 로직/UI와 플랫폼별 책임·소유 모듈을 타깃별로 명시한다. 웹 기술이나 KMP UI 공유를 자동 채택하지 않는다.
 
+PRODUCT 코드 구현은 [승인된 개발 제약](development-constraints.md)을 추가로 요구한다. 기존 requirement-lineage의 authoritative requirement에 DB 엔진·위치·역할, UI 공유·소유 경로, 전체 타깃 진입 파일·검증 명령·소스 패턴을 연결한다. configure-stage는 해당 정책을 동결하고 위 다섯 기술 설정의 값과 대조한다. 설정의 CONFIRMED만으로 원본 승인이나 독립 QA를 대신하지 않는다.
+
 server_mode는 none / existing / new다. none이면 서버 기술·DB·API·정책 책임·마이그레이션을 해당 없음으로 적는다. existing은 API와 정책 책임을 확인하고 소유하지 않는 서버 내부 기술·DB·마이그레이션은 해당 없음과 경계를 기록할 수 있다. new는 이를 새로 결정한다. api_contract의 mode는 real / temporary / mock이다. 임시 계약·목 데이터는 산출물에도 표시하고 실제 연동으로 보고하지 않는다.
 
 ## 설정 책임과 미구현 인터페이스

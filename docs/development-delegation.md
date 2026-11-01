@@ -5,6 +5,7 @@
 ## 구성과 실행
 
 1. 기존 개발 추적 계약으로 부모 코드 작업을 준비한다. 요구사항·디자인·API·정책 baseline과 실제 모듈 근거가 필요하다.
+   PRODUCT 코드 구현에는 [승인된 개발 제약](development-constraints.md)을 configure-stage로 동결한다. 정책을 명시한 비 PRODUCT 작업도 같은 계약을 적용한다. 자식은 부모의 단계 계약·입력과 정책 packet을 상속한다.
 2. `Development(root, run_id).configure(parent_task_id, children, architecture, shared_owners, integration_commands, max_parallel=2, executable='codex', timeout=600)`로 위임한다. `Tasks.configure_delegation`도 같은 진입점이다.
 3. 각 child에는 task_id/area/title/goal/requirement_ids/acceptance_ids/allowed_paths/dependencies/verification_commands/out_of_scope를 지정한다. architecture에는 evidence/modules와 실제 UI 소유권을 지정한다. 루트 빌드·공유 계약 파일의 담당자를 shared_owners에 명시한다. [시험 계약](../harness/test_delegation.py)을 실행 가능한 예로 사용한다.
 4. 저장소 루트에서 다음을 실행한다.
@@ -22,6 +23,8 @@ rtk proxy python3 -B -m harness.cli --target /absolute/project development --run
 별도 프로세스 실행과 병렬 실행은 구분한다. 프로젝트 공유 `Tasks.configure_runtime_limits(max_parallel=2,max_executions=20)`은 모든 역할에 같은 슬롯·실행 admission 예산을 적용한다. CLI 한 번 안의 모델 응답 횟수나 토큰/달러 예산은 아니다. timeout은 각 호출에 적용한다. 재시도는 기존 이력과 최대 시도를 보존한다.
 
 영역 검증과 별도 통합 검증을 모두 통과해도 READY_FOR_VERIFICATION이다. 독립 QA 및 제품 필수 인수 조건은 별도다. 과거 PASS는 기준/코드 변경 뒤 CURRENT인지 확인한다.
+
+승인 제약이 있으면 계획의 UI 소유권은 정책과 같아야 하며 통합 명령은 선택한 모든 타깃의 승인 명령을 포함해야 한다. 자식의 금지 소스 패턴 검사와 부모의 필수 패턴·진입 파일·UI 경로 검사를 구분한다. 통합 증거는 제출 work 실행에 연결된 native 명령 시작/종료·argv·출력 digest와 대조한다. 웹 누락이나 실행 불가를 PASS로 바꾸지 않는다. integration_verification은 별도 제품 인수 단계이며 구현 위임으로 대체하지 않는다.
 
 ## 제약
 

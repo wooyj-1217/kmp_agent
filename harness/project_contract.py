@@ -43,6 +43,8 @@ def load(manager, task):
 
 
 def gate(manager, task):
+    from harness.development_constraints import gate as constraint_gate
+    constraint_gate(manager, task)
     data = load(manager, task)
     if data is None:  # Historic/planning/interpretation tasks keep their original contract.
         return
@@ -77,6 +79,13 @@ def review_gate(manager, task, results):
     """Review JSON is an attestation linked to exact outputs, not automatic E2E execution."""
     from harness.acceptance_contract import review_gate as acceptance_review
     acceptance_review(manager, task, results)
+    from harness.development_constraints import load as constraints, review_gate as constraints_review
+    if constraints(manager, task):
+        required = {c['id'] for c in task['criteria'] if c['required']}
+        for item in results:
+            if item['result'] == 'PASS' and item['criterion_id'] in required:
+                report = json.loads((manager.root / item['evidence']['snapshot']).read_text())
+                constraints_review(manager, task, report)
     if task.get("stage_contract", {}).get("stage") != "integration_verification":
         return
     gate(manager, task)

@@ -14,7 +14,7 @@
 | B2 작업 관리 | 역할별 작업·산출물 연결 | 역할·작업 계약 | [YAML 상태·역할 실행 ID](docs/task-management.md) | B1 | 상태·의존성·필수 검토·시도 상한 시험 | DONE |
 | B3 문서 인계 시험 | 기획→디자인 전달 확인 | 메모 예제 | [1차](docs/examples/task-handoff/planning-review.md), [2차](docs/examples/task-handoff-2/design-review.md) | B2 | 고정 입력·수용 기준·화면/상태/행동 연결 | DONE — 문서 검토에 한정 |
 | B4 중단·재개 근거 | 중단 시간과 연속 실행 보존 | 원본·사용자 진술 | [중단/재개 시험](docs/interruption-recovery.md) | B1·B2 | 반복 동기화 불변·완료 작업 보존·시간 분류 | DONE — 자동 복구 제외 |
-| B5 버전 고정 개발 도구 | 제품별 명시적 설치·갱신 | 특정 태그/SHA·프로젝트 연결 설정 | [설치·검증](docs/installation.md), [로컬 시험](.harness/logs/installation-trial.json) | B1·B2 | 설치/init/status/update·실패 복구·안정적 project_id·범위 구분 | DONE — 로컬 시험 한정; 원격 게시·실제 Codex·데모 설치 NOT_RUN |
+| B5 버전 고정 개발 도구 | 제품별 명시적 설치·갱신 | 특정 태그/SHA·프로젝트 연결 설정 | [설치·검증](docs/installation.md), 로컬 시험 기록 `.harness/logs/installation-trial.json`(미제출) | B1·B2 | 설치/init/status/update·실패 복구·안정적 project_id·범위 구분 | DONE — 로컬 시험 한정; 원격 게시·실제 Codex·데모 설치 NOT_RUN |
 
 이 상태는 기존 근거의 요약이며 제품 품질 검증 완료가 아니다. 기존 P1 공통 규격·역할·인계 문서 정리의 DONE과 FEAT-003/TASK-005·TASK-006 완료 근거도 유지한다. 기존 완료 작업을 다시 실행하도록 계획하지 않는다.
 
@@ -24,6 +24,7 @@
 | --- | --- | --- |
 | 역할·산출물 인계 | [기획·디자인 순차 실행과 개발 입력 해석](docs/role-execution.md), P/D/CR snapshot·검토 접수 구현 | 전체 제품 구현·검증 실행과 역할 조정 PLANNED |
 | 프로젝트 입력·개발 추적 | [단계 설정](docs/project-settings.md), [기준 자동 연결·누락 차단·코드 상태·검증 유효성](docs/development-tracking.md) 구현 | 적용 프로젝트의 실행 명령을 연결하는 전체 실행 인터페이스 PLANNED |
+| 승인된 개발 기술 결정 | [개발 제약](docs/development-constraints.md)의 원본 동결·위임 상속·구조 및 타깃 명령 증거 검사 구현(현재 격리 개발 소스) | 승인 진위·의미 검토와 실제 제품 전체 인수는 독립 QA/제품 검증; 설치·릴리스 자동 전파 없음 |
 | 기획·디자인 변경 대응 | 명령·조회 시 입력/코드 해시 점검, CR에 선언한 영향과 RECHECK_REQUIRED 기록 구현 | 감시 대상·변경 확정 조건의 실행 설정, 상시 감지·의미상 영향 분석·구현 수정·재검증 자동 실행 PLANNED |
 | 실패 후 복구 | 원본 근거·checkpoint 실행 재개·문제 반환·검토 기록 구현 | 실패 후 자동 수정·재검증·전체 복구 실행 PLANNED. checkpoint는 코드 복원을 보장하지 않음 |
 | 공통 하네스 결함 개선 PR | [분류·최소 재현·격리 수정·Draft PR·승인/업데이트/재개 정책](docs/harness-defect-pr.md) 문서화 | 기존 추적 기반의 자동 분류·권한/승인 게이트·격리 수정·PR 역연결·배포 후 재검증/재개 PLANNED |

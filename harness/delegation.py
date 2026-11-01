@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from harness import logging
 from harness.tasks import Tasks
 from harness import development_tracking as tracking
+from harness import development_constraints as constraints
 
 AREAS={'kmp','web','server','android','ios'}
 
@@ -97,12 +98,23 @@ class Development:
             if not ready:raise ValueError('cyclic development dependencies')
             for key in ready:done.add(key);ordered.append(key);remaining.pop(key)
         config={'children':specifications,'architecture':arch,'shared_owners':owners,'integration_commands':integration_commands,'max_parallel':max_parallel,'executable':executable,'timeout':timeout}
+        constraints.gate(self.tasks,parent)
+        constraints.check_plan(self.tasks,parent,arch,specifications,integration_commands)
+        if constraints.load(self.tasks,parent) is not None and parent.get('stage_contract',{}).get('stage')=='integration_verification':
+            raise ValueError('integration_verification requires separate product acceptance, not implementation delegation')
         # All constraints are checked before creating any child.
         baselines={k:v['path'] for k,v in parent['development_tracking']['baselines'].items()}
         for tid in ordered:
             spec=next(x for x in specifications if x['task_id']==tid)
             self.tasks.register(parent['feature_id'],tid,'development',spec['title'],spec['goal'],
                 [{'id':c,'description':spec['goal'],'required':True} for c in spec['acceptance_ids']],[a['path'] for a in parent['inputs']],max_attempts=spec.get('max_attempts',parent['max_attempts']),dependencies=spec.get('dependencies',[]),work_type=parent['work_type'],execution_scope='code_implementation',pipeline_stage='development')
+            def inherit(state):
+                child=state['tasks'][tid]
+                if parent.get('stage_contract'):
+                    child['stage_contract']=copy.deepcopy(parent['stage_contract'])
+                child['inputs']=copy.deepcopy(parent['inputs'])
+                self.tasks._event(state,'development_contract_inherited',child,observed={'parent_task_id':parent_task_id})
+            self.tasks._mutate('development_inherit_contract',inherit,task_id=tid)
             self.tasks.configure_development(tid,baselines,spec['allowed_paths'],parent['development_tracking'].get('api_required',False),parent['development_tracking'].get('service_version','UNKNOWN'),parent['development_tracking'].get('change_id'))
         def save(s):
             p=s['tasks'][parent_task_id];p['development_delegation']=config;p['child_task_ids']=ids
@@ -143,7 +155,7 @@ class Development:
         lineage=compare(self.root) if (self.root/'requirement-lineage.json').exists() else {'scope':'SYNTHETIC_OR_LEGACY_UNCERTIFIED','product_requirements_pass':'NOT_ESTABLISHED'}
         from harness.human_progress import for_task, message
         progress=for_task(self.root,parent['task_id'],self.run_id)
-        return {'human_progress':progress,'human_progress_message':message(progress),'progress_instructions':'Report the shared native checklist only at major transitions. Retries stay within this task; command return0 is not completion. Explain validation purpose/results in ordinary language. Never invent process activity or product PASS.','requirement_lineage':lineage,'parent_task_id':parent['task_id'],'task_id':t['task_id'],'agent_run_id':execution['agent_run_id'],'development_area':spec['area'],
+        return {'development_constraints':constraints.packet(self.tasks,t),'human_progress':progress,'human_progress_message':message(progress),'progress_instructions':'Report the shared native checklist only at major transitions. Retries stay within this task; command return0 is not completion. Explain validation purpose/results in ordinary language. Never invent process activity or product PASS.','requirement_lineage':lineage,'parent_task_id':parent['task_id'],'task_id':t['task_id'],'agent_run_id':execution['agent_run_id'],'development_area':spec['area'],
             'goal':spec['goal'],'requirement_ids':spec['requirement_ids'],'acceptance_ids':spec['acceptance_ids'],
             'baselines':t['development_tracking']['baselines'],'baseline_version':execution['baseline'],'frozen_inputs':execution['inputs'],'code_state':execution['code_state_start'],
             'predecessor_artifacts':{dep:self.tasks.read()['tasks'][dep].get('outputs',[]) for dep in spec.get('dependencies',[])},
@@ -157,7 +169,9 @@ class Development:
         for i,argv in enumerate(commands):
             self._command(argv)
             rc=logger.command(self.run_id,argv,task_id=tid,agent_run_id=aid,command_kind='integration' if kind=='integration' else 'test',attempt_id=aid)
-            records.append({'command':argv,'returncode':rc,'status':'PASS' if rc==0 else 'FAIL'})
+            finished=next(event for event in reversed(logger.read()) if event['event_type']=='command_finished' and event.get('task_id')==tid and event.get('agent_run_id')==aid)
+            observed=finished['observed']
+            records.append({'command':argv,'returncode':rc,'status':'PASS' if rc==0 else 'FAIL','command_log':{'argv':argv,'exit_code':rc,'call_id':observed['call_id'],'stdout_sha256':observed['stdout_sha256'],'stderr_sha256':observed['stderr_sha256']}})
             if rc:break
         return records
 
@@ -208,6 +222,7 @@ class Development:
             if any(not any(inside(k,p) for p in spec['allowed_paths']) for k in changed):raise ValueError('worker changed files outside ownership')
             if set(changed)!=set(claim['changed_files']):raise ValueError('self report changed_files differs from actual diff')
             if git(ws,'rev-parse','HEAD').decode().strip()!=head or git(ws,'diff','--cached','--name-only').strip():raise ValueError('worker altered Git history/index')
+            constraints.check_code(self.tasks,self.tasks.read()['tasks'][tid],root=ws,complete=False)
             # Retain an actual portable diff, not just a self-reported reference.
             for name in changed:
                 if name not in before:git(ws,'add','-N','--',name)
@@ -251,7 +266,12 @@ class Development:
         previous=self.tasks.read()['tasks'][parent_task_id]
         if previous['state']=='DONE':
             return {'state':'DONE' if valid_done(previous) else 'RECHECK_REQUIRED','cached':True,'parent_task_id':parent_task_id,'claim_scope':'HISTORICAL_ONLY','product_requirements_fulfillment':'NOT_ESTABLISHED','feature_complete':False}
+        constraints.gate(self.tasks,previous)
         self.tasks.require_dispatch(parent_task_id, preflight=True)
+        if not previous.get('development_delegation'):
+            raise ValueError('development delegation plan required before coordinator execution')
+        config=previous['development_delegation']
+        constraints.check_plan(self.tasks,previous,config['architecture'],config['children'],config['integration_commands'])
         # Legacy synthetic tests remain local checks, never product certification.
         if worker is None or (self.root/'requirement-lineage.json').exists():
             development_gate(self.tasks, parent_task_id)
@@ -294,9 +314,12 @@ class Development:
                     self.tasks.fail(parent_task_id,aid,'child failed/blocked/recheck: '+', '.join(sorted(failed)));return {'state':'BLOCKED','parent_task_id':parent_task_id,'failed':sorted(failed),'completed':sorted(completed)}
                 # Area PASS is not feature integration PASS.
                 checks=self.verify(parent_task_id,aid,config['integration_commands'],'integration')
+                constraints.check_code(self.tasks,self.tasks.read()['tasks'][parent_task_id],complete=True)
                 passed=len(checks)==len(config['integration_commands']) and all(c['status']=='PASS' for c in checks)
                 out=self.tasks.directory/'delegation'/aid;out.mkdir(parents=True,exist_ok=True)
-                evidence=self.report(out,'integration.json',{'result':'PASS' if passed else 'FAIL','method':'separate integration commands after all child reviews','checks':checks,'child_task_ids':sorted(completed)})
+                frozen=constraints.load(self.tasks,self.tasks.read()['tasks'][parent_task_id])
+                target_results=[] if frozen is None else [{'target':target,'result':'PASS' if all(any(c['command']==command and c['status']=='PASS' for c in checks) for command in commands) else 'FAIL','commands':[c['command_log'] for command in commands for c in checks if c['command']==command]} for target,commands in frozen['policy']['target_commands'].items()]
+                evidence=self.report(out,'integration.json',{'constraints_sha256':frozen['sha256'] if frozen else None,'constraint_target_results':target_results,'constraint_review_run_id':aid,'result':'PASS' if passed else 'FAIL','method':'separate integration commands after all child reviews','checks':checks,'child_task_ids':sorted(completed)})
                 changed=sorted({p for tid in completed for p in self.tasks.read()['tasks'][tid].get('changed_files',[]) if (self.root/p).is_file()})
                 self.tasks.submit(parent_task_id,aid,changed,'collected implementation plus separate integration execution')
                 review=self.tasks.begin(parent_task_id,'verification',review=True,execution_mode='local_check')
