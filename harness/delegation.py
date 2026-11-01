@@ -268,13 +268,13 @@ class Development:
             return {'state':'DONE' if valid_done(previous) else 'RECHECK_REQUIRED','cached':True,'parent_task_id':parent_task_id,'claim_scope':'HISTORICAL_ONLY','product_requirements_fulfillment':'NOT_ESTABLISHED','feature_complete':False}
         constraints.gate(self.tasks,previous)
         self.tasks.require_dispatch(parent_task_id, preflight=True)
+        # Keep the original source prerequisite before reading a delegation plan.
+        if worker is None or (self.root/'requirement-lineage.json').exists():
+            development_gate(self.tasks, parent_task_id)
         if not previous.get('development_delegation'):
             raise ValueError('development delegation plan required before coordinator execution')
         config=previous['development_delegation']
         constraints.check_plan(self.tasks,previous,config['architecture'],config['children'],config['integration_commands'])
-        # Legacy synthetic tests remain local checks, never product certification.
-        if worker is None or (self.root/'requirement-lineage.json').exists():
-            development_gate(self.tasks, parent_task_id)
         if worker is None:
             from harness.execution_plan import require
             require(self.tasks,parent_task_id)
