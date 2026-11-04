@@ -73,6 +73,7 @@ class ProjectTests(unittest.TestCase):
         config = (self.target / ".codex/config.toml").read_bytes()
         first = self.apply()
         self.assertEqual(first["connection"], "PASS")
+        self.assertIn("/verification/", (self.target / ".gitignore").read_text().splitlines())
         self.assertEqual(first["runtime"]["result"], "NOT_RUN")
         hooks = module.read_json(self.target / ".codex/hooks.json")
         self.assertEqual(hooks["description"], "product-owned")

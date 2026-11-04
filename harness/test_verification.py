@@ -2,6 +2,7 @@ import copy
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from harness.tasks import Tasks
 from harness.logging import Logger
@@ -12,6 +13,12 @@ from harness.interruptions import Interruptions
 
 class VerificationTests(unittest.TestCase):
     def setUp(self):
+        # This suite isolates legacy receipt structure and ownership checks.
+        # It is not an authority or product PASS test. The separate protected
+        # suite exercises this same review entrypoint with real signatures.
+        self.authority = patch('harness.protected_verification.assess', return_value={
+            'result':'PASS', 'reason':'SYNTHETIC_AUTHORITY_BOUNDARY_ONLY', 'checks':[]})
+        self.authority.start(); self.addCleanup(self.authority.stop)
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
         for name,body in [('input.md','user goal'),('output.md','result'),('env.json','{"browser":"fixture-1"}'),('trace.txt','actual synthetic user trace')]:
@@ -46,6 +53,12 @@ class VerificationTests(unittest.TestCase):
         plan=Interruptions(self.root).resume_plan(self.run)
         self.assertEqual(plan['completed_tasks_to_skip'],['T'])
         self.assertTrue((self.root/'trace.txt').exists())
+
+    def test_local_legacy_receipt_is_not_official_completion_authority(self):
+        self.authority.stop()
+        self.prepare()
+        with self.assertRaisesRegex(ValueError, 'PROTECTED_AUTHORITY_UNAVAILABLE'):
+            self.finish(self.receipts())
 
     def test_unreviewed_criterion_and_partial_pass_cannot_complete(self):
         self.prepare();rows=self.receipts()

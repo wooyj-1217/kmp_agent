@@ -212,7 +212,7 @@ def plan(target, skills):
     updated = text
     installed = (target / ".kmp-agent/installation.json").exists()
     ignores = [".harness/", ".kmp-agent/releases/"] if installed else [".harness/", ".codex/hooks.json"]
-    for relative in ignores + [f".agents/skills/{n}" for n in skills]:
+    for relative in ignores + ["verification/"] + [f".agents/skills/{n}" for n in skills]:
         result = subprocess.run(["rtk", "proxy", "git", "check-ignore", "--no-index", relative],
                                 cwd=target, capture_output=True)
         entry = "/" + relative

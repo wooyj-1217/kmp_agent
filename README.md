@@ -20,3 +20,5 @@
 [프로젝트 진행 상황 대시보드](docs/dashboard.md): 실행/전체 이력 분리, 명시 범위·승인 기준·상태별 검토·사용량을 읽기 전용으로 표시하는 미배포 작업본.
 
 [개발 위임](docs/development-delegation.md) · [독립 QA](docs/qa.md) · [요구사항 추적](docs/requirement-lineage.md) · [토큰 기록](docs/token-usage.md) · [공통 PR 운영 규칙](docs/operations.md#pr-submission).
+
+[회귀 시나리오 관리](docs/regression-scenarios.md): 제품별 기준·플랫폼·도구 catalog와 smoke/full/개별 실행. 현재 미배포 작업본이며 공식 완료는 보호 검증 절차를 따른다.

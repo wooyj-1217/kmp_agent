@@ -149,7 +149,7 @@ QA.configure images/context_files freezes artifacts separately from verbatim ori
 
 QA 호출은 선검사 → 실행 시작 → 작업본 준비 → 기준 자료 배치 → 역할 실행 → 명령 → 결과/근거 처리 → 보고서 → 제출 → 검토 → 이슈/시도 기록 → 담당 수정 → 재시험 기준 갱신을 실패 경계로 다룬다. 시작 전에 기존 형식의 역할 실행 UUID를 예약하므로 상태 저장 후 이벤트 flush가 실패해도 이번 호출이 시작한 정확한 실행만 정리할 수 있다. 다른 호출의 열린 작업은 종료하지 않는다.
 
-정상적인 FAIL/NOT_RUN은 기존 QA 보고서·검토·시도에 남긴다. 예상하지 못한 실패는 `.harness/qa/failures/<UUID>/report.json`, 기존 작업 원장의 `qa_failures`, `qa_execution_failed` 이벤트에 발생 단계·원인·실행 ID·종료 근거를 남긴다. 미실행 검증은 NOT_RUN이다. 이번 호출의 열린 작업·검토를 종료하고 BLOCKED로 기록한다. 검토 PASS 이후 결과 저장이 실패해도 기존 PASS 이력·파일은 보존하되 현재 완료 판정은 취소하고 재검증 필요로 표시한다. 시작 전 거부는 실제 역할 실행 실패와 구분하며 시도 상한을 소모하지 않는다. 중복 완료 호출이나 동시 호출 거부 때문에 이미 완료한 검토나 다른 실행을 중단하지 않는다.
+정상적인 FAIL/NOT_RUN은 기존 QA 보고서·검토·시도에 남긴다. 예상하지 못한 실패는 `verification/qa/failures/<UUID>/report.json`, 기존 작업 원장의 `qa_failures`, `qa_execution_failed` 이벤트에 발생 단계·원인·실행 ID·종료 근거를 남긴다. 미실행 검증은 NOT_RUN이다. 이번 호출의 열린 작업·검토를 종료하고 BLOCKED로 기록한다. 검토 PASS 이후 결과 저장이 실패해도 기존 PASS 이력·파일은 보존하되 현재 완료 판정은 취소하고 재검증 필요로 표시한다. 시작 전 거부는 실제 역할 실행 실패와 구분하며 시도 상한을 소모하지 않는다. 중복 완료 호출이나 동시 호출 거부 때문에 이미 완료한 검토나 다른 실행을 중단하지 않는다.
 
 보완 결과 처리도 동일한 실패 정리를 적용하며 독립 QA PASS와 보완 인수 완료를 구분한다. 강제 프로세스 종료/SIGKILL·전원 상실은 예외 처리로 보장할 수 없고, 저장 장치 자체가 실패하면 기록 확정을 보장할 수 없다. 이 경우 성공을 반환하지 않고 복구·재개 절차로 실제 종료 상태와 기록을 확인해야 한다. 타임아웃 연장으로 처리하지 않는다.
 
@@ -158,3 +158,22 @@ QA 호출은 선검사 → 실행 시작 → 작업본 준비 → 기준 자료 
 ## 증거 계약과 프로젝트별 실행 절차
 
 새 작업의 기준별 방법·플랫폼·환경·관찰 증거·검토 주체 연결은 [증거에 따른 완료와 재개](verification-reliability.md)를 따른다. 프로젝트 필수 정책은 신규 작업에 고정하며 과거 결과를 소급 인증하지 않는다. [검증 절차 생성·검사](verification-procedures.md)는 프로젝트 소유 명령·기능 경로를 사용하며 생성/형식 검사와 실제 실행을 구분한다.
+
+새 실행의 보고서·명령 로그·workspace·runtime·증거 사본은 `verification/qa/<task_id>/<agent_run_id>/`에 생성하며 Git에서 제외한다. 기존 시도의 원본 위치·해시는 보존한다. [생성 경로](local-verification.md#새-자료-생성-경로)를 참조한다.
+
+## Protected official verification
+
+QA reports carry `authority: AGENT_QA_OBSERVATION_ONLY`; their criterion results,
+findings and bounded repair requests remain available. `official_verification`
+is a separate read-only assessment of the target. QA checks only its mapped
+criteria; a summary, successful implementation report or partial QA cannot issue
+an official PASS or cover another platform. Existing owner receipt handoff still
+passes through the protected gate at `Tasks.review`.
+
+The protected job executes the administrator-approved definition against the
+submitted commit. Completion checks its signature, issuer, commit, plan and each
+mandatory scenario, including raw result/output hashes. Missing authority or
+mandatory execution blocks completion. See [protected verification](protected-verification.md)
+for reapproval after test/baseline/CI changes and deployment boundaries. Local QA
+PASS terminology in earlier sections denotes that local QA result, not an
+administrator-issued whole-product acceptance.

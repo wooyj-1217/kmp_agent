@@ -292,6 +292,12 @@ def task_view(root, task, scope, tasks):
         verdict='UNKNOWN'; compliance='UNKNOWN'; status='선택 실행만 표시 · 작업 전체 판정 제외'
         reasons.append('다른 버전 또는 기간의 실행을 제외한 일부 보기')
     verification_summary = None
+    from harness.protected_verification import applies, assess as protected_assess
+    official = protected_assess(root, task) if applies(root, task) else None
+    if official and official['result'] != 'PASS':
+        verdict = 'RECHECK_REQUIRED' if review else 'NOT_RUN'
+        status = '공식 검증 차단'
+        reasons.append(str(official['reason']))
     if task.get('verification_contract'):
         contract=task['verification_contract']; rows=[]
         latest_results={x['criterion_id']:x for x in (review or {}).get('results',[])}
@@ -313,6 +319,7 @@ def task_view(root, task, scope, tasks):
             'execution_gate': task.get('execution_gate'),
             'work_plan': task.get('work_plan'),
             'verification_summary': verification_summary,
+            'official_verification': official,
             'verification_contract': task.get('verification_contract'),
             'verification_required': bool(task.get('verification_required')),
             'goal': task.get('verification_contract', {}).get('goal'),
@@ -405,6 +412,8 @@ def usage_view(events, scope, taskviews, pricing, source_tasks=None, collision_e
 def snapshot(root, scope_id=None, start=None, end=None, agent_version=None, project_id=None):
     root = Path(root).resolve()
     state = load(root / '.harness/tasks/tasks.yaml', {'tasks': {}})
+    from harness.protected_verification import validate_ledger
+    validate_ledger(root, state)
     registry = load(root / '.harness/dashboard-scopes.json', {'project_name': root.name, 'scopes': []})
     tasks = state.get('tasks', {})
     events = []; bad = 0

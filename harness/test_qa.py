@@ -21,7 +21,7 @@ class QATest(unittest.TestCase):
         (self.root/'procedure.json').write_text(json.dumps(example()))
         (self.root/'environment.json').write_text('{"fixture":"web-1"}')
         self.configure()
-        self.m.configure_verification('QA',procedure='procedure.json',environment='environment.json',criteria=[{'id':'Q','platforms':['web'],'method':'fixture journey','evidence_required':True,'kind':'execution'}],writable_paths=['.harness'],forbidden_paths=[],integrator='main',goal='verify fixture')
+        self.m.configure_verification('QA',procedure='procedure.json',environment='environment.json',criteria=[{'id':'Q','platforms':['web'],'method':'fixture journey','evidence_required':True,'kind':'execution'}],writable_paths=['verification/qa'],forbidden_paths=[],integrator='main',goal='verify fixture')
         self.m.configure_collection('QA',shared_resources=[])
 
     def test_configured_receipts_use_isolated_qa_and_preserve_proof(self):
@@ -31,12 +31,14 @@ class QATest(unittest.TestCase):
             result['criteria'][0]['platform_results']=[{'platform':'web','result':'PASS','environment':'synthetic web fixture','command_or_steps':'read fixture and compare original','expected':'hello','observed':'hello','doctor':'PASS','drive':'PASS','cleanup':'PASS','evidence':['qa-tools/proof.txt']}]
             return result
         attempt=self.qa.execute('QA',worker)
-        self.assertEqual(attempt['outcome'],'PASS',attempt)
+        self.assertEqual(attempt['outcome'],'BLOCKED',attempt)
         task=self.m.read()['tasks']['QA']
-        self.assertEqual(task['state'],'DONE')
-        self.assertTrue(task['reviews'][0]['verification_evidence']['evidence'])
-        for ref in task['reviews'][0]['verification_evidence']['evidence']:
-            self.assertTrue(self.m._valid_artifact(ref))
+        self.assertNotEqual(task['state'],'DONE')
+        # Actual observations survive, but a QA model/local worker cannot issue
+        # official completion without a protected job for this submitted commit.
+        receipts=list((self.root/'verification/qa/QA').glob('*/receipt-*.json'))
+        self.assertTrue(receipts)
+        self.assertEqual(json.loads(receipts[0].read_text())['platform_results'][0]['platform'],'web')
 
     def test_configured_qa_generic_pass_is_not_platform_proof(self):
         self.configure_receipt_contract()
@@ -45,9 +47,33 @@ class QATest(unittest.TestCase):
 
     def test_native_verification_role(self):
         self.configure();self.assertEqual(self.m.read()['tasks']['QA']['role'],'verification')
+
+    def test_partial_qa_retains_only_observed_criterion_and_cannot_complete(self):
+        self.criteria.append({'id':'OTHER','description':'not observed','required':True})
+        self.configure()
+        def partial(w,p):
+            result=self.worker(w,p)
+            result['criteria'].append({'criterion_id':'OTHER','result':'NOT_RUN','observation':'not executed','evidence':None})
+            result['recommendation']='NOT_RUN'
+            return result
+        self.assertNotEqual(self.qa.execute('QA',partial)['outcome'],'PASS')
+        task=self.m.read()['tasks']['QA'];rows=task['reviews'][-1]['results']
+        self.assertEqual({r['criterion_id']:r['result'] for r in rows},{'Q':'PASS','OTHER':'NOT_RUN'})
+        self.assertEqual(task['state'],'BLOCKED')
     def test_evidence_and_actual_command_pass(self):
-        self.configure(commands=[[sys.executable,'-c','from pathlib import Path;assert Path("product.txt").read_text()=="hello"']]);r=self.qa.execute('QA',self.worker)
+        from harness.verification_artifacts import directory
+        legacy=self.root/'.harness/qa/old/report.json';legacy.parent.mkdir(parents=True);legacy.write_text('old evidence')
+        directory(self.root,'manual','review').joinpath('private.log').write_text('private evidence')
+        nested=self.root/'src/verification';nested.mkdir(parents=True);(nested/'source.txt').write_text('source')
+        self.configure(commands=[[sys.executable,'-c','from pathlib import Path;assert Path("product.txt").read_text()=="hello"']])
+        def worker(w,p):
+            self.assertFalse((w/'verification').exists())
+            self.assertEqual((w/'src/verification/source.txt').read_text(),'source')
+            return self.worker(w,p)
+        r=self.qa.execute('QA',worker)
         self.assertEqual(r['outcome'],'PASS');self.assertEqual(self.m.read()['tasks']['QA']['state'],'DONE')
+        self.assertTrue(r['report']['path'].startswith('verification/qa/QA/'))
+        self.assertEqual(legacy.read_text(),'old evidence')
     def test_self_report_without_evidence_not_pass(self):
         self.configure()
         def missing(w,p):r=self.worker(w,p);r['criteria'][0]['evidence']='missing';return r

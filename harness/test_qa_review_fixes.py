@@ -222,7 +222,7 @@ class QARegressions(unittest.TestCase):
         with patch('harness.qa.shutil.copytree',side_effect=LegacyError('copy failed')),patch.object(self.qa.tasks,'_mutate',side_effect=fail):
             with self.assertRaises(LegacyError) as error:self.qa.execute('QA',self.case.worker)
         self.assertIsInstance(error.exception.__cause__,OSError)
-        self.assertTrue(list((self.root/'.harness/qa/failures').glob('*/report.json')))
+        self.assertTrue(list((self.root/'verification/qa/failures').glob('*/report.json')))
 
     def test_begin_rejection_without_created_execution_does_not_consume_attempt(self):
         self.case.configure()

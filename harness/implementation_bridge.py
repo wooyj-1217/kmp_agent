@@ -15,7 +15,7 @@ from harness.stage_readiness import assess
 FIELDS = {'schema_version', 'task_id', 'title', 'goal', 'criteria', 'baselines',
           'code_paths', 'api_required', 'service_version', 'stage', 'children',
           'architecture', 'shared_owners', 'integration_commands'}
-OPTIONAL = {'max_parallel', 'timeout'}
+OPTIONAL = {'max_parallel', 'timeout', 'verification'}
 
 
 def parse(text):
@@ -67,6 +67,8 @@ def parse(text):
     stage = value['stage']
     if stage is not None and (not isinstance(stage, dict) or set(stage) != {'settings', 'stage'} or stage['stage'] not in {'ui', 'client_integration', 'server_implementation'} or not isinstance(stage['settings'], str)):
         raise ValueError('implementation stage needs project settings; product integration acceptance stays separate')
+    if 'verification' in value and (not isinstance(value['verification'], str) or normalized(value['verification']) != value['verification']):
+        raise ValueError('verification must identify the reviewed execution definition')
     return value
 
 
@@ -100,6 +102,13 @@ def _approved(manager, task_id):
             raise ValueError('child attempts exceed approved plan task retry budget')
     if task['work_type'] == 'PRODUCT' and value['stage'] is None:
         raise ValueError('PRODUCT implementation requires approved project stage/settings')
+    if task['work_type'] == 'PRODUCT' and not value.get('verification'):
+        raise ValueError('PRODUCT implementation requires criterion/platform/kind/command/scenario verification definitions')
+    if value.get('verification'):
+        if value['verification'] not in approved:
+            raise ValueError('verification definition must already be a reviewed plan input')
+        from harness.verification_runner import validate_definition
+        validate_definition(json.loads((manager.root / approved[value['verification']]['snapshot']).read_text()))
     if value['stage']:
         from harness.project_contract import DOCUMENTS, validate
         path = value['stage']['settings']
@@ -138,6 +147,9 @@ def prepare(manager, task_id):
             parent=current['tasks'][tid]
             parent['inputs']=list(copy.deepcopy(sources).values())
             parent['implementation_origin']=copy.deepcopy(origin)
+            if value.get('verification'):
+                parent['approved_verification_definition'] = copy.deepcopy(sources[value['verification']])
+                parent['protected_verification_required'] = True
             current['tasks'][task_id]['implementation_task_id']=tid
             manager._event(current,'implementation_plan_connected',parent,observed=origin)
         manager._mutate('connect_implementation_plan',link,tid)

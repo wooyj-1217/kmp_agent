@@ -73,6 +73,10 @@ def inherited_contract(manager, work_type):
 def configure(manager, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
     def operation(state):
         task = state['tasks'][task_id]
+        from harness.protected_verification import load_policy
+        policy = load_policy(manager.root)
+        if task_id in (policy or {}).get('tasks', {}):
+            raise PermissionError('protected completion settings require administrator approval outside the candidate repository')
         if task['state'] not in {'TODO', 'READY'} or any(not r.get('ended_at') for r in task['executions']):
             raise ValueError('completion configuration requires inactive TODO/READY')
         previous = copy.deepcopy(task.get('completion_contract'))
@@ -217,6 +221,8 @@ def _usage(manager, state, task, run):
 
 
 def gate(manager, state, task):
+    from harness.protected_verification import gate as protected_gate
+    protected_gate(manager, task)
     config = task.get('completion_contract')
     if not config:
         return

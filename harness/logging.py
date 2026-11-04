@@ -78,6 +78,8 @@ def snapshot(root):
     result = {}
     for path in root.rglob("*"):
         relative = path.relative_to(root)
+        if relative.parts[0] == "verification":
+            continue
         if relative.parts[:2] == (".kmp-agent", "releases"):
             continue
         if any(p in (".git", ".harness", "__pycache__") for p in relative.parts):

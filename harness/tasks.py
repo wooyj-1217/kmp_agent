@@ -69,6 +69,8 @@ class Tasks:
         from harness.tracking_io import state_lock
         with state_lock(self.root, self.directory / "state.lock", action):
             state = json.loads(self.path.read_text()) if self.path.exists() else {"schema_version": 1, "tasks": {}, "outbox": []}
+            from harness.protected_verification import validate_ledger
+            validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
             self._flush(state)  # Recover durable events after a previous interruption.
             from harness.development_tracking import refresh
             refresh(self, state)
@@ -81,7 +83,8 @@ class Tasks:
                 from harness.execution_policy import gate
                 gate(self, state, task_id, action)
                 result = operation(state)
-            except (ValueError, KeyError) as error:
+                validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
+            except (ValueError, KeyError, PermissionError) as error:
                 task = original["tasks"].get(task_id)
                 if task:
                     self._event(original, "task_action_rejected", task,
@@ -93,6 +96,8 @@ class Tasks:
             from harness.verification import refresh as refresh_verification
             refresh_verification(self, state)
             refresh_waits(self, state)
+            if action == 'review' and result == 'DONE':
+                result = state['tasks'][task_id]['state']
             self._save(state)
             self._flush(state)
             return result
@@ -133,6 +138,10 @@ class Tasks:
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure
         return configure(self, task_id, context_paths, usage_required, context_required, exception_reason)
+
+    def verification_status(self, task_id):
+        from harness.protected_verification import assess
+        return assess(self.root, self.read()['tasks'][task_id])
 
     def record_context_maintenance(self, task_id, work_execution_id, report_path):
         from harness.completion import record
@@ -590,7 +599,10 @@ class Tasks:
             verification_proof = verification_gate(self, task, run, checked, state)
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
+            official_proof = None
             if passed:
+                from harness.protected_verification import gate as protected_gate
+                official_proof = protected_gate(self, task)
                 from harness.completion import gate as completion_gate
                 completion_gate(self, state, task)
             passed = passed and (not task["visual_required"] or task["design_status"]["visual_review"] == "PASS")
@@ -611,6 +623,8 @@ class Tasks:
                 passed = passed and all(task["design_status"].get("checks", {}).get(k, {}).get("result") == "PASS"
                                         for k in ("structure", "interaction", "visual"))
             record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"])}
+            if official_proof and official_proof['result'] == 'PASS':
+                record['protected_verification'] = official_proof
             if verification_proof is not None:
                 record['verification_evidence'] = verification_proof
             basis=review_basis(self,state,task)
