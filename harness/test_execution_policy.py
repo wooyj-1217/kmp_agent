@@ -241,11 +241,29 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.m.submit('T', aid, ['scope.md'], 'ready for independent review')
         review = self.m.begin('T', 'verification', review=True)['agent_run_id']
         self.question()
+        self.m.fail('T', review, 'review worker interrupted while waiting')
+        task = self.m.read()['tasks']['T']
+        self.assertIsNone(task['executions'][-1]['ended_at'])
+        self.assertEqual(task['state'], 'BLOCKED')
+        self.assertEqual(self.m.question_status()['Q']['status'], 'OPEN')
         with self.assertRaisesRegex(ValueError, 'human answer'):
             self.m.resume('T', review, 'scope.md')
         self.m.answer_question('Q', **self.reply('Apply strict policy'))
         self.m.resume('T', review, 'scope.md')
         self.assertEqual(self.m.read()['tasks']['T']['state'], 'IN_REVIEW')
+
+    def test_review_question_wait_can_be_explicitly_cancelled(self):
+        self.activate(); self.plan(); self.m.ready('T')
+        aid = self.m.begin('T', 'improvement')['agent_run_id']
+        self.m.submit('T', aid, ['scope.md'], 'ready for independent review')
+        review = self.m.begin('T', 'verification', review=True)['agent_run_id']
+        self.question()
+        self.m.fail('T', review, 'operator cancels paused review', cancel_question_wait=True)
+        task = self.m.read()['tasks']['T']
+        self.assertIsNotNone(task['executions'][-1]['ended_at'])
+        self.assertEqual(task['state'], 'BLOCKED')
+        self.assertEqual(task['reviews'], [])
+        self.assertEqual(self.m.question_status()['Q']['status'], 'OPEN')
 
     def test_prior_logger_fake_hash_and_ambiguous_answers_rejected(self):
         prior = self.reply('Apply strict policy')

@@ -470,9 +470,9 @@ class Tasks:
                 raise ValueError("execution is not active")
             run = active[0]
             from harness.execution_policy import pending
-            if run["kind"] == "work" and pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
+            if pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
                 self._event(state, 'required_question_worker_stopped', task, agent_run_id,
-                            observed={'reason': reason, 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
+                            observed={'reason': reason, 'kind': run['kind'], 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
                 return
             allowed_states = {"IN_PROGRESS", "BLOCKED"} if run["kind"] == "work" else {"IN_REVIEW", "BLOCKED"}
             if task["state"] not in allowed_states or not reason:
