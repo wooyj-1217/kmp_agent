@@ -30,3 +30,24 @@ Domain 순수성, DTO 변환 경계, DI 진입점, 공통/서버/클라이언트
 
 ## 다음 작업
 KMP 앱 구현·빌드·플랫폼/서버 연동·제품 결정이 필요한 작업을 별도 후속으로 남긴다. 입력 등록 READY, 프로세스 실행, 에이전트의 읽기 확인, 해석 검토 완료는 다른 상태다. 실행 로그/사용량은 기존 기록을 참조한다.
+
+## 실제 구현 연결 계약
+
+단계 워크플로의 `development_plan` 산출물에는 아래 필드를 담은 **`development-execution` fenced JSON 블록을 정확히 하나** 넣는다. AI가 기획·디자인·프로젝트 설정의 승인 입력에서 작성하고 개발 계획 자체의 독립 검토를 받는다. 원본이 없는 필드는 임의 기본값으로 채우지 않고 waiting/반환한다. 기존 input_interpretation_only 실행은 이 계약을 요구하지 않는다.
+
+| 필드 | 내용 |
+| --- | --- |
+| schema_version | `1` |
+| task_id, title, goal | 새 구현 부모 작업 ID·제목·승인된 목표. 계획/기존 작업 ID 재사용 금지 |
+| criteria | 구현 인수 기준 배열: id·description·required(boolean). 적어도 하나 필수 |
+| baselines | planning·design·policy 경로, API 필요 시 api 경로. 현재 승인 P/D 출력과 계획의 동결 입력 |
+| code_paths | 승인된 수정 소스 경로 배열. 루트 전체·verification/ 제외 |
+| api_required, service_version | 명시적 boolean과 실제 서비스/계약 버전. 비해당도 구체적 이유/버전 표기 |
+| stage | PRODUCT는 `{ "settings": "승인 설정 경로", "stage": "ui 또는 client_integration 또는 server_implementation" }`. 비 PRODUCT에서 미적용은 null |
+| children | task_id·area·title·goal·requirement_ids·acceptance_ids·allowed_paths·dependencies·verification_commands·out_of_scope. 필요한 영역만, 부모 code_paths 안의 소유 범위 |
+| architecture | evidence(검토 입력 경로)·modules(영역별 실제 소스 경로)·필요한 ui_owners |
+| shared_owners | 공유 빌드/계약 파일별 담당 task ID. 소유자 없음을 추측하지 않음 |
+| integration_commands | 영역별 검사와 구분한 실제 통합 명령 argv 배열. 모든 명령은 `rtk proxy`로 시작 |
+| max_parallel, timeout | 선택적인 운영 한도. 생략 시 기존 위임 기본값 2·600초이며 프로젝트 공유 admission 한도는 그대로 적용 |
+
+`area`는 현재 위임기의 kmp/web/server/android/ios 중 실제 선택 영역이다. 이 목록은 제품 플랫폼 채택 지시가 아니다. 본문의 구현/검증 설명과 JSON이 다르면 승인 전에 바로잡는다. JSON 형식 검사는 승인·명령 안전성·제품 인수 검증을 대신하지 않는다. 검토 후 메인은 같은 계획 task ID의 development 진입점을 호출해 실제 구현으로 이어간다. 실행 계약이나 검토가 없으면 입력 해석 완료를 코드 구현 완료로 승격하지 않는다.

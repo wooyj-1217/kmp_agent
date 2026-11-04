@@ -20,6 +20,8 @@
 | design | 승인 P 버전의 불변 원본, 제품 디자인 제약·기존 토큰/스타일/컴포넌트·결정·레퍼런스 | design.md와 prototype/만 수정. tokens.css, components.html, system.md, index.html 및 실제 대표/전체 화면 시안 | 로컬 HTML/CSS/최소 JS 생성, 브라우저 DOM·클릭/키보드·캡처 검토. 기존 명세/시안/시각 검토 기준에 더해 구조·동작·시각 결과 각각 필수 PASS |
 | development (input_interpretation_only) | 정확히 승인된 P/D·전체 자원·수용 기준·공식 검토 기록·선택 기술 지침 | development-plan.md만 작성. REQ별 구현 위치·공통/플랫폼 책임·검증/반환·후속 계획 | 새 독립 프로세스가 모든 input의 path/SHA·P/D·AC·해석을 input_receipt로 확인. 의미 검토 후 INTERPRETATION_REVIEWED. 실제 앱 구현·빌드는 NOT_RUN |
 
+단계 워크플로의 development_plan으로 등록한 개발 역할은 일반 입력 해석과 구분한다. 승인 P/D·정책·설정에서 `development-plan.md`의 `development-execution` 계약을 작성하고 자체 단계 검토를 받는다. 세 단계가 현재 기준으로 통과하면 메인이 같은 task ID의 development 명령을 호출하여 [실제 구현 연결](development-delegation.md#승인된-개발-계획에서-이어-실행)로 진행한다. 코드 부모/영역 작업·추적·위임·Todo는 계약에서 구성하므로 사용자가 같은 설정을 반복 입력하지 않는다. 검토만으로 프로세스를 스폰하거나 제품 의사결정을 자동 승인하지 않는다.
+
 세부 명세는 [기획](roles/planning.md), [디자인](roles/design.md), 해당 [템플릿](templates/README.md)이 기준이다. 문서와 시안의 충돌·누락·차단 문제가 있으면 인계하지 않는다. 다른 역할의 확정 정책은 변경하지 않고 CR 제안으로 기획에 반환한다. 위임된 가역적인 시각 선택은 근거와 함께 기록한다.
 
 필수 입력은 전달된 원본·기존 결정에서 먼저 찾는다. 추정은 INFERRED, 미확인은 UNKNOWN으로 유지한다. 질문에는 추천·대안·영향을 제시하며 범위·핵심 정책·대표 시안 선택에 집중한다. 원문 없이 다음 역할이 작업할 수 있게 중요한 결정·출처를 산출물에 포함한다. 실행 로그와 사용량은 명세에 복제하지 않는다.
