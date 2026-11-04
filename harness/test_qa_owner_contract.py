@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from harness.test_synthetic_authority import synthetic_authority
 from harness.tasks import Tasks
 from harness.qa import QA
 from harness.execution_plan import attach_existing
@@ -21,6 +22,8 @@ class OwnerContractTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name).resolve()
+        # Synthetic owner mapping only; this is not protected acceptance evidence.
+        synthetic_authority(self,self.root)
         (self.root/'input.md').write_text('Synthetic original request: include values A and B')
         (self.root/'output.md').write_text('draft')
         (self.root/'procedure.json').write_text(json.dumps(example()))
@@ -46,7 +49,7 @@ class OwnerContractTests(unittest.TestCase):
         self.qa.configure('QA','planning','OWNER',['input.md'],
             [{'id':'QA-'+x,'description':'Synthetic observation '+x,'required':True} for x in ('A','B')],
             repair_task_id='OWNER',repair_criteria=links,executable='never-invoked-synthetic-runtime',timeout=5)
-        self.contract('QA',['QA-A','QA-B'],['.harness'],method)
+        self.contract('QA',['QA-A','QA-B'],['.harness','verification/qa'],method)
         self.m.configure_collection('QA',shared_resources=[])
         def rows(workspace,packet):
             result=[]

@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+from harness.test_synthetic_authority import synthetic_authority
 
 from harness.tasks import Tasks
 from harness.project_contract import FIELDS, SERVER, API, DOCUMENTS
@@ -17,6 +18,7 @@ class ProjectContract(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve()
+        self.synthetic_authority = synthetic_authority(self, self.root)
         self.t = Tasks(self.root, 'memo-project-contract-fixture')
         (self.root/'requirements.md').write_text((ROOT/'docs/examples/role-execution/requirements.md').read_text())
         (self.root/'contract.md').write_text('Synthetic fixture: API/policy/runbook/migration/AC contents are NOT product decisions or actual execution.')

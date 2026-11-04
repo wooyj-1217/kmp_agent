@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import unittest
+from harness.test_synthetic_authority import synthetic_authority
 
 from harness.tasks import Tasks
 from harness.delegation import Development
@@ -66,11 +67,26 @@ class DelegationTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
         self.root=Path(temp.name);self.manager,self.dev,self.spec=build_fixture(self.root)
+        self.synthetic_authority = synthetic_authority(self, self.root)
     def configure(self):return self.dev.configure(**self.spec)
     def state(self):return self.manager.read()['tasks']
+    def test_missing_authority_blocks_without_masking_review_failure(self):
+        self.synthetic_authority.stop()
+        self.configure()
+        result = self.dev.execute('PARENT', mock_worker)
+        self.assertEqual(result['state'], 'BLOCKED', result)
+        self.assertNotEqual(result.get('handoff'), 'READY_FOR_VERIFICATION')
+        tasks = self.state()
+        for task in tasks.values():
+            self.assertEqual(task['state'], 'BLOCKED', task['task_id'])
+            self.assertTrue(all(run.get('ended_at') for run in task['executions']))
+        for tid in ('CHILD-KMP', 'CHILD-WEB', 'CHILD-SERVER'):
+            self.assertIn('PROTECTED_AUTHORITY_UNAVAILABLE', tasks[tid]['blocked_reason'])
+            self.assertNotIn('execution is not active', tasks[tid]['blocked_reason'])
+
     def test_three_areas_actual_diff_and_separate_integration(self):
         self.configure();result=self.dev.execute('PARENT',mock_worker)
-        self.assertEqual(result.get('handoff'),'READY_FOR_VERIFICATION',result)
+        self.assertEqual(result.get('handoff'),'READY_FOR_VERIFICATION', {'result': result, 'task_reasons': {tid: task.get('delegation_reason') for tid, task in self.state().items()}})
         self.assertFalse(result['feature_complete'])
         for tid in ('CHILD-KMP','CHILD-WEB','CHILD-SERVER'):
             self.assertEqual(self.state()[tid]['state'],'DONE',self.state()[tid].get('delegation_reason'))
@@ -78,7 +94,7 @@ class DelegationTests(unittest.TestCase):
     def test_no_unneeded_platform_children(self):
         self.configure();seen=[]
         def worker(*args):seen.append(args[4]['development_area']);return mock_worker(*args)
-        self.dev.execute('PARENT',worker);self.assertEqual(set(seen),{'kmp','web','server'})
+        result=self.dev.execute('PARENT',worker);self.assertEqual(set(seen),{'kmp','web','server'},{'result':result,'task_reasons':{tid:task.get('delegation_reason') for tid,task in self.state().items()}})
         self.assertNotIn('CHILD-ANDROID',self.state());self.assertNotIn('CHILD-IOS',self.state())
     def test_only_requested_platform_selected(self):
         android=copy.deepcopy(self.spec['children'][0]);android.update(task_id='CHILD-ANDROID',area='android',allowed_paths=['android'])

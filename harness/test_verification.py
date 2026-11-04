@@ -2,13 +2,13 @@ import copy
 import json
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 from harness.tasks import Tasks
 from harness.logging import Logger
 from harness.verification import artifact_status, context
 from harness.test_verification_procedure import example
 from harness.interruptions import Interruptions
+from harness.test_synthetic_authority import synthetic_authority
 
 
 class VerificationTests(unittest.TestCase):
@@ -16,11 +16,9 @@ class VerificationTests(unittest.TestCase):
         # This suite isolates legacy receipt structure and ownership checks.
         # It is not an authority or product PASS test. The separate protected
         # suite exercises this same review entrypoint with real signatures.
-        self.authority = patch('harness.protected_verification.assess', return_value={
-            'result':'PASS', 'reason':'SYNTHETIC_AUTHORITY_BOUNDARY_ONLY', 'checks':[]})
-        self.authority.start(); self.addCleanup(self.authority.stop)
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
+        self.authority = synthetic_authority(self, self.root)
         for name,body in [('input.md','user goal'),('output.md','result'),('env.json','{"browser":"fixture-1"}'),('trace.txt','actual synthetic user trace')]:
             (self.root/name).write_text(body)
         (self.root/'procedure.json').write_text(json.dumps(example()))

@@ -29,6 +29,8 @@
 
 `Tasks.review`는 기존 기준/receipt 검사 후 DONE 전 보호 gate를 호출한다. 보호 정책에 등록한 task를 원장에서 삭제하거나 task 식별자/완료 설정을 바꾸는 것도 차단한다. 서명의 issuer·publisher UID·job ID·유효기간, 전체 제출 commit/tree, 승인 계획과 계약 digest, 필수 기준의 check 대응, 시나리오 결과와 원본 해시를 다시 검사한다. 대시보드의 기존 task 상세에는 공식 판정, 기준/플랫폼/종류, 미실행·차단 이유, 검증 commit/job을 투영한다.
 
+보호 gate 거부 등으로 검토가 중단되면 호출자는 활성 review 실행에 `Tasks.fail`을 적용해 원래 실패 사유와 실행 종류를 보존하고 실행을 종료한다. 작업은 `BLOCKED`로 남으며 공식 PASS나 검토 성공 기록을 만들지 않는다. 이미 종료되었거나 다른 실행 ID에 대한 실패 처리는 거부한다.
+
 현재는 전체 제출 커밋을 보수적으로 무효화 범위로 사용한다. 코드가 바뀌면 영향을 추측해 과거 결과를 재사용하지 않고 재실행한다. 승인 계획·필수 테스트/assertion·기준 이미지·CI/빌드/제외 설정 변경은 기존 승인 재사용을 거부한다. 신규 테스트 파일 추가는 허용하지만 설정 추가/변경은 재승인 대상이다. 영향받는 기준을 기존 승인 담당에게 반환하고 승인 정의/정책을 갱신한 뒤 새 커밋에서 실행한다. 기존 review·실패 원본은 삭제하지 않는다.
 
 ## 실행과 운영 경계
@@ -43,6 +45,8 @@ rtk proxy python3 -m harness.protected_verification status --root /absolute/proj
 실운영에서는 후보 작업본 밖 관리자 소유의 신뢰 설치에서 판정기와 발행자를 실행해야 한다. `publish --root ... --task-id ... --private-key ... --job-id ...`는 root 발행자만 허용한다. 키와 정책·상위 디렉터리는 비신뢰 계정이 쓰거나 키를 읽을 수 없어야 한다. 후보 실행은 구현/QA와도 다른 비특권 `execution_uid/execution_gid`로 강등한다. 관리자 소유 실행 작업본에는 명시한 빌드/결과 경로만 worker 쓰기를 허용하며 Git 제어·발행 출력 경로와 심볼릭 링크는 거부한다. 서명 키는 실행 작업본 밖에 둔다. 단순 actor ID 분리나 에이전트 계정에 제공한 서명 키로는 이 경계를 보장하지 않는다.
 
 이번 변경은 보호 서비스·OS 계정·키·관리자 정책을 배포하지 않는다. 따라서 현재 로컬 관찰 성공도 공식 완료는 `PROTECTED_AUTHORITY_UNAVAILABLE`로 차단된다. 합성 authority fixture의 실제 서명/완료 진입점 시험은 판정 계약의 회귀 증거이며 실서비스 배포 실증이 아니다. 후보 브랜치가 자신의 판정기 코드를 바꾸어 실행한 출력은 공식 판정으로 신뢰하지 않는다.
+
+개발 위임·구현 브리지 등의 단위 테스트는 명시한 임시 프로젝트 루트의 보호 평가만 `SYNTHETIC_UNIT_TEST_ONLY` mock으로 대체할 수 있다. 이는 실행 흐름의 의존성 분리를 위한 합성 PASS이며 서명 receipt·보호 경계·인수 성공의 증거가 아니다. 공용 fixture 생성기나 실제 worker 시험에 자동 적용하지 않으며, authority 부재 시 원래 차단 사유를 유지하고 소유 실행을 종료하는 경로는 mock 없이 별도로 검증한다.
 
 과거 원장은 읽고 원문을 보존한다. 보호 계약 없는 과거 작업은 `LEGACY_UNCERTIFIED`이며 새 공식 PASS로 승격하지 않는다. [기존 receipt 계약](verification-reliability.md), [QA 관찰/보완](qa.md), [개발 계획](templates/development-plan.md)을 함께 참조한다.
 

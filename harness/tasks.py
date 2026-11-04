@@ -465,14 +465,18 @@ class Tasks:
         context={"category":failure_category,"evidence":self.artifact(failure_evidence) if failure_evidence else None,"next_action":next_action,"requires_human":requires_human,"question":decision_question}
         def operation(state):
             task = state["tasks"][task_id]
-            run = self._active(task, agent_run_id, "work")
+            active = [r for r in task["executions"] if r["agent_run_id"] == agent_run_id and r["kind"] in {"work", "review"} and r["ended_at"] is None]
+            if len(active) != 1:
+                raise ValueError("execution is not active")
+            run = active[0]
             from harness.execution_policy import pending
-            if pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
+            if run["kind"] == "work" and pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
                 self._event(state, 'required_question_worker_stopped', task, agent_run_id,
                             observed={'reason': reason, 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
                 return
-            if task["state"] not in {"IN_PROGRESS", "BLOCKED"} or not reason:
-                raise ValueError("failure requires active work and cause")
+            allowed_states = {"IN_PROGRESS", "BLOCKED"} if run["kind"] == "work" else {"IN_REVIEW", "BLOCKED"}
+            if task["state"] not in allowed_states or not reason:
+                raise ValueError("failure requires active execution and cause")
             previous = task["state"]
             run.update(ended_at=logging.now(), failure=reason, failure_context=context)
             from harness.sequential import finish, wait_end
@@ -480,7 +484,7 @@ class Tasks:
             finish(self, task, run)
             task.update(state="BLOCKED", blocked_reason=reason)
             self._event(state, "agent_run_failed", task, agent_run_id,
-                        observed={"reason": reason, "failure_context": context, "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
+                        observed={"reason": reason, "failure_context": context, "kind": run["kind"], "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
         return self._mutate("fail", operation, task_id)
 
     def _active(self, task, agent_run_id, kind):

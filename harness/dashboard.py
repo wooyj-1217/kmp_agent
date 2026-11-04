@@ -296,7 +296,7 @@ def task_view(root, task, scope, tasks):
     official = protected_assess(root, task) if applies(root, task) else None
     if official and official['result'] != 'PASS':
         verdict = 'RECHECK_REQUIRED' if review else 'NOT_RUN'
-        status = '공식 검증 차단'
+        status = '공식 검증 차단 · 재검증 필요' if review else '공식 검증 차단'
         reasons.append(str(official['reason']))
     if task.get('verification_contract'):
         contract=task['verification_contract']; rows=[]
