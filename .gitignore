@@ -11,3 +11,6 @@ __pycache__/
 /.serena/
 /.kmp-agent/releases/
 /.kmp-agent/project.json
+
+# Local verification reports, screenshots, logs, and patches
+/verification/
