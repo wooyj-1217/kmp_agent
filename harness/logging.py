@@ -385,8 +385,15 @@ class Logger:
         call_id = str(uuid.uuid4())
         metadata = {**binding, "call_id": call_id, "command_kind": command_kind,
                     "command_name": command_name or UNKNOWN, "cwd": str(cwd.relative_to(self.root))}
+        def guarded_code_state():
+            task = policy_state.get('tasks', {}).get(task_id, {})
+            if not task.get('stage_contract', {}).get('development_constraints'):
+                return {}
+            from harness.tasks import Tasks
+            from harness.development_tracking import capture
+            return {'code_state_sha256': capture(Tasks(self.root, run_id), task)['state_sha256']}
         self.append("command_started", run_id, start["work_type"],
-                    **context, observed={**metadata, "started_at": now(),
+                    **context, observed={**metadata, **guarded_code_state(), "started_at": now(),
                               "argv_sha256": digest(json.dumps(command).encode())})
         timer = time.monotonic()
         try:
@@ -401,7 +408,7 @@ class Logger:
                                   "returncode": UNKNOWN, "changed_files": changes(before, snapshot(self.root))})
             raise
         self.append("command_finished", run_id, start["work_type"],
-                    **context, observed={**metadata, "ended_at": now(), "elapsed_seconds": time.monotonic() - timer, "returncode": proc.returncode,
+                    **context, observed={**metadata, **guarded_code_state(), "ended_at": now(), "elapsed_seconds": time.monotonic() - timer, "returncode": proc.returncode,
                               "stdout_sha256": digest(proc.stdout), "stderr_sha256": digest(proc.stderr),
                               "changed_files": changes(before, snapshot(self.root))})
         sys.stdout.buffer.write(proc.stdout)

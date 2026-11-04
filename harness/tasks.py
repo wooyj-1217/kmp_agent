@@ -276,6 +276,8 @@ class Tasks:
                     task["inputs"].append(item)
             task["stage_contract"] = {"stage": stage, "settings": ref, "documents": documents,
                                       "api_mode": data["api_contract"].get("mode", "NOT_APPLICABLE")}
+            from harness.development_constraints import bind
+            bind(self, task)
             self._event(state, "task_stage_configured", task, observed={"before": old, "after": task["stage_contract"]})
         self._mutate("configure_stage", operation, task_id)
 
@@ -487,6 +489,8 @@ class Tasks:
             from harness.development_tracking import ensure, document_outputs
             ensure(self, state, task, "submit", run)
             document_outputs(task, outputs, design_status)
+            from harness.development_constraints import check_code
+            check_code(self, task, complete=not task.get('parent_task_id'))
             refs = [self.artifact(p) for p in outputs]
             if task.get('verification_contract'):
                 from harness.verification import submission_gate

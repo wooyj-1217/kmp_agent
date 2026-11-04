@@ -193,6 +193,16 @@ def refresh(manager, state):
                         reasons.append("input working copy changed")
                 validate_baseline(manager, state, task)
                 check_peers(state, task)
+                from harness.development_constraints import check_code, load as constraints, review_gate as constraints_review
+                check_code(manager, task, complete=not task.get('parent_task_id'))
+                if constraints(manager, task):
+                    required = {c['id'] for c in task['criteria'] if c['required']}
+                    for row in review.get('results', []):
+                        if row.get('criterion_id') in required and row.get('result') == 'PASS' and row.get('evidence'):
+                            ref = row['evidence']
+                            if not manager._valid_artifact(ref):
+                                raise ValueError('development constraint review proof missing')
+                            constraints_review(manager, task, json.loads((manager.root / ref['snapshot']).read_text()))
             except (ValueError, OSError, KeyError, TypeError):
                 reasons.append("current code/contract impact cannot be established")
             key = review["agent_run_id"]
@@ -364,6 +374,8 @@ def _infer_baselines(manager, state, task):
 
 def ensure(manager, state, task, phase, run=None):
     """Fail closed at every lifecycle boundary. Past start evidence is never reconstructed."""
+    from harness.development_constraints import gate as constraint_gate
+    constraint_gate(manager, task)
     if execution_scope(task) != "code_implementation":
         if any(r.get("code_state_start") or r.get("execution_scope") == "code_implementation" for r in task["executions"]):
             raise ValueError("code execution cannot be downgraded to a non-code exemption")
