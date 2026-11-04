@@ -16,7 +16,7 @@ from harness.deliverables import archive, change, folder_key, restore
 CODE = Path(__file__).resolve().parents[1]
 PROTOCOL = {
     "status": "submitted | waiting | failed",
-    "files": [{"path": "requirements.md OR design.md / prototype/...", "content": "complete UTF-8 file"}],
+    "files": [{"path": "requirements.md OR design.md / prototype/... OR development-plan.md", "content": "complete UTF-8 file"}],
     "summary": "short result or failure cause",
     "questions": [{"question": "decision needed", "recommended": "option and impact", "alternative": "option and impact"}],
     "completed": ["completed steps to preserve when resumed"],
@@ -43,7 +43,9 @@ class Roles:
                 raise ValueError("setup requires an unconfigured TODO planning/design task")
             task["role_contract"] = {"folder": folder, "planning_version": planning_version, "change_id": change_id}
             if task["role"] == "development":
-                task["role_contract"].update(design_version=design_version, scope="input_interpretation_only")
+                flow = state.get('stage_workflows', {}).get(task['feature_id'], {})
+                full_plan = flow.get('stages', {}).get('development_plan', {}).get('task_id') == task_id
+                task["role_contract"].update(design_version=design_version, scope="development_plan" if full_plan else "input_interpretation_only")
             if design_targets:
                 task["role_contract"]["design_targets"] = design_targets
             self.tasks._event(state, "role_configured", task, observed=task["role_contract"])
@@ -71,6 +73,16 @@ class Roles:
         if task["state"] == "DONE":
             return {"skipped": True, "task_id": task_id, "delivery": task.get("delivery")}
         if role == "development":
+            flow = self.tasks.read().get('stage_workflows', {}).get(task['feature_id'], {})
+            if flow.get('stages', {}).get('development_plan', {}).get('task_id') == task_id and task['role_contract'].get('scope') != 'development_plan':
+                if task['executions']:
+                    raise ValueError('existing interpretation execution cannot become an implementation plan; create a reviewed stage revision')
+                def plan_scope(state):
+                    current=state['tasks'][task_id]
+                    current['role_contract']['scope']='development_plan'
+                    self.tasks._event(state,'development_plan_scope_connected',current,observed={'scope':'development_plan','basis':'registered development_plan stage before first execution'})
+                self.tasks._mutate('connect_development_plan_scope',plan_scope,task_id)
+                task=self.tasks.read()['tasks'][task_id]
             from harness.deliverables import find_version
             from harness.findings import blocking
             state = self.tasks.read()
@@ -80,7 +92,7 @@ class Roles:
             needed = {(r["snapshot"], r["snapshot_sha256"]) for r in p["artifacts"] + d["artifacts"]}
             available = {(r["snapshot"], r["snapshot_sha256"]) for r in task["inputs"]}
             if p["status"] != "APPROVED" or d["status"] != "APPROVED" or d["planning_version"] != p["id"] or not needed.issubset(available) or blocking(state, task):
-                raise ValueError("development interpretation requires approved matching P/D, their exact inputs and no blockers")
+                raise ValueError("development requires approved matching P/D, their exact inputs and no blockers")
             if book.get("validation_status", {}).get(d["id"], {}).get("state") == "RECHECK_REQUIRED":
                 raise ValueError("design validation requires recheck before development")
         if task["state"] in {"IN_PROGRESS", "BLOCKED"}:
@@ -152,6 +164,21 @@ class Roles:
                 "For configured design_targets, return target_artifacts {target:{entry:feature-relative HTML path,screens:[],requirements:[]}} for every target. "
                 "App HTML is a native-style simulation, not native execution. Responsive web needs distinct mobile and desktop composition/interaction. "
                 "Do not claim browser checks: a separate reviewer executes and records them."}
+        if task.get('role_contract', {}).get('scope') == 'development_plan':
+            from harness.implementation_bridge import FIELDS, OPTIONAL
+            packet['implementation_plan_contract'] = {'required_fields': sorted(FIELDS), 'optional_fields': sorted(OPTIONAL),
+                'format': 'exactly one fenced development-execution JSON block inside development-plan.md',
+                'authority': 'use the approved planning/design outputs and frozen policy/settings/architecture inputs; do not invent missing project decisions',
+                'continuation': 'after independent planning/design/development-plan reviews pass, the same development entrypoint derives native code tasks and dispatches the existing coordinator'}
+            packet['instruction'] = packet['instruction'].replace(
+                'Development is input interpretation ONLY: publish development-plan.md,',
+                'Development prepares a complete reviewed implementation plan: publish development-plan.md with the development-execution block described in implementation_plan_contract,')
+            packet['instruction'] = packet['instruction'].replace(
+                'Map REQs to KMP/Clean Architecture modules, shared/platform ownership and test plan.',
+                'Map REQs to the approved project modules, shared/platform ownership and test plan; do not adopt a stack or split shared UI without its source decision.')
+            packet['instruction'] = packet['instruction'].replace(
+                'Do not implement or build an app.',
+                'Do not write product code in the planning stage. When mandatory ownership, baseline, module or command information is absent, return waiting with the actual gap; never fabricate an executable plan.')
         packet["sequential_collection"] = {"attempt_id": run.get("attempt_id", "UNKNOWN"),
             "declarations": run.get("collection", {}),
             "instructions": "Declare REQUIRED vs ORDER_ONLY dependency reasons and shared modules/resources via configure-collection; during execution provide the active agent_run_id. Late declarations are timestamped separately and never rewrite the frozen start identity. Use UNKNOWN for unobservable facts. Use the command wrapper with task/agent_run/attempt IDs and command kind or a configured command name. On waiting use checkpoint wait_type/wait_target; resume closes the wait. Record actual integration/conflict/rework with evidence and an existing CR when applicable. Execution order is not a required dependency; file observation is not authorship. At handoff inspect collection-report and identify missing evidence. Settings do not observe commands run outside the wrapper."}
@@ -273,6 +300,9 @@ class Roles:
                         visible_source = re.sub(r"<!--.*?-->|<script\b[^>]*>.*?</script>", "", item["content"], flags=re.S | re.I)
                         if re.search(r"NOT_RUN|하네스\s*검증|검증\s*(?:PASS|FAIL|상태)", visible_source):
                             raise ValueError("active product prototype must not embed harness verification status")
+        if task.get('role_contract', {}).get('scope') == 'development_plan':
+            from harness.implementation_bridge import parse
+            parse(next(f['content'] for f in files if f['path'] == 'development-plan.md'))
         folder = self.root / task["role_contract"]["folder"]
         execution = next(r for r in task["executions"] if r["agent_run_id"] == agent_run_id)
         context = json.loads((self.root / execution["role_context"]["snapshot"]).read_text())
@@ -318,12 +348,13 @@ class Roles:
             self.tasks._mutate("design_targets", targets_saved, task_id)
         if task["role"] == "development":
             def confirmed(state):
-                state["tasks"][task_id]["input_confirmation"] = {"state": "CONFIRMED_BY_AGENT", "agent_run_id": agent_run_id,
+                key = 'development_plan_receipt' if task['role_contract'].get('scope') == 'development_plan' else 'input_confirmation'
+                state["tasks"][task_id][key] = {"state": "CONFIRMED_BY_AGENT", "agent_run_id": agent_run_id,
                     "receipt": response["input_receipt"], "response": self.tasks.artifact(str(result_path.relative_to(self.root)))}
                 self.tasks._event(state, "development_inputs_confirmed", state["tasks"][task_id], agent_run_id,
-                                  observed={"scope": "input_interpretation_only", "receipt": response["input_receipt"]})
+                                  observed={"scope": task["role_contract"].get("scope", "input_interpretation_only"), "receipt": response["input_receipt"]})
             self.tasks._mutate("confirm_inputs", confirmed, task_id)
-        return self.tasks.read()["tasks"][task_id].get("delivery", {"scope": "input_interpretation_only"})
+        return self.tasks.read()["tasks"][task_id].get("delivery", {"scope": task.get("role_contract", {}).get("scope", "input_interpretation_only")})
 
     def execute(self, task_id, role, worker=None, timeout=300):
         task=self.tasks.read()['tasks'][task_id]
@@ -337,6 +368,12 @@ class Roles:
                 from harness.qa_repair import execute_with_owner
                 return execute_with_owner(qa,task_id)
             return qa.execute(task_id)
+        flow = self.tasks.read().get('stage_workflows', {}).get(task['feature_id'], {})
+        if role == 'development' and flow.get('stages', {}).get('development_plan', {}).get('task_id') == task_id and task['state'] == 'DONE':
+            if worker is not None:
+                raise ValueError('approved implementation continuation uses the native configured coordinator')
+            from harness.implementation_bridge import execute
+            return execute(self.tasks, task_id)
         if task.get('development_delegation'):
             if role!='development' or worker is not None:
                 raise ValueError('configured delegation requires development and native configured adapter')
