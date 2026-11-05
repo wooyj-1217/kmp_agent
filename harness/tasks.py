@@ -69,6 +69,8 @@ class Tasks:
         from harness.tracking_io import state_lock
         with state_lock(self.root, self.directory / "state.lock", action):
             state = json.loads(self.path.read_text()) if self.path.exists() else {"schema_version": 1, "tasks": {}, "outbox": []}
+            from harness.protected_verification import validate_ledger
+            validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
             self._flush(state)  # Recover durable events after a previous interruption.
             from harness.development_tracking import refresh
             refresh(self, state)
@@ -81,7 +83,8 @@ class Tasks:
                 from harness.execution_policy import gate
                 gate(self, state, task_id, action)
                 result = operation(state)
-            except (ValueError, KeyError) as error:
+                validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
+            except (ValueError, KeyError, PermissionError) as error:
                 task = original["tasks"].get(task_id)
                 if task:
                     self._event(original, "task_action_rejected", task,
@@ -93,6 +96,8 @@ class Tasks:
             from harness.verification import refresh as refresh_verification
             refresh_verification(self, state)
             refresh_waits(self, state)
+            if action == 'review' and result == 'DONE':
+                result = state['tasks'][task_id]['state']
             self._save(state)
             self._flush(state)
             return result
@@ -133,6 +138,10 @@ class Tasks:
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure
         return configure(self, task_id, context_paths, usage_required, context_required, exception_reason)
+
+    def verification_status(self, task_id):
+        from harness.protected_verification import assess
+        return assess(self.root, self.read()['tasks'][task_id])
 
     def record_context_maintenance(self, task_id, work_execution_id, report_path):
         from harness.completion import record
@@ -456,14 +465,18 @@ class Tasks:
         context={"category":failure_category,"evidence":self.artifact(failure_evidence) if failure_evidence else None,"next_action":next_action,"requires_human":requires_human,"question":decision_question}
         def operation(state):
             task = state["tasks"][task_id]
-            run = self._active(task, agent_run_id, "work")
+            active = [r for r in task["executions"] if r["agent_run_id"] == agent_run_id and r["kind"] in {"work", "review"} and r["ended_at"] is None]
+            if len(active) != 1:
+                raise ValueError("execution is not active")
+            run = active[0]
             from harness.execution_policy import pending
             if pending(state, task_id) and run.get('required_question_wait') and not cancel_question_wait:
                 self._event(state, 'required_question_worker_stopped', task, agent_run_id,
-                            observed={'reason': reason, 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
+                            observed={'reason': reason, 'kind': run['kind'], 'checkpoint': run.get('checkpoint'), 'state': 'WAITING_REQUIRED_ANSWER'})
                 return
-            if task["state"] not in {"IN_PROGRESS", "BLOCKED"} or not reason:
-                raise ValueError("failure requires active work and cause")
+            allowed_states = {"IN_PROGRESS", "BLOCKED"} if run["kind"] == "work" else {"IN_REVIEW", "BLOCKED"}
+            if task["state"] not in allowed_states or not reason:
+                raise ValueError("failure requires active execution and cause")
             previous = task["state"]
             run.update(ended_at=logging.now(), failure=reason, failure_context=context)
             from harness.sequential import finish, wait_end
@@ -471,7 +484,7 @@ class Tasks:
             finish(self, task, run)
             task.update(state="BLOCKED", blocked_reason=reason)
             self._event(state, "agent_run_failed", task, agent_run_id,
-                        observed={"reason": reason, "failure_context": context, "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
+                        observed={"reason": reason, "failure_context": context, "kind": run["kind"], "ended_at": run["ended_at"], "from": previous, "to": "BLOCKED"})
         return self._mutate("fail", operation, task_id)
 
     def _active(self, task, agent_run_id, kind):
@@ -590,7 +603,10 @@ class Tasks:
             verification_proof = verification_gate(self, task, run, checked, state)
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
+            official_proof = None
             if passed:
+                from harness.protected_verification import gate as protected_gate
+                official_proof = protected_gate(self, task)
                 from harness.completion import gate as completion_gate
                 completion_gate(self, state, task)
             passed = passed and (not task["visual_required"] or task["design_status"]["visual_review"] == "PASS")
@@ -611,6 +627,8 @@ class Tasks:
                 passed = passed and all(task["design_status"].get("checks", {}).get(k, {}).get("result") == "PASS"
                                         for k in ("structure", "interaction", "visual"))
             record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"])}
+            if official_proof and official_proof['result'] == 'PASS':
+                record['protected_verification'] = official_proof
             if verification_proof is not None:
                 record['verification_evidence'] = verification_proof
             basis=review_basis(self,state,task)

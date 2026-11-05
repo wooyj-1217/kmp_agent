@@ -13,6 +13,7 @@ import time
 import uuid
 
 from harness.tasks import Tasks
+from harness.verification_artifacts import directory as verification_directory
 
 STAGES={'requirements','planning','design','implementation','retest'}
 KINDS={'specification_violation','baseline_gap','baseline_contradiction','usability','improvement'}
@@ -73,6 +74,7 @@ def manifest(root,generated_paths=()):
     root=Path(root);out={}
     for p in root.rglob('*'):
         rel=p.relative_to(root)
+        if rel.parts[0] == 'verification':continue
         if set(rel.parts)&{'.git','.harness','.kmp-agent','.codex','.agents','.worker-cache','__pycache__','qa-tools'}:continue
         if p.is_symlink():out[str(rel)]='SYMLINK:'+os.readlink(p)
         elif p.is_file() and not any(rel.as_posix()==base or rel.as_posix().startswith(base+'/') for base in generated_paths):out[str(rel)]=hashlib.sha256(p.read_bytes()).hexdigest()
@@ -259,9 +261,14 @@ class QA:
             if task['state']!='READY':self.tasks.ready(task_id)
             reserved_id=str(uuid.uuid4());context.update(agent_run_id=reserved_id,owned_runs=[reserved_id])
             run=self.tasks.begin(task_id,'verification',actor_id='qa-producer:'+reserved_id,agent_run_id=reserved_id,execution_mode='independent_process' if worker is None else 'local_check')
-            aid=run['agent_run_id'];context.update(agent_run_id=aid,owned_runs=[aid],phase='prepare_workspace');base=self.root/'.harness'/'qa'/task_id/aid;workspace=base/'workspace';base.mkdir(parents=True)
+            aid=run['agent_run_id'];context.update(agent_run_id=aid,owned_runs=[aid],phase='prepare_workspace');base=verification_directory(self.root,'qa',task_id,aid);workspace=base/'workspace'
             source_before=scoped_manifest(self.root,config.get('manifest_scope',{'mode':'UNKNOWN'}),config.get('generated_paths',[]))
-            shutil.copytree(self.root,workspace,ignore=shutil.ignore_patterns('.git','.harness','.kmp-agent','.codex','.agents','__pycache__','.worker-cache'))
+            private=shutil.ignore_patterns('.git','.harness','.kmp-agent','.codex','.agents','__pycache__','.worker-cache')
+            def ignore_snapshot(path,names):
+                ignored=private(path,names)
+                if Path(path)==self.root:ignored.add('verification')
+                return ignored
+            shutil.copytree(self.root,workspace,ignore=ignore_snapshot)
             before=manifest(workspace,generated)
             before_all=manifest(workspace) if generated else before
             current_state=self.tasks.read();current_target=current_state['tasks'][config['target_task_id']]
@@ -356,6 +363,9 @@ class QA:
             passed=required_pass and not problems and all(c['status']=='PASS' for c in commands)
             outcome='PASS' if passed else 'BLOCKED' if error or modified or source_changed or any('baseline owner decision' in x for x in problems) else 'REWORK' if result and (result['findings'] or any(v=='FAIL' for v in checked.values())) else 'NOT_RUN'
             report={'result':outcome,'worker_report_is_self_report':True,'review_method':'native local evidence and independently executed commands; not an independent model review','target_task_id':config['target_task_id'],'target_manifest':source_before,'criteria':checked,'evidence_refs':evidence_refs,'worker_report':result,'commands':commands,'problems':problems,'runtime':runtime}
+            report['authority']='AGENT_QA_OBSERVATION_ONLY'
+            from harness.protected_verification import assess as official_status
+            report['official_verification']=official_status(self.root,self.tasks.read()['tasks'][config['target_task_id']])
             report['review_execution']='INDEPENDENT_PROCESS' if worker is None and (runtime or {}).get('pid') else 'SYNTHETIC_OR_LOCAL_WORKER' if worker is not None else 'NOT_RUN'
             report['review_method']='independent model review plus local evidence gate; not whole-product acceptance' if report['review_execution']=='INDEPENDENT_PROCESS' else 'synthetic/local worker and local evidence gate; not independent model review'
             report['requirement_lineage']=lineage_comparison
@@ -380,7 +390,10 @@ class QA:
             review_id=str(uuid.uuid4());context['owned_runs'].append(review_id)
             review=self.tasks.begin(task_id,'verification',review=True,actor_id='qa-evidence-gate:'+review_id,execution_mode='local_check',agent_run_id=review_id)
             context['phase']='review'
-            review_rows=[{'criterion_id':c['id'],'result':'PASS' if passed and checked.get(c['id'])=='PASS' else 'FAIL' if checked.get(c['id'])=='FAIL' else 'NOT_RUN','evidence':str(report_path.relative_to(self.root))} for c in task['criteria']]
+            # Preserve only actually observed criteria when QA is partial. These
+            # are QA observations; the protected completion gate is independent.
+            safe_observations=passed or (not required_pass and not error and not modified and not source_changed and all(c['status']=='PASS' for c in commands))
+            review_rows=[{'criterion_id':c['id'],'result':'PASS' if safe_observations and checked.get(c['id'])=='PASS' and c['id'] in evidence_refs else 'FAIL' if checked.get(c['id'])=='FAIL' else 'NOT_RUN','evidence':str(report_path.relative_to(self.root))} for c in task['criteria']]
             if task.get('verification_contract'):
                 from harness.verification import qa_receipts
                 review_rows=qa_receipts(self.tasks,task_id,review,result,review_rows,workspace,base)

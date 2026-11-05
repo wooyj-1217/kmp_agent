@@ -115,8 +115,13 @@ class InstallationTests(unittest.TestCase):
         self.assertTrue(all(p.read_bytes() == before for p, before in self.owned.items()))
 
     def cli(self, *args, input=None, target=None):
+        # This synthetic product has no native parent session. Do not inherit a
+        # real Codex identity while its test home is isolated or collect user data.
+        environment = dict(os.environ)
+        for key in ("CODEX_THREAD_ID", "CODEX_SESSION_ID"):
+            environment.pop(key, None)
         return subprocess.run(["rtk", "proxy", sys.executable, str(self.target / ".kmp-agent/agent.py"), *args],
-                              cwd=target or self.target, text=True, input=input, capture_output=True)
+                              cwd=target or self.target, text=True, input=input, capture_output=True, env=environment)
 
     def test_install_init_idempotent_preserves_product_and_trackable_metadata(self):
         result = self.install()
@@ -190,7 +195,8 @@ class InstallationTests(unittest.TestCase):
         status = json.loads(self.cli("status").stdout)
         self.assertEqual(status["runtime_identity"]["commit"], self.first)
         self.assertFalse(status["runtime_identity"]["dirty"])
-        self.assertEqual(self.cli("task", "--operation", "show").returncode, 0)
+        shown = self.cli("task", "--operation", "show")
+        self.assertEqual(shown.returncode, 0, shown.stdout + shown.stderr)
         # A cold process must resolve role definitions, QA and dashboard imports
         # using only the installed files, never this developer test checkout.
         smoke = subprocess.run(["rtk", "proxy", sys.executable, "-B", "-c", """

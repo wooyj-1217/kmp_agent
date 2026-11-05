@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from harness.test_synthetic_authority import synthetic_authority
 from unittest.mock import patch
 
 from harness.implementation_bridge import parse, prepare, execute
@@ -16,6 +17,7 @@ class BridgeTests(unittest.TestCase):
     def setUp(self):
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         self.root=Path(tmp.name);self.m,self.dev,delegation=build_fixture(self.root)
+        self.synthetic_authority = synthetic_authority(self, self.root)
         self.value={'schema_version':1,'task_id':'IMPLEMENT','title':'Implement reviewed fixture',
             'goal':'Implement approved synthetic source scopes','criteria':[{'id':'INTEGRATED','description':'separate fixture integration','required':True}],
             'baselines':{'planning':'planning.md','design':'design.md','api':'api.md','policy':'policy.md'},
@@ -50,6 +52,20 @@ class BridgeTests(unittest.TestCase):
 
     def approved(self):
         for name in ('planning','design','development_plan'):self.approve(name)
+
+    def test_missing_authority_blocks_implementation_and_closes_owned_runs(self):
+        self.synthetic_authority.stop()
+        self.approved()
+        result = execute(self.m, 'DEVPLAN', mock_worker)
+        self.assertEqual(result['state'], 'BLOCKED', result)
+        self.assertNotEqual(result.get('handoff'), 'READY_FOR_VERIFICATION')
+        tasks = self.m.read()['tasks']
+        for tid in ('IMPLEMENT', 'CHILD-KMP', 'CHILD-WEB', 'CHILD-SERVER'):
+            self.assertEqual(tasks[tid]['state'], 'BLOCKED', tid)
+            self.assertTrue(all(run.get('ended_at') for run in tasks[tid]['executions']))
+        for tid in ('CHILD-KMP', 'CHILD-WEB', 'CHILD-SERVER'):
+            self.assertIn('PROTECTED_AUTHORITY_UNAVAILABLE', tasks[tid]['blocked_reason'])
+            self.assertNotIn('execution is not active', tasks[tid]['blocked_reason'])
 
     def test_approved_plan_runs_real_diffs_integration_and_no_duplicate_dispatch(self):
         self.approved();seen=[]

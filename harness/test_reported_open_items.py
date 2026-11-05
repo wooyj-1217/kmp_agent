@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from harness.test_delegation import build_fixture, mock_worker
+from harness.test_synthetic_authority import synthetic_authority
 
 
 class ReportedOpenItemTests(unittest.TestCase):
@@ -12,6 +13,8 @@ class ReportedOpenItemTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
         self.manager, self.dev, self.spec = build_fixture(self.root)
+        # Isolate worker-report handling from official acceptance authority.
+        synthetic_authority(self, self.root)
         self.unresolved = ['sandbox build NOT_RUN; independent coordinator validation required']
         self.verifications = [{'command': ['worker', 'unavailable', 'build'], 'status': 'NOT_RUN',
                                'evidence': None}]

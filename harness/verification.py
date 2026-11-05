@@ -29,6 +29,10 @@ def text(value):
 def configure(manager, task_id, procedure, environment, criteria, writable_paths, forbidden_paths, integrator, goal):
     def operation(state):
         task = state['tasks'][task_id]
+        from harness.protected_verification import load_policy
+        policy = load_policy(manager.root)
+        if task_id in (policy or {}).get('tasks', {}):
+            raise PermissionError('approved verification definition is administrator-owned; request owner reapproval')
         if task['executions'] or task['state'] not in {'TODO','READY'} or task.get('verification_contract'):
             raise ValueError('verification contract must be frozen once before execution')
         if not all(text(x) for x in (goal, integrator)) or not isinstance(writable_paths,list) or not writable_paths or not isinstance(forbidden_paths,list):
@@ -142,6 +146,11 @@ def review_gate(manager, task, run, results, state=None):
 
 def current_reasons(manager, task, review):
     reasons=[]
+    from harness.protected_verification import applies, assess
+    if applies(manager.root, task):
+        official = assess(manager.root, task)
+        if official['result'] != 'PASS':
+            reasons.append('official verification: ' + str(official['reason']))
     for ref in task.get('inputs',[]) + review.get('outputs',[]):
         status=artifact_status(manager.root,ref)
         if status['state']!='VALID': reasons.append(status['state']+': '+ref.get('path','?')+'; recovery='+status['recovery'])
@@ -165,6 +174,14 @@ def current_reasons(manager, task, review):
 
 def refresh(manager,state):
     for task in state['tasks'].values():
+        from harness.protected_verification import applies, assess
+        if applies(manager.root, task):
+            official = assess(manager.root, task)
+            task['official_verification'] = official
+            if task.get('state') == 'DONE' and official['result'] != 'PASS':
+                task.setdefault('completion_invalidations', []).append({'historical_state': 'DONE', 'reason': official['reason']})
+                task.update(state='BLOCKED', blocked_reason='Official verification missing or stale: ' + str(official['reason']))
+                manager._event(state, 'protected_completion_invalidated', task, observed=official)
         for review in task.get('reviews',[]):
             reasons=current_reasons(manager,task,review)
             key=review['agent_run_id']

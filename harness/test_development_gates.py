@@ -12,7 +12,9 @@ from harness import test_development_tracking as fixtures
 
 
 class DevelopmentGates(unittest.TestCase):
-    setUp = fixtures.DevelopmentTracking.setUp
+    # Explicitly reuse the local unit fixture, including its root-scoped synthetic authority.
+    def setUp(self):
+        fixtures.DevelopmentTracking.setUp(self)
     git = fixtures.DevelopmentTracking.git
     write = fixtures.DevelopmentTracking.write
     commit = fixtures.DevelopmentTracking.commit

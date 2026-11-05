@@ -21,9 +21,9 @@ def record_failure(manager,task_id,context,error):
     report=None;storage_errors=[]
     # Separate from the failed attempt path: a copy/evidence/report failure must
     # not overwrite its input or hide already preserved worker/command records.
-    path=manager.root/'.harness/qa/failures'/failure_id/'report.json'
+    from harness.verification_artifacts import directory
     try:
-        path.parent.mkdir(parents=True,mode=0o700)
+        path=directory(manager.root,'qa','failures',failure_id)/'report.json'
         temporary=path.with_suffix('.tmp')
         with temporary.open('w') as out:
             os.fchmod(out.fileno(),0o600)

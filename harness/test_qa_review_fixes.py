@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from harness import test_qa as fixture
 from harness import test_qa_repair as repair_fixture
+from harness.test_synthetic_authority import synthetic_authority
 from harness.execution_plan import attach_existing
 from harness.qa_repair import execute_with_owner
 
@@ -17,6 +18,8 @@ class QARegressions(unittest.TestCase):
     def setUp(self):
         self.case=fixture.QATest();self.case.setUp();self.addCleanup(self.case.doCleanups)
         self.root=self.case.root.resolve();self.qa=self.case.qa;self.manager=self.case.m
+        # Exercise local QA failure handling, never protected acceptance/security proof.
+        synthetic_authority(self,self.root)
 
     def execute(self,**settings):
         self.case.configure(**settings)
@@ -222,7 +225,7 @@ class QARegressions(unittest.TestCase):
         with patch('harness.qa.shutil.copytree',side_effect=LegacyError('copy failed')),patch.object(self.qa.tasks,'_mutate',side_effect=fail):
             with self.assertRaises(LegacyError) as error:self.qa.execute('QA',self.case.worker)
         self.assertIsInstance(error.exception.__cause__,OSError)
-        self.assertTrue(list((self.root/'.harness/qa/failures').glob('*/report.json')))
+        self.assertTrue(list((self.root/'verification/qa/failures').glob('*/report.json')))
 
     def test_begin_rejection_without_created_execution_does_not_consume_attempt(self):
         self.case.configure()
@@ -244,6 +247,8 @@ class OwnerCoverage(unittest.TestCase):
     def setUp(self):
         self.case=repair_fixture.QARepairSafety();self.case.setUp();self.addCleanup(self.case.doCleanups)
         self.root=self.case.root;self.manager=self.case.manager;self.qa=self.case.qa
+        # Synthetic coverage/mapping claims apply only to this disposable root.
+        synthetic_authority(self,self.root)
 
     def run_flow(self,links=None,extra=False,after_qa=None):
         self.case.documentation(repair_criteria=links)

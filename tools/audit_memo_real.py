@@ -20,12 +20,14 @@ def audit(base):
     for changed in [r['path'] for r in t.get('outputs',[])]:assert any(changed==p or changed.startswith(p+'/') for p in t['development_tracking']['code_paths']),(task,changed)
   if name!='memo-real-20261027':
    oracle=base/'agent-workflows'/(name+'-oracle.json');assert oracle.exists();case['controller_oracle']={'path':str(oracle),'sha256':sha(oracle),'included_in_qa_workspace':False}
-   for folder in (root/'.harness/qa').glob('*/*/workspace'):
+   for folder in [p for base in (root/'.harness/qa',root/'verification/qa') for p in base.glob('*/*/workspace')]:
     assert not list(folder.rglob('*oracle.json'))
     assert not (folder/'tools/memo_blind_trial.py').exists() and not (folder/'tools/memo_server_review.py').exists()
    initial_task='QUALITY-REVIEW' if name=='memo-review-a2-20261027' else 'SERVER-QA'
    first=state['tasks'][initial_task]['qa_config']['attempts'][0]['agent_run_id']
-   trace=(root/'.harness/qa'/initial_task/first/'runtime/stdout.jsonl').read_text()
+   trace_path=root/'verification/qa'/initial_task/first/'runtime/stdout.jsonl'
+   if not trace_path.exists():trace_path=root/'.harness/qa'/initial_task/first/'runtime/stdout.jsonl'
+   trace=trace_path.read_text()
    case['initial_qa_tooltrace_oracle_reference']=any(value in trace for value in (str(oracle),'memo_blind_trial.py','memo_server_review.py'))
    assert not case['initial_qa_tooltrace_oracle_reference'],'potential blind input disclosure in actual tool trace'
    case['blinding_checked']='Controller script/oracle absent from isolated QA workspace; no planted location or answer in QA config. Original expected behavior remains available.'

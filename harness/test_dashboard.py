@@ -23,6 +23,7 @@ class DashboardTest(unittest.TestCase):
 
     def test_recheck_not_done(self):
         d=snapshot(self.root,'recheck');self.assertNotEqual(d['tasks'][0]['verdict'],'PASS');self.assertIn('재검증',d['tasks'][0]['status'])
+        self.assertIn('공식 검증 차단',d['tasks'][0]['status'])
 
     def test_decision_and_blocked(self):
         self.assertTrue(snapshot(self.root,'decision')['scope']['decisions'][0]['requires_human']);self.assertEqual(snapshot(self.root,'blocked')['scope']['outcome']['status'],'BLOCKED')

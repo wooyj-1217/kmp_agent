@@ -47,7 +47,10 @@ KMP 앱 구현·빌드·플랫폼/서버 연동·제품 결정이 필요한 작�
 | children | task_id·area·title·goal·requirement_ids·acceptance_ids·allowed_paths·dependencies·verification_commands·out_of_scope. 필요한 영역만, 부모 code_paths 안의 소유 범위 |
 | architecture | evidence(검토 입력 경로)·modules(영역별 실제 소스 경로)·필요한 ui_owners |
 | shared_owners | 공유 빌드/계약 파일별 담당 task ID. 소유자 없음을 추측하지 않음 |
+| verification | 승인 검토 입력에 이미 포함된 검증 정의 JSON의 정규 상대 경로. PRODUCT 필수. `schema_version`, `plan_version`, 기준·플랫폼별 checks는 [보호된 검증](../protected-verification.md) 참조 |
 | integration_commands | 영역별 검사와 구분한 실제 통합 명령 argv 배열. 모든 명령은 `rtk proxy`로 시작 |
 | max_parallel, timeout | 선택적인 운영 한도. 생략 시 기존 위임 기본값 2·600초이며 프로젝트 공유 admission 한도는 그대로 적용 |
 
 `area`는 현재 위임기의 kmp/web/server/android/ios 중 실제 선택 영역이다. 이 목록은 제품 플랫폼 채택 지시가 아니다. 본문의 구현/검증 설명과 JSON이 다르면 승인 전에 바로잡는다. JSON 형식 검사는 승인·명령 안전성·제품 인수 검증을 대신하지 않는다. 검토 후 메인은 같은 계획 task ID의 development 진입점을 호출해 실제 구현으로 이어간다. 실행 계약이나 검토가 없으면 입력 해석 완료를 코드 구현 완료로 승격하지 않는다.
+
+승인된 검증 정의의 필수 테스트·assertion·기준 이미지·검증 명령·제외/CI 설정을 구현 편의로 변경하면 기존 승인과 결과를 재사용하지 않는다. 영향받는 기준을 표시하고 기존 계획/기준 승인 담당에게 반환해 정의·보호 정책을 갱신한 뒤 제출 커밋에서 재실행한다. 새 테스트 파일 추가는 허용하지만 CI/제외 설정 추가는 재승인 대상이다. 구현·QA의 관찰 보고와 공식 PASS 발행을 구분한다.

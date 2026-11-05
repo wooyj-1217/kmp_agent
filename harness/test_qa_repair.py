@@ -76,6 +76,10 @@ class QARepairSafety(unittest.TestCase):
         self.assertEqual(proof['result'],'REPORTED_COMPLETE_NOT_QUALITY_PASS')
         self.assertEqual(state['tasks']['QA-DOC']['qa_config']['attempts'],[])
     def test_accepted_delegated_code_is_not_a_new_complete_repair(self):
+        # Exercise repair scheduling after a synthetic accepted implementation;
+        # missing/forged authority is covered without this mock in protected tests.
+        from harness.test_synthetic_authority import synthetic_authority
+        synthetic_authority(self, self.root)
         self.coordinator.configure(**self.spec)
         outcome=self.coordinator.execute('PARENT',mock_worker)
         self.assertEqual(outcome.get('handoff'),'READY_FOR_VERIFICATION',outcome)

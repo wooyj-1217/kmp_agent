@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from harness.test_synthetic_authority import synthetic_authority
 from unittest.mock import patch
 
 from harness.test_delegation import build_fixture, mock_worker
@@ -15,6 +16,7 @@ class DelegationConstraintTests(unittest.TestCase):
     def setUp(self):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
         self.root=Path(temporary.name)
+        self.synthetic_authority=synthetic_authority(self,self.root)
         self.manager,self.dev,self.spec=build_fixture(self.root)
 
     def test_invalid_plan_creates_no_children(self):

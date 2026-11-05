@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from harness.test_synthetic_authority import synthetic_authority
 
 from harness.tasks import Tasks
 from harness.development_tracking import capture, baseline
@@ -16,6 +17,7 @@ class DevelopmentTracking(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        self.synthetic_authority = synthetic_authority(self, self.root)
         self.git('init', '-q')
         self.git('config', 'user.name', 'Temporary Test')
         self.git('config', 'user.email', 'test@example.invalid')
