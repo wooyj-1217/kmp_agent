@@ -12,15 +12,15 @@
 
 | 원인·관련 실행 | 근거 | 대응·결과 |
 | --- | --- | --- |
-| 명령 구문 오류; 정확한 원인 UNKNOWN / 1317a3dc-ef9b-49bc-be46-aee3f20c062e, TASK-003 | [시험 결과](../.harness/logs/trial-2-result.json)의 blocks; [로그](../.harness/logs/events.jsonl) execution_block 3099c9b1-43ed-4865-97d1-2c5ff28c3ee5 | 명령 수정 후 재호출; 작업 상태 변경 없음; 독립 회귀 검증 NOT_RUN |
-| 패치 원문 불일치 / d25bd59d-401a-4244-a706-4bebe3b7499a | [로그](../.harness/logs/events.jsonl)의 해당 실행 도구 호출 참조 → 원본 오류 출력 | 원문 기준으로 재수정; 실패 시 파일 변경 없음 |
-| 환경 권한 제한 / 807f07de-9ec6-4bf9-95c7-2f0e48d8ce76 | [로그](../.harness/logs/events.jsonl)의 해당 실행 도구 호출 참조 → 원본 권한 오류·승인 기록 | 승인 후 스테이징 성공; 영향은 지연, 별도 운영 개선 효과 UNKNOWN |
+| 명령 구문 오류; 정확한 원인 UNKNOWN / 1317a3dc-ef9b-49bc-be46-aee3f20c062e, TASK-003 | 시험 결과 (로컬 경로: `../.harness/logs/trial-2-result.json`)의 blocks; 로그 (로컬 경로: `../.harness/logs/events.jsonl`) execution_block 3099c9b1-43ed-4865-97d1-2c5ff28c3ee5 | 명령 수정 후 재호출; 작업 상태 변경 없음; 독립 회귀 검증 NOT_RUN |
+| 패치 원문 불일치 / d25bd59d-401a-4244-a706-4bebe3b7499a | 로그 (로컬 경로: `../.harness/logs/events.jsonl`)의 해당 실행 도구 호출 참조 → 원본 오류 출력 | 원문 기준으로 재수정; 실패 시 파일 변경 없음 |
+| 환경 권한 제한 / 807f07de-9ec6-4bf9-95c7-2f0e48d8ce76 | 로그 (로컬 경로: `../.harness/logs/events.jsonl`)의 해당 실행 도구 호출 참조 → 원본 권한 오류·승인 기록 | 승인 후 스테이징 성공; 영향은 지연, 별도 운영 개선 효과 UNKNOWN |
 
 ### RETRO-H002 — 역할 사용량의 일부만 귀속 가능
 
 - 작업·실행: TASK-003·TASK-004 / 1317a3dc-ef9b-49bc-be46-aee3f20c062e.
 - 기대/실제·영향: 역할 수행·검토 응답을 연결하려 했으나 관측 응답 9개 중 5개만 역할에 귀속했다. 나머지 4개의 사용량은 별도 소계로 남았다.
-- 근거: [시험 결과](../.harness/logs/trial-2-result.json)의 attribution_evidence, unbound_details, usage_cutoff_at. 이는 해당 시험의 집계 시점 값이다.
+- 근거: 시험 결과 (로컬 경로: `../.harness/logs/trial-2-result.json`)의 attribution_evidence, unbound_details, usage_cutoff_at. 이는 해당 시험의 집계 시점 값이다.
 - 원인: 역할 마커가 없는 응답 등이 포함되었다는 분류는 에이전트 해석이다. 원본 응답 ID·사용량과 명시적 귀속 목록은 기록으로 확인된다.
 - 개선·재검증: 수행·검토 응답 ID 연결과 미귀속 소계 분리를 확인했다. 시험 중 실행기 구현 변경은 없었다. 별도 개선 작업·커밋·PR은 UNKNOWN.
 - 배운 점·한계: 관측 사용량과 역할별 알려진 소계를 구분해야 한다. 관측하지 못한 호출·전체 비용은 UNKNOWN이며 시간 구간으로 역할에 추정 배분하지 않는다. 문서 인계 DONE은 제품·시각 검증 완료가 아니다.
@@ -29,7 +29,7 @@
 
 - 작업·실행: TASK-003·TASK-004 / 1317a3dc-ef9b-49bc-be46-aee3f20c062e.
 - 기대/실제·영향: 실행 경과를 설명해야 했으나 디자인 검토 후 전체 공백만으로는 중단 대기를 판별할 수 없었다. 사용자가 모델 용량 오류 후 재개를 확인했다.
-- 근거: [시간 보정 원본](../.harness/logs/trial-2-interruption-correction.json), [중단·재개 규칙](interruption-recovery.md). 원본 세션 사건 ordinal 714의 server_overloaded와 716의 다음 턴 시작을 기존 실행에 연결했다.
+- 근거: 시간 보정 원본 (로컬 경로: `../.harness/logs/trial-2-interruption-correction.json`), [중단·재개 규칙](interruption-recovery.md). 원본 세션 사건 ordinal 714의 server_overloaded와 716의 다음 턴 시작을 기존 실행에 연결했다.
 - 원인: 오류 기록과 사용자 진술은 각각 확인된 근거다. 두 턴을 같은 실행의 연속으로 연결한 것은 에이전트의 명시적 해석이다.
 - 개선·재검증: 기존 중단·재개 구현으로 근거를 보완했다. 확인된 대기 611.387초, 하네스 실행 전체 1124.615초, 단계 합집합 345.576초, 미분류 167.652초다. 요청 시작 기준 미분류 184.013초와 구분한다. 반복 동기화에서 이벤트 수·대기 시간이 동일하고 작업 상태도 유지됐다. 별도 개선 TASK·커밋·PR은 UNKNOWN.
 - 배운 점·한계: 검토 후 공백 693.789초 전체를 대기로 보지 않는다. 미분류·단계 경과를 실제 작업 시간으로 단정할 수 없으며 자동 복구가 구현된 것도 아니다.
@@ -37,14 +37,14 @@
 ### RETRO-H004 — 회고 대상 판단 기준 누락
 
 - 문제·영향: 기록 정의·제외 기준 누락 이후에도 단발 오류와 원인이 다른 사건을 반복으로 묶어 회고가 실행 일지처럼 늘어났다. 사용자의 기준 보완과 문서 재작업이 필요했다. 누락의 근본 원인은 UNKNOWN이다.
-- 발생·근거: 기준 보완 요청 2회. 실행 c95dc19e-8113-435f-94d6-1b4f9719baf7, 6252eae3-9a5f-4f6e-9e9a-7188325d747b의 사용자 요청·도구 참조는 [기존 로그](../.harness/logs/events.jsonl), 원본 작성은 bc843a99-a573-4797-b9b1-e4149dabe4ff다. 최초 보완 전 task-management.md SHA-256은 ccf80ad143218110475ec9a8ce8869a3d263951fbb60c671c9fbf37fe90d59f7이며 당시 종료 로그에 연결된다.
+- 발생·근거: 기준 보완 요청 2회. 실행 c95dc19e-8113-435f-94d6-1b4f9719baf7, 6252eae3-9a5f-4f6e-9e9a-7188325d747b의 사용자 요청·도구 참조는 기존 로그 (로컬 경로: `../.harness/logs/events.jsonl`), 원본 작성은 bc843a99-a573-4797-b9b1-e4149dabe4ff다. 최초 보완 전 task-management.md SHA-256은 ccf80ad143218110475ec9a8ce8869a3d263951fbb60c671c9fbf37fe90d59f7이며 당시 종료 로그에 연결된다.
 - 대응: [공통 기록 기준](task-management.md#retrospective)에 의미 있는 영향·원인·반복·운영 변경의 선별 조건을 두고 원인별 반복 판단과 단발 오류 제외를 명시했다. RETRO-H001은 잘못된 반복 묶음을 해제하고 로그 참조로 축약했다.
 - 재검증: 문서 기준·두 저장소의 공통 기준 참조·수동 메모 보존을 확인했다. 실제 운영에서 과잉 기록이 줄었는지는 UNKNOWN이다. 이번 보완은 같은 기준 누락 항목의 갱신이며 새 사건으로 추가하지 않았다.
 
 ### RETRO-H005 — 테스트에서 표준 logging 모듈 이름 충돌
 
 - 문제·영향: 실행 9f78ab99-e2d3-4551-9082-4fdc98634639에서 unittest.mock을 도입하자 로컬 harness/logging.py가 표준 logging으로 해석되어 테스트 모듈 로딩이 실패했다. 분류 독립성 검증을 진행할 수 없었다.
-- 근거·대응: [기존 로그](../.harness/logs/events.jsonl)의 해당 실행 도구 참조와 ImportError/getLogger 오류 출력. 표준 라이브러리 의존 경로의 이름 충돌을 확인했고 테스트에서 간단한 컨텍스트 관리자로 주입·복원을 수행하도록 수정했다. 실행 코드 파일명 변경은 하지 않았다.
+- 근거·대응: 기존 로그 (로컬 경로: `../.harness/logs/events.jsonl`)의 해당 실행 도구 참조와 ImportError/getLogger 오류 출력. 표준 라이브러리 의존 경로의 이름 충돌을 확인했고 테스트에서 간단한 컨텍스트 관리자로 주입·복원을 수행하도록 수정했다. 실행 코드 파일명 변경은 하지 않았다.
 - 재검증: 전체 23개 테스트 PASS. 이 대응은 현재 테스트 로딩을 해결하며 다른 표준 라이브러리 사용에서의 같은 이름 충돌까지 해결한 것은 아니다.
 
 ### RETRO-H006 — 하네스 훅 검증이 데모 적용을 보장하지 않음
@@ -56,20 +56,20 @@
 ### RETRO-H007 — 복구 진입점이 손상된 현재 포인터에 의존
 
 - 문제·영향: 임시 설치 대상의 중단 복구 시험에서 진입 파일이 현재 설치 정보부터 읽어 KeyError로 끝났다. 이전 정상 설치가 있어도 복구 명령으로 도달하지 못했으며 실제 제품·데모 영향은 없다.
-- 근거: TASK-011 / 67729572-1729-4c72-b233-2acf29830153, [로컬 시험](../.harness/logs/installation-trial.json)의 first_test_run과 test_interrupted_transaction_recover_restores_settings_not_logs. 검증 scope는 임시 target_project이며 당시 프로젝트 식별 필드가 없는 과거 사건을 소급 변경하지 않는다.
+- 근거: TASK-011 / 67729572-1729-4c72-b233-2acf29830153, 로컬 시험 (로컬 경로: `../.harness/logs/installation-trial.json`)의 first_test_run과 test_interrupted_transaction_recover_restores_settings_not_logs. 검증 scope는 임시 target_project이며 당시 프로젝트 식별 필드가 없는 과거 사건을 소급 변경하지 않는다.
 - 대응·재검증: recover/status가 private 저널의 이전 포인터로 진입하도록 수정하고, 복구 대상에 새 사용자 편집이 있으면 덮어쓰지 않고 검토 대기로 남겼다. 최종 내부 50개·임시 대상 16개 시험 PASS. 실제 원격·Codex·데모 적용은 NOT_RUN이다. 정상 실행 경로와 별개로 복구 진입 경로 자체도 검증해야 한다.
 
 ### RETRO-H008 — init 경로의 복구 처리 누락
 
 - 문제·영향: install/update와 달리 동일 버전 재설치·단독 init은 복구 저널을 만들지 않았다. init 도중 실패하면 관리 설정 일부가 바뀐 채 남을 수 있었다. 코드 검토로 확인한 결함이며 실제 제품 피해는 UNKNOWN이다. 관련 작업·실행 ID는 UNKNOWN.
-- 근거: [검토 결과](../.harness/logs/prepublication-review.json), 검증 이벤트 2d2e49b0-3709-4d00-87d4-a5d4abd838da, [회귀 시험](../harness/test_installation.py)의 repeated_install_init_failure / standalone_init_failure.
+- 근거: 검토 결과 (로컬 경로: `../.harness/logs/prepublication-review.json`), 검증 이벤트 2d2e49b0-3709-4d00-87d4-a5d4abd838da, [회귀 시험](../harness/test_installation.py)의 repeated_install_init_failure / standalone_init_failure.
 - 대응·재검증: 설정 적용·복구를 configure로 통합했다. 전체 69개 시험과 추가 단독 init 회귀 1개 PASS; 실제 원격 설치·설치본 Codex 훅은 NOT_RUN이다.
 
 ### RETRO-H009 — 독립 역할 결과 경로 계약의 표기 차이
 
 - 작업·실행: TASK-ROLE-BUILD·TASK-ROLE-D1 / 3714570e-4ad2-40bb-9719-13fca11c8ed9.
 - 기대/실제·영향: 실제 디자인 프로세스가 유효한 소유 범위의 저장소 상대 경로를 반환했지만 실행기는 기능 폴더 상대 표기만 허용해 생성된 A/B·토큰 접수를 거부했다. 작업이 BLOCKED되어 기존 결과 복구와 새 역할 실행 ID가 필요했다.
-- 근거: [로컬 원본 결과](../.harness/roles/f39b512a-d18d-4322-9258-e8f499ac5d32/last-1.json), 기존 tasks.yaml의 실패 실행과 e5b30369-3e51-4110-b60a-d9af72ca7309의 recovered_response_from_agent_run_id·checkpoint·resume 기록.
+- 근거: 로컬 원본 결과 (로컬 경로: `../.harness/roles/f39b512a-d18d-4322-9258-e8f499ac5d32/last-1.json`), 기존 tasks.yaml의 실패 실행과 e5b30369-3e51-4110-b60a-d9af72ca7309의 recovered_response_from_agent_run_id·checkpoint·resume 기록.
 - 대응·재검증: 정확한 기능 폴더 접두어만 정규화하고 다른 역할·경로 탈출 거부는 유지했다. 모델 결과를 재생성하지 않고 보존해 합성 선택으로 같은 활성 실행을 재개했다. [경로 회귀 시험](../harness/test_roles.py)의 canonical_worker_paths와 output ownership 검사 PASS. 실제 디자인 토큰·컴포넌트·전체 상태를 생성하고 별도 브라우저 검토에 연결했다. 이는 프로토콜 경계 개선이며 모델의 제품·시각 품질 일반화 근거는 아니다.
 
 ### RETRO-H010 — 합성 결함 생성기의 정적 DOM 가정

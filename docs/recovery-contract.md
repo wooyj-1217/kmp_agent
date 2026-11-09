@@ -42,7 +42,7 @@ rtk proxy python3 -m harness.interruptions --root /project resume-task RUN_ID --
 
 이 구조는 관측된 프로세스 중단과 재실행 복구의 계약이다. 전원 손실·저장장치 오류, 구버전 writer나 외부 raw append, standalone verification runner 강제 종료 후 운영 복구는 전체 검증하지 않았다. 같은 OS 계정이 원장·journal·snapshot을 함께 바꾸는 공격에 대한 보안 격리도 아니다. 로컬 합성 process 시험을 운영 전체 복구 PASS로 확대하지 않는다.
 
-정상 통합과 중단된 journal은 구분한다. `Tasks._mutate()`는 입력·검증 refresh 이전부터 원장 저장까지 `integration_transaction.read_barrier()`로 같은 물리 통합 잠금을 유지한다. 정상 writer는 최대 15초까지 기다리며, timeout은 실행 차단으로 처리한다. 잠금이 풀린 뒤에도 남은 미해결 journal만 명시 복구 대상으로 삼는다. writer 안에서 Tasks에 진입하는 잠금 역전은 거부하며, 복구의 live-writer 검사는 nonblocking으로 유지한다.
+정상 통합과 중단된 journal은 구분한다. `Tasks._mutate()`는 입력·검증 refresh 이전부터 원장 저장까지 `integration_transaction.read_barrier()`로 같은 물리 통합 잠금을 유지한다. 직접 실행의 정상 writer는 기본 최대 15초까지 기다리며 (오케스트레이터의 동일 root 실행은 동결된 lock_wait_timeout 15~300초, 기본 300초를 적용), timeout은 실행 차단으로 처리한다. 잠금이 풀린 뒤에도 남은 미해결 journal만 명시 복구 대상으로 삼는다. writer 안에서 Tasks에 진입하는 잠금 역전은 거부하며, 복구의 live-writer 검사는 nonblocking으로 유지한다.
 
 `Development.workspace()`도 같은 read barrier 안에서 clone·manifest·전체 파일 복사를 수행한다. 정상 sibling 통합의 a=after/b=before 혼합 snapshot을 실제 재현한 뒤, writer COMMITTED 이후 두 파일이 같은 settled 버전으로 복사되는 것을 확인했다. 외부 writer가 이 잠금을 따르지 않는 경우까지 원자성을 보장하지 않는다.
 
