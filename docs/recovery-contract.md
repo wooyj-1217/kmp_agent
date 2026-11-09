@@ -24,6 +24,8 @@ rtk proxy python3 -m harness.interruptions --root /project resume-task RUN_ID --
 
 `resume-task`는 유효한 RECOVERABLE checkpoint와 현재 workspace basis, 시도 한도를 확인해 재개 admission을 한 번 예약하고 역할·개발·QA의 기존 실행기로 명시 전달한다. 반복 예약은 거부한다. DONE 캐시는 현재 근거가 유효한 경우만 반환하며 공식 완료를 새로 추론하지 않는다. 원문 승인·실행 정책·1차 완료 receipt·2차 권한 검사를 면제하지 않는다.
 
+workspace basis는 일반 파일의 내용·권한과 심볼릭 링크의 경로·원시 대상을 고정한다. 끊어진 링크와 디렉터리 링크도 포함하고 대상을 따라가지 않는다. 로그 snapshot과 같은 생성물 제외 경로를 적용한다. 링크 근거가 없는 이전 checkpoint는 자동 재개하지 않고 재확인을 요구한다.
+
 ## 실제 실행 소유권
 
 `process_ownership.TaskLease`는 kernel flock과 PID birth/host 근거를 사용한다. JSON 존재·mtime·PID 숫자만으로 소유권이나 사망을 판정하지 않는다. managed adapter가 실행과 receipt를 연결하고, 등록된 자식은 전용 process group과 guardian으로 추적한다. guardian은 parent 사망 후 정확히 식별된 자식만 정리한다. 살아 있거나 신원을 확인할 수 없는 owner·그룹에는 복구를 진행하지 않는다. plain `Tasks.begin()`은 논리 실행일 뿐 물리적 owner를 만들지 않으므로 owner 없는 중단은 UNKNOWN·수동 확인 대상이다.

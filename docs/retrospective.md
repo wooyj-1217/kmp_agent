@@ -90,6 +90,7 @@
 
 - 문제·재현: Logger append 중 실제 subprocess SIGKILL로 JSONL partial tail이 남아 후속 read가 실패했다. owner 종료와 runtime admission, 통합 일부 적용·현재 Git pin, parent 사망 후 자식 종료·명시 재개의 경계도 격리 재현으로 점검했다. 실제 제품 피해와 정확한 사망 시각은 UNKNOWN이다.
 - 원인·대응: 논리 실행 상태만으로 실제 소유권을 알 수 없고, 여러 파일 복사·단일 이벤트 append는 중간 중단을 완전한 결과로 보장하지 못했다. physical lease·PID birth·guardian, before/after 통합 journal, exact-prefix 이벤트 intent와 outbox 재전송을 연결했다. 불명 owner·사용자 편집·외부 tail은 보존하고 수동 확인하며 과거 PASS를 자동 복원하지 않는다.
+- PR #12 검토 보완: 일반 작업의 workspace basis가 로그 snapshot을 재사용해 심볼릭 링크 변경을 누락함을 재현했다. 링크 경로·원시 대상을 별도 고정하고 이전 basis는 재확인하도록 수정했다. 로컬 verification/manual/pr12-review-20261109/의 링크 추가·삭제·대상 변경·생성물 제외·이전 basis 회귀 2개 PASS. 관련 작업·실행 ID와 실제 제품 영향은 UNKNOWN이다.
 - 근거·한계: 로컬 verification/manual/recovery-boundary-20261106/의 events-before.log·events-after.log·events-recovery-final.log 및 ownership-after/runtime-before/actual-owner/integrationpins/parent-death-resume 관련 실행 로그에 보존한다. 정확한 전체 회귀 결과는 별도 확인한다. 이 근거는 운영 root 서비스·전원 손실·동일 계정 공격 방어 검증이 아니다. [실행 복구 계약](recovery-contract.md)의 적용 범위와 미확인을 따른다.
 
 <!-- codex-retrospective:end -->

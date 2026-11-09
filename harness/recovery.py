@@ -34,7 +34,20 @@ def workspace_basis(manager, task):
     from harness import logging
     files = logging.snapshot(manager.root)
     modes = {p:(manager.root/p).stat().st_mode & 0o777 for p in files}
-    result = {'files':files, 'modes':modes}
+    # Logging snapshots intentionally omit links. Recovery must also pin their
+    # names and raw targets, including dangling and directory links, without
+    # following them outside the workspace. Keep the same generated exclusions.
+    links = {}
+    for path in manager.root.rglob('*'):
+        relative = path.relative_to(manager.root)
+        if (relative.parts[0] == 'verification'
+                or relative.parts[:2] == ('.kmp-agent', 'releases')
+                or any(p in ('.git', '.harness', '__pycache__') for p in relative.parts)
+                or path.name == '.DS_Store'):
+            continue
+        if path.is_symlink():
+            links[str(relative)] = os.readlink(path)
+    result = {'files':files, 'modes':modes, 'symlinks':links}
     if task.get('development_tracking'):
         from harness.development_tracking import capture, baseline
         result['code'] = capture(manager, task)
