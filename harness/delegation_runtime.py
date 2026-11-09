@@ -10,6 +10,7 @@ import uuid
 
 from harness import logging
 from harness.runtime_limits import model_slot
+from harness.recovery import owned_worker
 
 
 def _drain(child, timeout=5):
@@ -135,6 +136,7 @@ def validate_images(workspace,image_paths):
     return image_refs
 
 
+@owned_worker
 def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
               output_dir: Path, executable: str, timeout: int, *,
               result_schema=None, result_validator=None, sandbox='workspace-write', image_paths=None) -> dict:
@@ -197,9 +199,17 @@ def run_codex(manager, task_id, agent_run_id, workspace: Path, packet: dict,
         slot.__enter__()
         slot_acquired = True
         manager.require_dispatch(task_id)
-        child = subprocess.Popen(argv, cwd=workspace, stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 text=True, start_new_session=True,env=worker_env)
+        from harness.recovery import spawn_intent, register_process
+        intent = spawn_intent(manager, task_id, agent_run_id)
+        try:
+            child = subprocess.Popen(argv, cwd=workspace, stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     text=True, start_new_session=True,env=worker_env)
+        except OSError:
+            from harness.recovery import cancel_spawn
+            cancel_spawn(manager,task_id,intent)
+            raise
+        register_process(manager, task_id, child, intent)
         adapter.process_event(task_id, agent_run_id,
                               {**metadata, 'pid': child.pid, 'spawned': True,
                                'process_state': 'role_process_started',

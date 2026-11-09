@@ -78,6 +78,20 @@
 - 대응: HTML/JS 입력을 함께 확인하도록 생성기만 수정했다. 실패 기록과 두 번의 시도 상한을 유지하고 두 번째 실행의 검토 대기 checkpoint에 관측 결과를 반환했다. 같은 활성 실행을 재개해 실제 디자인 프로세스가 수정했다.
 - 근거·재검증: [연결 시험](examples/role-execution/connection-report.md)의 합성 결함 캡처·차단 인계·D-004 재검토, [회귀 시험](../harness/test_connections.py)의 checkpoint_return_keeps_active_run_inputs_and_attempt_budget. 동적 시안의 제어 요소를 정적 문서 검색만으로 판단하지 않는다.
 
+### RETRO-H011 — 로컬 검토·승인 라벨과 실제 승인 권한 혼동
+
+- 작업·실행: TASK-APPROVAL-BOUNDARY-20261106 / 3f42a1a7-0b3c-48b8-8ccd-bc11f18bfb01.
+- 재현·영향: 로컬 승인 source/anchor와 단계 역할 검토만으로 인간 승인처럼 진행 가능한 경로, ANSWERED 상태 뒤 원본 누락·native 변경·질문 변경·입력 변경을 소비 시 재확인하지 않는 경로를 격리 시험에서 재현했다. source kind를 APPROVED_REQUIREMENTS에서 USER_ORIGINAL로 낮춰 PRODUCT 인간 승인 조건을 피하는 경로도 별도 시험에서 재현했다. 실제 제품 피해는 UNKNOWN이다.
+- 원인·대응: 구조 비교·역할 검토와 권한 증명을 같은 의미로 소비했고 승인 주장 라벨에 권한 요구를 종속시켰다. PRODUCT는 라벨과 무관하게 typed 인간 승인 근거를 요구하며 PRODUCT 작업의 TRIAL 계약 전환도 차단한다. typed 인간 승인과 역할 검토·관리자 QA 권한·공식 인증을 분리하고 소비 시 native 원본 및 현재 질문·입력·산출물을 재검사한다. 단계 승인은 명시 설정 범위만 집행한다.
+- 추가 재현·대응: 입력·코드 변경 뒤 옛 승인으로 진행할 수 없는 대기를 새 유효 승인으로 해소하는 경로가 필요했다. 재승인 질문을 명시적 predecessor digest로 연결하고 소비 시 현재 근거를 다시 검사한다. typed 개발 질문에는 정확한 코드 상태도 고정한다. 이전 원본·상태를 덮어쓰지 않으며 미응답·거절·무효 대체는 대기를 해제하지 않는다.
+- 근거·한계: 로컬 verification/manual/approval-boundary-20261106/의 authority-before.log(수정 전 실패 2개), decision-before.log(수정 전 실패 4개), source-downgrade-before.log(수정 전 실패 1개), reapproval-before.log(재승인·typed 코드 재승인 재현), protected-threat-final.log에 보존한다. 비밀키 유출 시험의 BYPASSED는 보호 성공이 아니라 신뢰 경계 실패다. 정상 native protocol fixture는 실제 인간 본인 인증의 실증이 아니며, 운영 격리 배포와 최종 회귀 결과는 별도 확인한다. [권한 경계](approval-authority.md)를 따른다.
+
+### RETRO-H012 — 프로세스·통합·이벤트 중단의 복구 근거 부족
+
+- 문제·재현: Logger append 중 실제 subprocess SIGKILL로 JSONL partial tail이 남아 후속 read가 실패했다. owner 종료와 runtime admission, 통합 일부 적용·현재 Git pin, parent 사망 후 자식 종료·명시 재개의 경계도 격리 재현으로 점검했다. 실제 제품 피해와 정확한 사망 시각은 UNKNOWN이다.
+- 원인·대응: 논리 실행 상태만으로 실제 소유권을 알 수 없고, 여러 파일 복사·단일 이벤트 append는 중간 중단을 완전한 결과로 보장하지 못했다. physical lease·PID birth·guardian, before/after 통합 journal, exact-prefix 이벤트 intent와 outbox 재전송을 연결했다. 불명 owner·사용자 편집·외부 tail은 보존하고 수동 확인하며 과거 PASS를 자동 복원하지 않는다.
+- 근거·한계: 로컬 verification/manual/recovery-boundary-20261106/의 events-before.log·events-after.log·events-recovery-final.log 및 ownership-after/runtime-before/actual-owner/integrationpins/parent-death-resume 관련 실행 로그에 보존한다. 정확한 전체 회귀 결과는 별도 확인한다. 이 근거는 운영 root 서비스·전원 손실·동일 계정 공격 방어 검증이 아니다. [실행 복구 계약](recovery-contract.md)의 적용 범위와 미확인을 따른다.
+
 <!-- codex-retrospective:end -->
 
 ## 수동 메모

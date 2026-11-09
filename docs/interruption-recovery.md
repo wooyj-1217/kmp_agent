@@ -1,6 +1,6 @@
 # 최소 중단·재개 기록
 
-[interruptions.py](../harness/interruptions.py)는 기존 로거에 증거를 추가한다. 중단 순간 에이전트가 기록하지 못했어도 재개 후 원본을 읽어 보완하며, 자동 복구·작업 재실행은 하지 않는다.
+[interruptions.py](../harness/interruptions.py)는 기존 로거에 증거를 추가한다. 중단 순간 에이전트가 기록하지 못했어도 재개 후 원본을 읽어 보완한다. 세션 원문 복구는 작업을 재실행하지 않는다. 별도로 구현한 명시적 작업 복구·재개는 [실행 복구 계약](recovery-contract.md)을 따른다.
 중단 때문에 종료·인계 회고를 남기지 못했다면 재개한 Codex가 확인 가능한 원본으로 [시행착오 요약](task-management.md#retrospective)을 보완한다. 시각·원인을 추정해 채우지 않는다.
 
 ## 기록과 근거 구분
@@ -29,7 +29,7 @@ rtk proxy python3 harness/interruptions.py timing <기존-run_id> --scope-start 
 
 recover는 원본을 한 번 메모리에 읽어 기존 sync로 가져오고, 지정한 턴의 task_complete.error 또는 turn_aborted와 재개 task_started를 찾는다. 모호한 복수 사건이나 역순 시각은 거부한다.
 원본 ID가 다른 두 턴을 같은 하네스 run_id에 연결하는 것이며 기존 실행 ID·단계 ID를 새로 만들지 않는다. 이미 종료된 실행에도 과거 증거를 추가할 수 있지만 종료 시각을 변경하거나 다시 열지 않는다.
-resume_plan은 완료 작업을 건너뛸 목록과 미완료 상태만 반환한다. 현재 상태를 읽은 시각을 함께 남기며 과거 시점의 작업 상태인 것처럼 표현하지 않는다. 작업 실행·상태 수정은 수행하지 않는다.
+resume_plan은 현재 근거가 유효한 완료 작업의 skip 목록, 미완료 상태, 재검증 이유와 별도 recovery 판정을 반환한다. 현재 상태를 읽은 시각을 함께 남기며 과거 시점의 상태인 것처럼 표현하지 않는다. 이 조회는 작업 실행·상태 수정을 수행하지 않는다. recover-tasks와 resume-task는 별도 명시 호출이며 [실행 복구 계약](recovery-contract.md)의 소유권·checkpoint·승인 조건을 적용한다.
 
 ## 시간 분류와 중복 방지
 
@@ -60,4 +60,4 @@ resume_plan은 완료 작업을 건너뛸 목록과 미완료 상태만 반환�
 ## 검증 범위·한계
 
 `rtk proxy python3 -B -m unittest harness.test_interruptions`로 중단·재개 복구, 출처 구분, UNKNOWN, 마스킹, 반복·이동된 원본 동기화, 간격 겹침, 역순 거부, 완료 작업 보존만 확인한다.
-원본에 없는 장애의 시작·종료·원인을 자동 복원하지 않는다. 자동 재개 실행, 상태 복구 스케줄러, 독립 에이전트 호출, 대시보드는 PLANNED이며 이번 범위에 포함하지 않는다.
+원본에 없는 장애의 시작·종료·원인을 자동 복원하지 않는다. 명시적인 recover-tasks/resume-task와 managed 프로세스 소유권·통합 journal·이벤트 intent 복구는 별도 구현했다. 구조화된 계약에 따른 단계 자동 전이는 별도 [foreground 오케스트레이터](orchestration.md)가 담당하며, 명시적 resume는 기존 작업 복구 계약에 위임한다. 자동 재시작 background 서비스·대시보드 개편은 제공하지 않는다. 오케스트레이터와 작업 실행 복구는 이 세션 원문 시험의 검증 범위가 아니다.

@@ -16,17 +16,19 @@
 | B4 중단·재개 근거 | 중단 시간과 연속 실행 보존 | 원본·사용자 진술 | [중단/재개 시험](docs/interruption-recovery.md) | B1·B2 | 반복 동기화 불변·완료 작업 보존·시간 분류 | DONE — 자동 복구 제외 |
 | B5 버전 고정 개발 도구 | 제품별 명시적 설치·갱신 | 특정 태그/SHA·프로젝트 연결 설정 | [설치·검증](docs/installation.md), 로컬 시험 기록 `.harness/logs/installation-trial.json`(미제출) | B1·B2 | 설치/init/status/update·실패 복구·안정적 project_id·범위 구분 | DONE — 로컬 시험 한정; 원격 게시·실제 Codex·데모 설치 NOT_RUN |
 
+B4는 기존 세션 원문 시험 당시 범위다. 현재 작업 실행의 명시적 복구·재개는 [실행 복구 계약](docs/recovery-contract.md), 구조화 계약의 단계 연속 실행은 [foreground 오케스트레이터](docs/orchestration.md)를 참조한다. 기존 DONE의 검증 의미를 소급 확장하지 않는다.
+
 이 상태는 기존 근거의 요약이며 제품 품질 검증 완료가 아니다. 기존 P1 공통 규격·역할·인계 문서 정리의 DONE과 FEAT-003/TASK-005·TASK-006 완료 근거도 유지한다. 기존 완료 작업을 다시 실행하도록 계획하지 않는다.
 
 ## 공통 기능의 현재 범위와 남은 계획
 
 | 범위 | 현재 근거 | 남은 목표 |
 | --- | --- | --- |
-| 역할·산출물 인계 | [기획·디자인 순차 실행과 개발 입력 해석](docs/role-execution.md), P/D/CR snapshot·검토 접수 구현 | 전체 제품 구현·검증 실행과 역할 조정 PLANNED |
+| 역할·산출물 인계 | [기획·디자인 순차 실행과 개발 입력 해석](docs/role-execution.md), P/D/CR snapshot·검토 접수 구현. [구조화 계약 오케스트레이터](docs/orchestration.md)는 등록된 단계·구현·QA 실행기를 연속 호출 | 자연어 목표의 자동 작업 분해·범위 결정·운영 발행자 배포는 제외; 적용 프로젝트 실제 모델·제품 인수 검증은 별도 |
 | 프로젝트 입력·개발 추적 | [단계 설정](docs/project-settings.md), [기준 자동 연결·누락 차단·코드 상태·검증 유효성](docs/development-tracking.md) 구현 | 적용 프로젝트의 실행 명령을 연결하는 전체 실행 인터페이스 PLANNED |
 | 승인된 개발 기술 결정 | [개발 제약](docs/development-constraints.md)의 원본 동결·위임 상속·구조 및 타깃 명령 증거 검사 구현(현재 격리 개발 소스) | 승인 진위·의미 검토와 실제 제품 전체 인수는 독립 QA/제품 검증; 설치·릴리스 자동 전파 없음 |
 | 기획·디자인 변경 대응 | 명령·조회 시 입력/코드 해시 점검, CR에 선언한 영향과 RECHECK_REQUIRED 기록 구현 | 감시 대상·변경 확정 조건의 실행 설정, 상시 감지·의미상 영향 분석·구현 수정·재검증 자동 실행 PLANNED |
-| 실패 후 복구 | 원본 근거·checkpoint 실행 재개·문제 반환·검토 기록 구현 | 실패 후 자동 수정·재검증·전체 복구 실행 PLANNED. checkpoint는 코드 복원을 보장하지 않음 |
+| 실패 후 복구 | 원본 근거와 [명시적 실행 복구](docs/recovery-contract.md), checkpoint·문제 반환·검토 기록 구현. 컨트롤러 resume는 기존 복구 게이트에 위임 | 무인 background 재시작·불명확한 소유권의 자동 재개는 제공하지 않음. checkpoint는 임의 사용자 변경의 코드 복원을 보장하지 않음 |
 | 공통 하네스 결함 개선 PR | [분류·최소 재현·격리 수정·Draft PR·승인/업데이트/재개 정책](docs/harness-defect-pr.md) 문서화 | 기존 추적 기반의 자동 분류·권한/승인 게이트·격리 수정·PR 역연결·배포 후 재검증/재개 PLANNED |
 | 효과 평가 | 로그·명시적 개입 분류·검증/사용량 근거 일부 구현 | 프로젝트별 실험 실행·평가 자동 집계 PLANNED |
 

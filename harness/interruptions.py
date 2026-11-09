@@ -125,28 +125,41 @@ class Interruptions:
                  if t["task_id"] in registered or any(r.get("run_id") == run_id for r in t.get("executions", []))]
         from harness.tasks import Tasks
         manager = Tasks(self.root, run_id)
-        from harness.verification import current_reasons
-        from harness.development_tracking import capture, baseline
+        from harness.recovery import done_reasons, inspect_execution
         invalid = {}
         for task in tasks:
             if task['state'] != 'DONE': continue
-            review = task.get('reviews', [])[-1] if task.get('reviews') else {}
-            reasons = current_reasons(manager, task, review)
-            if not review: reasons.append('completion review missing')
-            if task.get('validation_status', {}).get(review.get('agent_run_id'), {}).get('state') == 'RECHECK_REQUIRED':
-                reasons.append('recorded validation requires recheck')
-            if task.get('development_tracking'):
-                try:
-                    proof=review.get('development_evidence',{})
-                    if capture(manager,task)['state_sha256']!=proof.get('code_state',{}).get('state_sha256') or baseline(task)!=proof.get('baseline'):
-                        reasons.append('code or baseline changed')
-                except (OSError,ValueError,KeyError,TypeError): reasons.append('current code scope unknown')
+            reasons = done_reasons(manager, task)
             if reasons: invalid[task['task_id']]=sorted(set(reasons))
+        recovery = {}
+        for task in tasks:
+            active = [r for r in task.get('executions', []) if not r.get('ended_at')]
+            if active:
+                recovery[task['task_id']] = inspect_execution(manager, task, active[0])
+            elif task.get('recovery'):
+                recovery[task['task_id']] = dict(task['recovery'])
         return {"continuation_of_run_id": run_id, "snapshot_observed_at": logging.now(),
                 "completed_tasks_to_skip": [t["task_id"] for t in tasks if t["state"] == "DONE" and t["task_id"] not in invalid],
                 "unfinished_tasks": [{"task_id": t["task_id"], "state": t["state"]} for t in tasks if t["state"] != "DONE"],
                 "revalidation_required": invalid,
+                "recovery": recovery,
                 "automatic_execution": False, "task_state_modified": False}
+
+    def recover_tasks(self, run_id, task_ids=None):
+        self.logger.run(run_id)
+        from harness.tasks import Tasks
+        from harness.recovery import recover_tasks
+        return recover_tasks(Tasks(self.root, run_id), task_ids)
+
+    def resume_task(self, run_id, task_id, worker=None):
+        self.logger.run(run_id)
+        from harness.tasks import Tasks
+        from harness.recovery import resume_task
+        # Refresh the same evidence-only planning surface before explicit retry.
+        plan = self.resume_plan(run_id)
+        if task_id in plan['revalidation_required']:
+            raise ValueError('existing completion requires revalidation; no automatic PASS reuse')
+        return resume_task(Tasks(self.root, run_id), task_id, worker=worker)
 
     def timing(self, run_id, scope_start=None):
         run = self.logger.run(run_id)
@@ -224,12 +237,26 @@ def main():
     timing = sub.add_parser("timing")
     timing.add_argument("run_id")
     timing.add_argument("--scope-start")
+    repair = sub.add_parser('recover-tasks')
+    repair.add_argument('run_id')
+    repair.add_argument('--task-id', action='append', dest='task_ids')
+    retry = sub.add_parser('resume-task')
+    retry.add_argument('run_id')
+    retry.add_argument('--task-id', required=True)
+    plan = sub.add_parser('resume-plan')
+    plan.add_argument('run_id')
     args = parser.parse_args()
     interruptions = Interruptions(args.root)
     if args.action == "user-report":
         result = interruptions.user_report(args.run_id, args.assertion_id, args.statement, {"reference": args.source}, args.cause)
     elif args.action == "recover":
         result = interruptions.recover(args.run_id, args.assertion_id, args.session_path, args.interrupted_turn_id, args.resumed_turn_id)
+    elif args.action == 'recover-tasks':
+        result = interruptions.recover_tasks(args.run_id, args.task_ids)
+    elif args.action == 'resume-task':
+        result = interruptions.resume_task(args.run_id, args.task_id)
+    elif args.action == 'resume-plan':
+        result = interruptions.resume_plan(args.run_id)
     else:
         result = interruptions.timing(args.run_id, args.scope_start)
     print(json.dumps(logging.redact(result), ensure_ascii=False, indent=2))

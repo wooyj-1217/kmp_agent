@@ -13,6 +13,14 @@
 
 PRODUCT의 미승인 변경은 보완/사용자 결정 대기로 반환한다. HARNESS_TRIAL은 purpose, USER_ORIGINAL 출처를 가리키는 scope_authorization, product_pass_claim=false, 각 차이의 TRIAL_ONLY+reason+정확한 전후 값을 요구한다. 제품의 원래 조건은 여전히 미충족이다. 제한 시험을 제품 변경 승인이나 제품 PASS로 바꾸지 않는다.
 
+## 구조 비교와 인간 승인
+
+기존 `structurally_ready`는 링크·값·변경 결정의 구조 비교 결과로 유지한다. 로컬 `USER_ORIGINAL`/`APPROVED_REQUIREMENTS` 라벨이나 anchor는 실제 인간 권한을 증명하지 않는다. `authorization_ready`와 `human_authorization`을 별도로 표시한다. PRODUCT는 source kind·APPROVED 주장 유무와 관계없이 `human_authorization.question_id/task_id`가 현재 계약의 source·requirements·derived_items·decisions와 모든 source 파일 해시를 승인한 typed `HUMAN_APPROVAL`에 연결돼야 한다. purpose는 `requirement_lineage`, subject는 `approval_subject(contract)`다. 질문·원본·대상 입력·산출물 변경은 소비 시 다시 검사한다.
+
+PRODUCT의 `require_review()`는 구조 비교가 통과해도 인간 권한이 없거나 오래됐거나 다른 task 것이면 차단한다. HARNESS_TRIAL에서 승인 주장이 없을 때만 `NOT_REQUIRED`를 허용한다. PRODUCT 작업에 HARNESS_TRIAL 계약을 사용하는 것은 차단한다. source kind를 낮춰 인간 승인 조건을 피할 수 없다. HARNESS_TRIAL이나 독립 requirements QA PASS를 인간 제품 승인으로 승격하지 않는다. 기존 비교 이력을 다시 쓰지 않고 현재 실행 경계에서 검사한다. [승인·검토 권한](approval-authority.md)의 native 및 same-OS 한계를 따른다.
+
+입력·계약 변경 뒤에는 기존 질문을 고치지 않고 `supersedes_question_id`로 명시적인 대체 승인을 요청한다. 소비자는 원래 question ID에서 유효한 승인 체인만 해석하고 현재 계보 subject·source 해시·task를 다시 비교한다. 새 대체 질문이 미응답·거절·무효이거나 분기가 모호하면 진행하지 않는다. 과거 구조 비교와 저장 상태는 덮어쓰지 않는다.
+
 ## 실행
 
 부모 개발 task inputs에 계약·모든 출처를 넣어 동결한다.

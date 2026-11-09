@@ -65,6 +65,31 @@ def load(root):
     return c
 
 
+def approval_subject(contract):
+    """Exact source/mapping/decision scope, excluding the receipt locator itself."""
+    return {key: contract.get(key) for key in
+            ('scope', 'purpose', 'sources', 'requirements', 'derived_items', 'decisions')}
+
+
+def _human_authorization(root, contract):
+    claimed = contract['scope'] == 'PRODUCT' or any(s['kind'] == 'APPROVED_REQUIREMENTS' for s in contract['sources']) or any(
+        d.get('status') == 'APPROVED' for d in contract.get('decisions', []))
+    if not claimed:
+        return {'status': 'NOT_REQUIRED', 'approval_type': None}
+    try:
+        from harness.approvals import human_approval, ledger
+        ref = contract.get('human_authorization') or {}
+        artifacts = {s['path']: s['sha256'] for s in contract['sources']}
+        receipt = human_approval(root, ledger(root), ref['question_id'], ref['task_id'],
+                                 'requirement_lineage', approval_subject(contract), artifacts)
+        if receipt:
+            return {'status': 'CONFIRMED', 'receipt': receipt}
+    except (ValueError, OSError, KeyError, TypeError, ImportError):
+        pass
+    return {'status': 'UNCONFIRMED', 'approval_type': 'HUMAN_APPROVAL',
+            'reason': 'local source labels, role reviews and QA PASS are not human authorization'}
+
+
 def compare(root):
     c = load(root)
     sources = {s['id']: s for s in c['sources']}
@@ -98,7 +123,8 @@ def compare(root):
         trial = c['scope'] == 'HARNESS_TRIAL' and decision.get('status') == 'TRIAL_ONLY' and bool(decision.get('reason')) and decision.get('expected') == d['expected'] and decision.get('actual') == d['actual']
         d['status'] = 'APPROVED' if approved else 'TRIAL_ONLY' if trial else 'DECISION_REQUIRED'
         d['decision'] = decision or None
-    return {'scope': c['scope'], 'purpose': c['purpose'], 'contract': file_ref(root, NAME), 'sources': c['sources'], 'requirements': c['requirements'], 'derived_items': c['derived_items'], 'deltas': deltas, 'authority_issues': authority_issues, 'structurally_ready': not authority_issues and all(d['status'] != 'DECISION_REQUIRED' for d in deltas), 'product_requirements_pass': 'NOT_ESTABLISHED', 'execution_path_pass': 'NOT_ESTABLISHED', 'semantic_review': 'REQUIRED'}
+    authorization = _human_authorization(root, c)
+    return {'scope': c['scope'], 'purpose': c['purpose'], 'contract': file_ref(root, NAME), 'sources': c['sources'], 'requirements': c['requirements'], 'derived_items': c['derived_items'], 'deltas': deltas, 'authority_issues': authority_issues, 'structurally_ready': not authority_issues and all(d['status'] != 'DECISION_REQUIRED' for d in deltas), 'authorization_ready': authorization['status'] in {'CONFIRMED', 'NOT_REQUIRED'}, 'human_authorization': authorization, 'product_requirements_pass': 'NOT_ESTABLISHED', 'execution_path_pass': 'NOT_ESTABLISHED', 'semantic_review': 'REQUIRED'}
 
 
 def criteria(root):
@@ -112,6 +138,13 @@ def require_review(manager, target, allow_mock=False):
     comparison = compare(manager.root)
     if not comparison['structurally_ready']:
         raise ValueError('unapproved requirement differences: supplement planning or request user decision')
+    if target.get('work_type') == 'PRODUCT' and comparison['scope'] != 'PRODUCT':
+        raise ValueError('trial source approval cannot authorize a PRODUCT task')
+    if comparison['scope'] == 'PRODUCT' and not comparison['authorization_ready']:
+        raise ValueError('human authorization missing or stale; local approval labels and QA PASS are insufficient')
+    receipt = comparison['human_authorization'].get('receipt')
+    if receipt and target['task_id'] not in receipt.get('task_ids', []):
+        raise ValueError('human authorization belongs to another task')
     contract = manager.artifact(NAME)
     if not any(a.get('path') == NAME and a.get('sha256') == contract['sha256'] for a in target.get('inputs', [])):
         raise ValueError('development task must freeze the current lineage contract')

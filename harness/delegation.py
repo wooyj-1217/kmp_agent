@@ -18,6 +18,8 @@ from harness import logging
 from harness.tasks import Tasks
 from harness import development_tracking as tracking
 from harness import development_constraints as constraints
+from harness.process_ownership import managed_task
+from harness.recovery import managed_child
 
 AREAS={'kmp','web','server','android','ios'}
 
@@ -118,9 +120,12 @@ class Development:
             self.tasks.configure_development(tid,baselines,spec['allowed_paths'],parent['development_tracking'].get('api_required',False),parent['development_tracking'].get('service_version','UNKNOWN'),parent['development_tracking'].get('change_id'))
         def save(s):
             p=s['tasks'][parent_task_id];p['development_delegation']=config;p['child_task_ids']=ids
+            from harness.completion import IMPLEMENTATION_SEMANTICS
+            p['completion_semantics']=IMPLEMENTATION_SEMANTICS
             refs={a['path']:a for a in p['inputs']};refs.update({a['path']:a for a in arch['evidence']});p['inputs']=list(refs.values())
             for spec in specifications:
                 t=s['tasks'][spec['task_id']];t['inputs']=copy.deepcopy(p['inputs']);t.update(parent_task_id=parent_task_id,coordination_plan_id=parent_task_id,development_area=spec['area'],delegation_state='WAITING',delegation_reason='waiting for explicit predecessor and coordinator dispatch')
+                t['completion_semantics']=IMPLEMENTATION_SEMANTICS
                 self.tasks._event(s,'development_child_linked',t,observed={'parent_task_id':parent_task_id,'development_area':spec['area'],'dependencies':t['dependencies']})
             self.tasks._event(s,'development_plan_configured',p,observed={'child_task_ids':ids,'max_parallel':max_parallel,'architecture':arch})
             return config
@@ -138,16 +143,18 @@ class Development:
         self.tasks._mutate('delegation_state',op,task_id=tid)
 
     def workspace(self,tid,aid):
-        out=self.tasks.directory/'delegation'/aid;ws=out/'workspace';out.mkdir(parents=True,exist_ok=False)
-        git(self.root,'clone','--no-hardlinks','--quiet',str(self.root),str(ws))
-        current=manifest(self.root)
-        for name in manifest(ws):
-            if name not in current:(ws/name).unlink()
-        for name in current:
-            target=ws/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(self.root/name,target)
-        # Dedicated caches; never share a worker Git index or global build outputs.
-        with (ws/'.git/info/exclude').open('a') as f:f.write('\n.worker-cache/\n')
-        return ws,out,current,git(ws,'rev-parse','HEAD').decode().strip()
+        from harness.integration_transaction import read_barrier
+        with read_barrier(self.root):
+            out=self.tasks.directory/'delegation'/aid;ws=out/'workspace';out.mkdir(parents=True,exist_ok=False)
+            git(self.root,'clone','--no-hardlinks','--quiet',str(self.root),str(ws))
+            current=manifest(self.root)
+            for name in manifest(ws):
+                if name not in current:(ws/name).unlink()
+            for name in current:
+                target=ws/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(self.root/name,target)
+            # Dedicated caches; never share a worker Git index or global build outputs.
+            with (ws/'.git/info/exclude').open('a') as f:f.write('\n.worker-cache/\n')
+            return ws,out,current,git(ws,'rev-parse','HEAD').decode().strip()
 
     def packet(self,parent,spec,execution,workspace):
         t=self.tasks.read()['tasks'][spec['task_id']]
@@ -182,6 +189,7 @@ class Development:
             data=dict(data,claim_scope=lineage['scope'],purpose=lineage['purpose'],development_integration_result=data.get('result','UNKNOWN'),execution_path_validation='NOT_ESTABLISHED',product_requirements_fulfillment='NOT_ESTABLISHED',scope_note='Development integration only; complete execution-path validation and original product acceptance require separate evidence. No trial PASS inheritance.')
         path=out/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n');return str(path.relative_to(self.root))
 
+    @managed_child
     def run_child(self,parent,spec,worker):
         from harness.delegation_runtime import run_codex
         if worker is run_codex:
@@ -233,10 +241,9 @@ class Development:
                 if execution['baseline']!=tracking.baseline(latest) or any(self.tasks.artifact(v['path'])['sha256']!=v['sha256'] for v in latest['development_tracking']['baselines'].values()):raise ValueError('baseline changed during worker execution')
                 for name in changed:
                     if digest(self.root/name)!=before.get(name):raise ValueError('integration source changed concurrently: '+name)
-                for name in changed:
-                    target=self.root/name
-                    if name in after:target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ws/name,target)
-                    elif target.exists():target.unlink()
+                from harness.integration_transaction import apply as integrate_files
+                integrate_files(self.root,{name:ws/name if name in after else None for name in changed},
+                    {name:before.get(name) for name in changed},aid,baseline=execution['baseline'])
                 checks=self.verify(tid,aid,spec['verification_commands'])
                 status='PASS' if len(checks)==len(spec['verification_commands']) and all(x['status']=='PASS' for x in checks) else 'FAIL'
                 proof={'result':status,'method':'coordinator actual diff plus independent command execution; worker claims not verdicts','tested_outputs':{},'checks':checks,'changed_files':changed,'worker_report':report_path,'patch':str((out/'changes.patch').relative_to(self.root))}
@@ -249,7 +256,8 @@ class Development:
                 # Evidence must not list itself; keep immutable submitted implementation outputs.
                 review_evidence=self.report(out,'review-evidence.json',proof)
                 criteria=[{'criterion_id':c['id'],'result':status,'evidence':review_evidence} for c in latest['criteria'] if c['required']]
-                outcome=self.tasks.review(tid,rid,criteria,'actual commands and scoped changes; automated local review, not independent model review')
+                outcome=self.tasks.review(tid,rid,criteria,'actual commands and scoped changes; automated local review, not independent model review',
+                                          purpose='execution' if reviewed.get('completion_semantics') == 'implementation_qa_v1' else 'official')
                 self.update(tid,'VERIFIED' if outcome=='DONE' else 'FAILED',None if outcome=='DONE' else 'area verification failed',changed_files=changed,verification_evidence=[self.tasks.artifact(review_evidence)],change_reference=str((out/'changes.patch').relative_to(self.root)),delegation_input=self.tasks.artifact(packet_path))
                 return outcome=='DONE'
         except Exception as exc:
@@ -259,6 +267,7 @@ class Development:
             status='BLOCKED' if current.get('contract_change_request') else 'FAILED'
             self.update(tid,status,str(exc));return False
 
+    @managed_task
     def execute(self,parent_task_id,worker=None):
         from harness.delegation_runtime import run_codex
         from harness.requirement_lineage import development_gate
@@ -327,8 +336,11 @@ class Development:
                 parent_proof=json.loads((self.root/evidence).read_text());parent_proof.update(code_state_sha256=submitted['submission_code_state']['state_sha256'],baseline=tracking.baseline(submitted))
                 review_evidence=self.report(out,'integration-review.json',parent_proof)
                 results=[{'criterion_id':c['id'],'result':'PASS' if passed else 'FAIL','evidence':review_evidence} for c in parent['criteria'] if c['required']]
-                outcome=self.tasks.review(parent_task_id,review['agent_run_id'],results,'integration command evidence; independent product acceptance remains separate')
-                return {'state':outcome,'parent_task_id':parent_task_id,'implementation_review':outcome,'handoff':'READY_FOR_VERIFICATION' if outcome=='DONE' else 'BLOCKED','feature_complete':False,'execution_path_validation':'NOT_ESTABLISHED','product_requirements_fulfillment':'NOT_ESTABLISHED'}
+                outcome=self.tasks.review(parent_task_id,review['agent_run_id'],results,'integration command evidence; independent product acceptance remains separate',
+                                          purpose='execution' if submitted.get('completion_semantics') == 'implementation_qa_v1' else 'official')
+                from harness.protected_verification import assess
+                official=assess(self.root,self.tasks.read()['tasks'][parent_task_id])
+                return {'state':outcome,'parent_task_id':parent_task_id,'implementation_review':outcome,'handoff':'READY_FOR_VERIFICATION' if outcome=='DONE' else 'BLOCKED','official_verification':official,'human_approval':'NOT_ESTABLISHED','feature_complete':False,'execution_path_validation':'NOT_ESTABLISHED','product_requirements_fulfillment':'NOT_ESTABLISHED'}
             except BaseException as exc:
                 state=self.tasks.read()['tasks'][parent_task_id]
                 for r in state['executions']:

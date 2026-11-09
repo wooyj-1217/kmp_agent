@@ -17,6 +17,8 @@ DOMAINS={'planning':('requirements','scope_policy','acceptance'),
 
 
 def contract_hash(task,config):
+    if 'human_approval_question_id' in config:
+        return log.digest(json.dumps({k:task.get(k) for k in ('task_id','feature_id','project_id','work_type','role','execution_scope','criteria')},sort_keys=True,ensure_ascii=False).encode()+json.dumps({'checks':config['checks'],'human_approval_question_id':config['human_approval_question_id']},sort_keys=True).encode())
     return log.digest(json.dumps({k:task.get(k) for k in ('task_id','feature_id','project_id','work_type','role','execution_scope','criteria')},sort_keys=True,ensure_ascii=False).encode()+json.dumps(config['checks'],sort_keys=True).encode())
 
 
@@ -25,6 +27,8 @@ def configure(manager,feature_id,stages):
         if set(stages)!=set(STAGES):raise ValueError('planning, design and development_plan must be separate contracts')
         seen=set()
         for name,c in stages.items():
+            if 'human_approval_question_id' in c and (not isinstance(c['human_approval_question_id'], str) or not c['human_approval_question_id'].strip()):
+                raise ValueError('human approval requires an explicit question ID')
             t=state['tasks'].get(c.get('task_id'),{})
             required={x['id'] for x in t.get('criteria',[]) if x.get('required')}
             if t.get('feature_id')!=feature_id or t.get('role')!=ROLES[name] or t.get('execution_scope')!='documentation' or t.get('task_id') in seen:
@@ -74,6 +78,13 @@ def assess(root,state,feature_id):
             status='RECHECK_REQUIRED';reasons.append('입력·산출물·검토 근거의 현재 해시/스냅샷 불일치')
         elif basis and review.get('stage_readiness_basis')!=basis:
             status='RECHECK_REQUIRED';reasons.append('검토 당시 선행 버전 연결이 현재 승인 입력과 다르거나 미확인')
+        if status == 'PASS' and c.get('human_approval_question_id'):
+            from harness.approvals import human_approval
+            artifacts = {a['path']:a['sha256'] for a in t.get('inputs', []) + t.get('outputs', [])}
+            receipt = human_approval(root, state, c['human_approval_question_id'], t['task_id'],
+                                     'stage:' + name, {'task_id':t['task_id'], 'stage':name}, artifacts)
+            if not receipt:
+                status='HUMAN_APPROVAL_REQUIRED';reasons.append('현재 작업·입력·산출물에 대한 인간 승인 근거 없음 또는 변경됨')
         if status=='PASS':
             basis[name]={'task_id':t['task_id'],'review_id':review['agent_run_id'],'outputs':{a['path']:a['sha256'] for a in t['outputs']}}
         exhausted=status in {'REWORK_REQUIRED','RECHECK_REQUIRED'} and attempts>=limit

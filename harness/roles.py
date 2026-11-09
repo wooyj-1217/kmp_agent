@@ -12,6 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from harness.tasks import Tasks, logging
 from harness.deliverables import archive, change, folder_key, restore
+from harness.process_ownership import managed_task
 
 CODE = Path(__file__).resolve().parents[1]
 PROTOCOL = {
@@ -356,6 +357,7 @@ class Roles:
             self.tasks._mutate("confirm_inputs", confirmed, task_id)
         return self.tasks.read()["tasks"][task_id].get("delivery", {"scope": task.get("role_contract", {}).get("scope", "input_interpretation_only")})
 
+    @managed_task
     def execute(self, task_id, role, worker=None, timeout=300):
         task=self.tasks.read()['tasks'][task_id]
         if task['state'] != 'DONE':
@@ -404,8 +406,16 @@ class Roles:
                 from harness.runtime_limits import model_slot
                 with model_slot(self.tasks,task_id,aid,timeout):
                     self.tasks.require_dispatch(task_id)
-                    child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE, text=True, start_new_session=True)
+                    from harness.recovery import spawn_intent, register_process
+                    intent = spawn_intent(self.tasks, task_id, aid)
+                    try:
+                        child = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE, text=True, start_new_session=True)
+                    except OSError:
+                        from harness.recovery import cancel_spawn
+                        cancel_spawn(self.tasks,task_id,intent)
+                        raise
+                    register_process(self.tasks, task_id, child, intent)
                     self.write(directory / f"dispatch-{index:03d}.json", {"pid": child.pid, "command": command,
                         "adapter": "custom_process" if worker else "codex_exec", "started_at": logging.now(), "usage": "UNKNOWN",
                         "implementation_sha256": {p: logging.digest((CODE / p).read_bytes()) for p in

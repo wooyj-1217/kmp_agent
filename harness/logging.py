@@ -13,6 +13,14 @@ import sys
 import time
 import uuid
 
+# Support both package imports and direct file loading.
+try:
+    from harness import durable_events
+except ModuleNotFoundError:
+    spec = importlib.util.spec_from_file_location('harness_durable_events', Path(__file__).with_name('durable_events.py'))
+    durable_events = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(durable_events)
+
 UNKNOWN = "UNKNOWN"
 KINDS = ("HARNESS_BUILD", "HARNESS_IMPROVEMENT", "PRODUCT")
 INTERVENTION_CLASSES = {"REQUIREMENT_CHANGE", "CORRECTION", "STATUS_OR_EXPLANATION", UNKNOWN}
@@ -115,8 +123,10 @@ class Logger:
     def read(self):
         if not self.path.exists():
             return []
-        with self.path.open(encoding="utf-8") as handle:
-            fcntl.flock(handle, fcntl.LOCK_SH)
+        with self.path.open("r+", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            durable_events.recover_locked(self.path, handle)
+            handle.seek(0)
             return [json.loads(line) for line in handle if line.strip()]
 
     def execution_context(self, run_id):
@@ -139,6 +149,7 @@ class Logger:
         """
         with self.path.open("a+", encoding="utf-8") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
+            durable_events.recover_locked(self.path, handle)
             handle.seek(0)
             existing = [json.loads(line) for line in handle if line.strip()]
             keys = {e['source_key'] for e in existing if e.get('source_key')}
@@ -193,11 +204,7 @@ class Logger:
                 if source_key:
                     keys.add(source_key)
             if prepared:
-                handle.seek(0,2)
-                handle.write(''.join(encoded for _,encoded in prepared))
-                handle.flush()
-                os.fsync(handle.fileno())
-                os.fchmod(handle.fileno(),0o600)
+                durable_events.append_locked(self.path, handle, ''.join(encoded for _,encoded in prepared).encode())
             return results
 
     def record_intervention(self, context, session_id, turn_id, classification, basis, evidence,
@@ -281,6 +288,8 @@ class Logger:
             return 0
         with self.path.open("r+", encoding="utf-8") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
+            durable_events.recover_locked(self.path, handle)
+            handle.seek(0)
             events = [json.loads(line) for line in handle if line.strip()]
             cache = {}
             for event in events:
@@ -352,6 +361,10 @@ class Logger:
         state_path = self.root / '.harness/tasks/tasks.yaml'
         policy_state = json.loads(state_path.read_text()) if state_path.exists() else {}
         managed = None
+        from harness.process_ownership import current_lease
+        if current_lease(self.root, task_id):
+            from harness.tasks import Tasks
+            managed = Tasks(self.root, run_id)
         if policy_state.get('execution_policy'):
             if task_id not in policy_state.get('tasks', {}):
                 raise ValueError('strict managed commands require an explicit planned task')

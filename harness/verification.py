@@ -147,7 +147,8 @@ def review_gate(manager, task, run, results, state=None):
 def current_reasons(manager, task, review):
     reasons=[]
     from harness.protected_verification import applies, assess
-    if applies(manager.root, task):
+    from harness.completion import scoped_review
+    if applies(manager.root, task) and not scoped_review(task, review):
         official = assess(manager.root, task)
         if official['result'] != 'PASS':
             reasons.append('official verification: ' + str(official['reason']))
@@ -175,10 +176,13 @@ def current_reasons(manager, task, review):
 def refresh(manager,state):
     for task in state['tasks'].values():
         from harness.protected_verification import applies, assess
+        from harness.completion import scoped_review
+        latest=(task.get('reviews') or [{}])[-1]
+        scoped=scoped_review(task,latest)
         if applies(manager.root, task):
             official = assess(manager.root, task)
             task['official_verification'] = official
-            if task.get('state') == 'DONE' and official['result'] != 'PASS':
+            if task.get('state') == 'DONE' and official['result'] != 'PASS' and not scoped:
                 task.setdefault('completion_invalidations', []).append({'historical_state': 'DONE', 'reason': official['reason']})
                 task.update(state='BLOCKED', blocked_reason='Official verification missing or stale: ' + str(official['reason']))
                 manager._event(state, 'protected_completion_invalidated', task, observed=official)
@@ -190,6 +194,10 @@ def refresh(manager,state):
                 status={'state':'RECHECK_REQUIRED','reasons':reasons}
                 task['validation_status'][key]=status
                 manager._event(state,'verification_invalidated',task,key,observed=status)
+        if scoped and task.get('state') == 'DONE':
+            key=latest['agent_run_id']
+            if task.get('validation_status',{}).get(key,{}).get('state') == 'RECHECK_REQUIRED':
+                task.update(state='BLOCKED',blocked_reason='Scoped completion evidence changed; recheck required')
 
 
 def submission_gate(manager, task, run, outputs):
