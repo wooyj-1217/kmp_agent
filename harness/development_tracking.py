@@ -324,14 +324,16 @@ def execution_scope(task):
 
 
 def document_outputs(task, paths, design_status=None):
+    submitted_status = design_status is not None
     design_status = design_status or task.get("design_status", {})
     # Development documentation is an explicit exemption, not a route to submit source/configuration.
     if (task["role"] == "development" or task.get("execution_scope") in {"documentation", "input_interpretation_only"}) and execution_scope(task) != "code_implementation":
         allowed = {".md", ".txt", ".rst", ".adoc", ".pdf", ".docx"}
         # An explicitly submitted mockup is a design artifact, not product implementation.
-        # A reviewed mockup keeps its artifact type during handoff. This only
-        # permits design file suffixes; Tasks.review still enforces visual proof.
-        if task["role"] == "design" and (design_status or {}).get("mockup") == "COMPLETE" and (design_status or {}).get("visual_review") in {"NOT_RUN", "PASS"}:
+        # A stored reviewed mockup keeps its artifact type during handoff.
+        # Explicit submission still cannot self-report a visual PASS.
+        visual = design_status.get('visual_review')
+        if task["role"] == "design" and design_status.get("mockup") == "COMPLETE" and (visual == "NOT_RUN" or visual == "PASS" and not submitted_status):
             allowed |= {".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp"}
         if any(Path(p).suffix.lower() not in allowed for p in paths):
             raise ValueError("non-code task cannot submit source/configuration; create a code_implementation task")
