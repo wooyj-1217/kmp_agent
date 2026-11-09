@@ -38,6 +38,16 @@ rtk proxy python3 -B -m harness.cli --target /absolute/project development --run
 
 영역 검증과 별도 통합 검증을 모두 통과해도 READY_FOR_VERIFICATION이다. 독립 QA 및 제품 필수 인수 조건은 별도다. 과거 PASS는 기준/코드 변경 뒤 CURRENT인지 확인한다.
 
+### 구현 완료와 공식 인증
+
+새로 등록한 `execution_scope: code_implementation` 작업과 새 위임 구성에는 `completion_semantics: implementation_qa_v1`을 기록한다. 기존 상태 이름과 원장 형식은 유지한다. 코디네이터는 자식과 부모를 `Tasks.review(..., purpose='execution')`으로 검토하며, 이때의 `DONE`은 구현 실행·통합 범위의 완료다. `execution_completion` receipt와 정확한 코드 상태를 보존한 뒤 QA에 인계할 수 있다. 보호 발행자가 없어도 이 인계는 가능하지만 공식 인증 PASS를 만들지 않는다. 위임·개발 추적이 없는 임의 작업에는 이 검토 목적을 사용할 수 없다.
+
+공식 인증은 별도의 명시적 검토이며 기본 `purpose='official'`을 유지한다. 현재 구현 receipt가 있는 DONE 작업은 검토를 다시 시작할 수 있지만, QA·관리자 승인·보호 증거가 없거나 현재 코드와 다르면 공식 완료가 차단된다. 구현 receipt의 코드·입력·증거가 오래되면 현재 DONE도 재검증 대상으로 차단한다. 구현 완료, QA 관찰 PASS, 관리자 공식 인증과 사람의 제품 방향 승인은 서로 대체하지 않는다. 상세 조건은 [보호 검증](protected-verification.md)을 따른다.
+
+유효한 구현 실행 receipt에 한해 검토 범위·파일 내용·파일 모드가 모두 같으면 제출 commit으로 HEAD/index가 바뀐 것만으로 무효화하지 않는다. 이미 `RECHECK_REQUIRED`인 과거 판정은 이 예외로 자동 복원하지 않는다. 파일·모드·범위 또는 입력·증거 변경 검사는 유지하며, 공식 검토와 보호 인증은 제출 commit·tree·해시의 정확한 일치를 계속 요구한다.
+
+기존 저장 작업에는 새 의미를 일괄 소급 적용하지 않는다. 과거 DONE과 `LEGACY_UNCERTIFIED` 이력은 공식 인증으로 승격하지 않는다. 다음 QA 호출·공식 검토는 여전히 명시 호출이며 자동 오케스트레이션은 추가하지 않는다.
+
 승인 제약이 있으면 계획의 UI 소유권은 정책과 같아야 하며 통합 명령은 선택한 모든 타깃의 승인 명령을 포함해야 한다. 자식의 금지 소스 패턴 검사와 부모의 필수 패턴·진입 파일·UI 경로 검사를 구분한다. 통합 증거는 제출 work 실행에 연결된 native 명령 시작/종료·argv·출력 digest와 대조한다. 웹 누락이나 실행 불가를 PASS로 바꾸지 않는다. integration_verification은 별도 제품 인수 단계이며 구현 위임으로 대체하지 않는다.
 
 ## 제약

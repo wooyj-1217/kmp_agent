@@ -27,11 +27,19 @@
 
 신뢰 루트는 `/etc/kmp-agent/verification/<프로젝트 절대 경로 SHA-256>.json`이다. 후보 파일이나 환경변수로 이를 선택하지 않는다. 정책의 `schema_version: 1`, `project_root`, `issuer`, `public_key_pem`, 서로 다른 `agent_uid`/`publisher_uid`, 프로젝트 밖 `receipt_directory`/`execution_root`, `tasks` 바인딩을 확인한다. task 계약에는 `approved_commit`, 승인된 `definition`과 `definition_path`, `plan.path/sha256`, `protected_paths`, `configuration_paths`, `validation_inputs`, `criteria`, 고정 `completion_contract`/`verification_contract`를 둔다. 필수 테스트·assertion·기준 이미지·제외 설정을 빠짐없이 승인 입력으로 지정하는 것은 관리자 승인 책임이다.
 
-`Tasks.review`는 기존 기준/receipt 검사 후 DONE 전 보호 gate를 호출한다. 보호 정책에 등록한 task를 원장에서 삭제하거나 task 식별자/완료 설정을 바꾸는 것도 차단한다. 서명의 issuer·publisher UID·job ID·유효기간, 전체 제출 commit/tree, 승인 계획과 계약 digest, 필수 기준의 check 대응, 시나리오 결과와 원본 해시를 다시 검사한다. 대시보드의 기존 task 상세에는 공식 판정, 기준/플랫폼/종류, 미실행·차단 이유, 검증 commit/job을 투영한다.
+`Tasks.review`의 기본 `purpose='official'`은 기존 기준/receipt 검사 후 DONE 전 보호 gate를 호출한다. 보호 정책에 등록한 task를 원장에서 삭제하거나 task 식별자/완료 설정을 바꾸는 것도 차단한다. 서명의 issuer·publisher UID·job ID·유효기간, 전체 제출 commit/tree, 승인 계획과 계약 digest, 필수 기준의 check 대응, 시나리오 결과와 원본 해시를 다시 검사한다. 대시보드의 기존 task 상세에는 공식 판정, 기준/플랫폼/종류, 미실행·차단 이유, 검증 commit/job을 투영한다.
+
+### 구현·QA의 제한된 DONE과 공식 인증
+
+새 `implementation_qa_v1` 작업의 위임 실행 검토와, 그 대상을 검증하도록 구성한 `qa_observation_v1` 작업의 QA 관찰 검토는 각각 `purpose='execution'`, `purpose='qa_observation'`을 사용한다. 이 두 경로는 현재 범위의 receipt와 필수 기준을 확인하고 기존 DONE 상태를 사용하되 공식 보호 PASS를 발행하지 않는다. 구현·QA 작업 구성이 없는 임의 purpose 지정은 거부한다. 원장에 purpose나 DONE만 직접 적는 것으로 유효한 제한 완료 receipt가 성립하지 않는다. 현재 코드·입력·증거 검사도 유지한다. 사람의 승인은 두 receipt 모두에서 `NOT_ESTABLISHED`이며 별도 원문 승인 근거가 필요하다.
+
+`implementation_qa_v1`의 공식 인증에는 관리자 task 계약의 같은 `completion_semantics`, `qa_task_id`, 정확한 `qa_approval`을 요구한다. `qa_approval`은 `qa_task_id`, `agent_run_id`, `review_run_id`, `report_sha256`, `target_manifest_sha256`으로 승인한 QA basis를 고정한다. 현재 대상의 최신 QA PASS, 필수 기준, 보고서·원본 증거 해시, 대상 baseline·manifest·scope·생성물 제외 범위를 다시 검사하며 관리자 승인 basis와 같아야 한다. QA 실패·다른 대상·증거 변경·코드 추가/변경/삭제는 과거 QA를 공식 완료에 재사용할 수 없다.
+
+보호 candidate와 서명 payload에는 관리자 승인 QA basis도 포함한다. 발행자는 후보 로컬 원장의 QA PASS 주장을 신뢰 루트로 삼지 않는다. 관리자가 정확한 QA 근거를 검토해 후보 밖 정책에 고정하는 책임과 보호 작업의 독립 실행은 유지된다. 로컬 QA PASS만으로 공식 인증하거나 사람의 제품 승인을 추정하지 않는다. 기존 계약에 새 의미를 소급 적용하지 않으며 과거 `LEGACY_UNCERTIFIED`는 그대로 비인증 이력이다.
 
 보호 gate 거부 등으로 검토가 중단되면 호출자는 활성 review 실행에 `Tasks.fail`을 적용해 원래 실패 사유와 실행 종류를 보존하고 실행을 종료한다. 작업은 `BLOCKED`로 남으며 공식 PASS나 검토 성공 기록을 만들지 않는다. 이미 종료되었거나 다른 실행 ID에 대한 실패 처리는 거부한다. 필수 질문 응답을 기다리는 실행은 work와 review 모두 기본 실패 처리로 종료하지 않고 대기·체크포인트를 유지한다. 답변 후 재개하거나 `cancel_question_wait=True`로 대기를 명시적으로 취소한 경우에만 종료한다.
 
-현재는 전체 제출 커밋을 보수적으로 무효화 범위로 사용한다. 코드가 바뀌면 영향을 추측해 과거 결과를 재사용하지 않고 재실행한다. 승인 계획·필수 테스트/assertion·기준 이미지·CI/빌드/제외 설정 변경은 기존 승인 재사용을 거부한다. 신규 테스트 파일 추가는 허용하지만 설정 추가/변경은 재승인 대상이다. 영향받는 기준을 기존 승인 담당에게 반환하고 승인 정의/정책을 갱신한 뒤 새 커밋에서 실행한다. 기존 review·실패 원본은 삭제하지 않는다.
+공식 보호 인증은 전체 제출 커밋을 보수적으로 무효화 범위로 사용한다. 제한된 구현 실행 receipt에 적용하는 내용 보존 commit 예외는 공식 검토·서명·보호 증거의 commit/tree/해시 검사를 완화하지 않는다. 코드가 바뀌면 영향을 추측해 과거 결과를 재사용하지 않고 재실행한다. 승인 계획·필수 테스트/assertion·기준 이미지·CI/빌드/제외 설정 변경은 기존 승인 재사용을 거부한다. 신규 테스트 파일 추가는 허용하지만 설정 추가/변경은 재승인 대상이다. 영향받는 기준을 기존 승인 담당에게 반환하고 승인 정의/정책을 갱신한 뒤 새 커밋에서 실행한다. 기존 review·실패 원본은 삭제하지 않는다.
 
 ## 실행과 운영 경계
 

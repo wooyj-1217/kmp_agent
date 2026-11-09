@@ -183,7 +183,8 @@ def refresh(manager, state):
                     try: current = capture(manager, task)
                     except (ValueError,OSError,KeyError,TypeError) as error: capture_error = error
                 if capture_error: raise ValueError('current capture unavailable') from capture_error
-                if current["state_sha256"] != proof["code_state"]["state_sha256"]:
+                from harness.completion import execution_code_matches
+                if current["state_sha256"] != proof["code_state"]["state_sha256"] and not execution_code_matches(task,review,current):
                     reasons.append("code state changed or impact unknown")
                 if baseline(task) != proof["baseline"]:
                     reasons.append("input baseline changed")
@@ -323,13 +324,16 @@ def execution_scope(task):
 
 
 def document_outputs(task, paths, design_status=None):
+    submitted_status = design_status is not None
     design_status = design_status or task.get("design_status", {})
     # Development documentation is an explicit exemption, not a route to submit source/configuration.
     if (task["role"] == "development" or task.get("execution_scope") in {"documentation", "input_interpretation_only"}) and execution_scope(task) != "code_implementation":
         allowed = {".md", ".txt", ".rst", ".adoc", ".pdf", ".docx"}
         # An explicitly submitted mockup is a design artifact, not product implementation.
-        # The separate visual review remains NOT_RUN; this never grants quality PASS.
-        if task["role"] == "design" and (design_status or {}).get("mockup") == "COMPLETE" and (design_status or {}).get("visual_review") == "NOT_RUN":
+        # A stored reviewed mockup keeps its artifact type during handoff.
+        # Explicit submission still cannot self-report a visual PASS.
+        visual = design_status.get('visual_review')
+        if task["role"] == "design" and design_status.get("mockup") == "COMPLETE" and (visual == "NOT_RUN" or visual == "PASS" and not submitted_status):
             allowed |= {".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp"}
         if any(Path(p).suffix.lower() not in allowed for p in paths):
             raise ValueError("non-code task cannot submit source/configuration; create a code_implementation task")

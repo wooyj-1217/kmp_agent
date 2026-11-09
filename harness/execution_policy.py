@@ -151,9 +151,20 @@ def dependency_closure(state, initial):
 def pending(state, task_id):
     result = []
     for qid, q in state.get('required_questions', {}).items():
-        if q['status'] != 'OPEN':
+        from harness.decisions import is_superseded
+        if is_superseded(state, q):
             continue
-        affected = dependency_closure(state, q['propagated_task_ids'])
+        if q.get('status') == 'ANSWERED':
+            from harness.decisions import validate_answer
+            if validate_answer(state, q):
+                continue
+        contract = q.get('decision_contract') or {}
+        roots = set()
+        for field in (q.get('propagated_task_ids'), q.get('affected_task_ids'), contract.get('affected_task_ids')):
+            if isinstance(field, list) and all(isinstance(t, str) for t in field):
+                roots.update(field)
+        # Broken scope records cannot become permission to proceed.
+        affected = dependency_closure(state, roots) if roots else set(state['tasks'])
         if task_id in affected:
             result.append(qid)
     return result
@@ -165,15 +176,20 @@ def gate(manager, state, task_id, action):
     if task_id not in state['tasks']:
         raise ValueError('managed execution requires an existing task')
     task = state['tasks'][task_id]
+    from harness.completion import execution_review
+    latest = (task.get('reviews') or [{}])[-1]
+    certification_review = bool(action == 'begin_review' and execution_review(task, latest)
+                                and task.get('validation_status', {}).get(latest.get('agent_run_id'), {}).get('state') == 'CURRENT')
     if task['state'] == 'DONE':
         if action == 'handoff':
             return  # Completed source history may be handed to a separately gated target.
-        raise ValueError('completed task history does not permit a new managed execution: task already completed')
+        if not certification_review:
+            raise ValueError('completed task history does not permit a new managed execution: task already completed')
     questions = pending(state, task_id)
     if questions:
         raise ValueError('required human answer pending: ' + ', '.join(questions))
     contract = inherit(state, task, manager.run_id)
-    if not contract or task['state'] == 'DONE':
+    if not contract:
         return
     if manager.run_id not in state.get('execution_policy_bindings', {}):
         raise ValueError('bind the current run to its fixed native root session before managed execution')
@@ -257,12 +273,24 @@ def stop_owned_group(child, drain, timeout=2):
     return result if result is not None else drain(child, timeout=timeout)
 
 
+from harness.recovery import owned_command
+
+
+@owned_command
 def managed_command(manager, task_id, argv, cwd, timeout=None, text=True):
     """Poll and terminate only this owned process; no arbitrary historical PIDs."""
     manager.require_dispatch(task_id)
     watch = WorkerGate(manager, task_id)
-    child = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text,
-                             start_new_session=True)
+    from harness.recovery import spawn_intent, register_process, cancel_spawn
+    active=[r for r in manager.read()['tasks'][task_id]['executions'] if not r.get('ended_at')]
+    intent=spawn_intent(manager,task_id,active[0]['agent_run_id'])
+    try:
+        child = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text,
+                                 start_new_session=True)
+    except OSError:
+        cancel_spawn(manager,task_id,intent)
+        raise
+    register_process(manager,task_id,child,intent)
     deadline = time.monotonic() + timeout if timeout is not None else None
     try:
         while True:

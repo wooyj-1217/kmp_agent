@@ -98,26 +98,9 @@ def write_payload(writer, encoded):
 
 def recover_batch(logger, stats, trace=None):
     """Finish only an exact prefix of our durable intent, without truncating logs."""
-    journal = logger.directory / 'collection-batch-intent.json'
-    if not journal.exists(): return
-    if json.loads(journal.read_text()).get('state') == 'COMMITTED': return
     with lock(logger.path, stats, 'recovery_events', trace=trace) as writer:
-        intent = json.loads(journal.read_text())
-        if intent.get('state') == 'COMMITTED': return
-        writer.seek(0); data = writer.buffer.read()
-        start = intent['start']; encoded = intent['encoded'].encode()
-        if len(data) >= start+len(encoded):
-            if data[start:start+len(encoded)] != encoded:
-                raise ValueError('batch journal conflicts with saved events; preserve and inspect')
-            atomic_json(journal, dict(state='COMMITTED',end=start+len(encoded)))
-            return
-        if (len(data) < start or hashlib.sha256(data[:start]).hexdigest() != intent['prefix_sha256']
-                or not encoded.startswith(data[start:])):
-            raise ValueError('batch journal prefix mismatch; preserve and inspect')
-        writer.seek(0,2)
-        write_payload(writer, encoded[len(data)-start:])
-        stats['recovered_batch_bytes'] = start+len(encoded)-len(data)
-        atomic_json(journal, dict(state='COMMITTED',end=start+len(encoded)))
+        recovered = logger_module().durable_events.recover_locked(logger.path, writer)
+        if recovered: stats['recovered_batch_bytes'] = recovered
 
 
 def append_batch(logger, candidates, stats, trace=None):
@@ -160,21 +143,21 @@ def append_batch(logger, candidates, stats, trace=None):
         stats['batch_prepare_seconds'] = stats.get('batch_prepare_seconds', 0) + time.monotonic()-start
         if trace: trace('batch_prepared',attempt=attempt,candidates=len(candidates),new_events=len(rows),prepare_seconds=time.monotonic()-start)
         with lock(logger.path, stats, 'events', trace=trace) as writer:
+            module.durable_events.recover_locked(logger.path, writer)
             if signature(os.fstat(writer.fileno())) != signature(after): continue
             writer.seek(0, 2)
             # One write buffer; cursor cannot advance until flush + fsync succeed.
             if encoded:
                 journal_started=time.monotonic()
-                atomic_json(logger.directory / 'collection-batch-intent.json',
-                            dict(start=len(data), prefix_sha256=hashlib.sha256(data).hexdigest(),
-                                 encoded=encoded.decode()))
-                stats['journal_commit_seconds']=time.monotonic()-journal_started
-                if trace: trace('batch_intent_durable',new_events=len(rows))
-                write_started=time.monotonic()
-                write_payload(writer, encoded)
-                stats['events_write_fsync_seconds']=time.monotonic()-write_started
-                atomic_json(logger.directory / 'collection-batch-intent.json',
-                            dict(state='COMMITTED', end=len(data)+len(encoded)))
+                def intent_durable():
+                    stats['journal_commit_seconds']=time.monotonic()-journal_started
+                    if trace: trace('batch_intent_durable',new_events=len(rows))
+                def measured_write(handle, payload):
+                    started=time.monotonic()
+                    write_payload(handle,payload)
+                    stats['events_write_fsync_seconds']=time.monotonic()-started
+                module.durable_events.append_locked(logger.path, writer, encoded,
+                    writer=measured_write, intent_durable=intent_durable)
             stats.update(imported_events=len(rows), duplicate_events=len(candidates)-len(rows), batch_retries=attempt)
             return len(rows)
     raise RuntimeError('event log changed repeatedly; retry collection')

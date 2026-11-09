@@ -121,6 +121,106 @@ def _relative(value):
     return value
 
 
+def qa_basis(root, task, contract):
+    """Current local QA consistency, compared with an administrator-pinned basis.
+
+    This is not a QA identity authority. The protected owner approves this exact
+    basis; the publisher signs the owner policy, never a candidate QA claim.
+    """
+    root = Path(root).resolve()
+    state_path = root / '.harness/tasks/tasks.yaml'
+    if not state_path.resolve().is_relative_to(root):
+        raise ValueError('QA ledger escapes project')
+    state = json.loads(state_path.read_text())
+    qa = state['tasks'].get(contract.get('qa_task_id'), {})
+    config = qa.get('qa_config') or {}
+    if qa.get('state') != 'DONE' or config.get('target_task_id') != task['task_id']:
+        raise ValueError('current target QA PASS required before official certification')
+    if any(not r.get('ended_at') for r in qa.get('executions', [])):
+        raise ValueError('QA still running')
+    attempt = (config.get('attempts') or [{}])[-1]
+    review = (qa.get('reviews') or [{}])[-1]
+    if attempt.get('outcome') != 'PASS' or review.get('agent_run_id') != attempt.get('review_run_id'):
+        raise ValueError('latest exact QA attempt is not PASS')
+    if qa.get('validation_status', {}).get(attempt.get('review_run_id'), {}).get('state') == 'RECHECK_REQUIRED':
+        raise ValueError('QA requires recheck')
+    required = {c['id'] for c in qa.get('criteria', []) if c.get('required')}
+    rows = {r['criterion_id']: r for r in review.get('results', [])}
+    if not required or any(rows.get(c, {}).get('result') != 'PASS' for c in required):
+        raise ValueError('mandatory QA observations incomplete')
+
+    def artifact(ref, parse=True):
+        for key, hashkey in (('path', 'sha256'), ('snapshot', 'snapshot_sha256')):
+            path = (root / _relative(ref[key])).resolve()
+            if not path.is_relative_to(root) or not path.is_file() or sha(path.read_bytes()) != ref[hashkey]:
+                raise ValueError('QA evidence missing or changed')
+        return json.loads((root / ref['snapshot']).read_text()) if parse else None
+
+    report = artifact(attempt['report'])
+    for cid in required:
+        artifact(rows[cid]['evidence'])
+    if (report.get('result') != 'PASS' or report.get('authority') != 'AGENT_QA_OBSERVATION_ONLY'
+            or report.get('target_task_id') != task['task_id']
+            or report.get('target_manifest') != config.get('target_manifest')
+            or report.get('target_scope') != config.get('manifest_scope')
+            or report.get('generated_paths') != config.get('generated_paths')
+            or report.get('criterion_definitions') != qa.get('criteria')):
+        raise ValueError('QA report target or criteria mismatch')
+    target_baseline = task.get('development_tracking', {}).get('baselines', task.get('inputs', []))
+    observed_baseline = config.get('target_baseline')
+    # QA's explicit owner-repair path preserves the declared baseline inside a
+    # rebase receipt. It does not replace the original acceptance authority.
+    if (isinstance(observed_baseline, dict)
+            and set(observed_baseline) == {'declared_baseline', 'observed_current_inputs', 'observed_current_outputs'}
+            and isinstance(observed_baseline['observed_current_inputs'], list)
+            and isinstance(observed_baseline['observed_current_outputs'], list)):
+        for ref in observed_baseline['observed_current_inputs'] + observed_baseline['observed_current_outputs']:
+            artifact(ref, parse=False)
+        observed_baseline = observed_baseline['declared_baseline']
+    if observed_baseline != target_baseline:
+        raise ValueError('QA target baseline changed')
+    for ref in report.get('evidence_refs', {}).values():
+        # Raw observation evidence need not be JSON.
+        for key, hashkey in (('path', 'sha256'), ('snapshot', 'snapshot_sha256')):
+            path = (root / _relative(ref[key])).resolve()
+            if not path.is_relative_to(root) or not path.is_file() or sha(path.read_bytes()) != ref[hashkey]:
+                raise ValueError('QA raw evidence changed')
+    expected = config.get('target_manifest')
+    if not isinstance(expected, dict) or not expected:
+        raise ValueError('QA target manifest missing')
+    # Recompute the same content scope without importing candidate Python in the
+    # protected module. Additions as well as changes/deletions invalidate QA.
+    scope = config.get('manifest_scope') or {}
+    generated = config.get('generated_paths', [])
+    current = {}
+    for path in root.rglob('*'):
+        rel = path.relative_to(root)
+        name = rel.as_posix()
+        if rel.parts[0] == 'verification' or set(rel.parts) & {'.git', '.harness', '.kmp-agent', '.codex', '.agents', '.worker-cache', '__pycache__', 'qa-tools'}:
+            continue
+        if any(name == p or name.startswith(p + '/') for p in generated):
+            continue
+        if scope.get('mode') == 'target_paths' and not any(name == p or name.startswith(p.rstrip('/') + '/') for p in scope.get('paths', [])):
+            continue
+        if path.is_symlink():
+            current[name] = 'SYMLINK:' + os.readlink(path)
+        elif path.is_file():
+            current[name] = sha(path.read_bytes())
+    if current != expected:
+        raise ValueError('QA target code changed; reverify current code')
+    return {'qa_task_id': qa['task_id'], 'agent_run_id': attempt['agent_run_id'],
+            'review_run_id': attempt['review_run_id'], 'report_sha256': attempt['report']['sha256'],
+            'target_manifest_sha256': sha(canonical(expected))}
+
+
+def _qa_approval(contract):
+    approval = contract.get('qa_approval')
+    fields = {'qa_task_id', 'agent_run_id', 'review_run_id', 'report_sha256', 'target_manifest_sha256'}
+    if not isinstance(approval, dict) or set(approval) != fields or any(not isinstance(v, str) or not v for v in approval.values()) or approval['qa_task_id'] != contract.get('qa_task_id'):
+        raise ValueError('administrator approval of exact QA evidence required')
+    return approval
+
+
 def candidate(root, contract, identity=None):
     """The complete submitted Git tree is the invalidation scope; no impact guesses."""
     root = Path(root).resolve()
@@ -168,7 +268,10 @@ def candidate(root, contract, identity=None):
         actual = sha(inspect('show', commit + ':' + _relative(relative)))
         if actual != expected:
             raise ValueError('approved test/assertion/baseline changed: ' + relative)
-    return {'commit': commit, 'tree': inspect('rev-parse', 'HEAD^{tree}').decode().strip(),
+    extra = {}
+    if contract.get('completion_semantics') == 'implementation_qa_v1':
+        extra['qa_approval'] = _qa_approval(contract)
+    return {**extra, 'commit': commit, 'tree': inspect('rev-parse', 'HEAD^{tree}').decode().strip(),
             'definition_sha256': sha(canonical(definition)), 'plan_version': definition['plan_version'],
             'approved_plan_sha256': plan['sha256'], 'approval_sha256': sha(canonical(contract))}
 
@@ -217,6 +320,14 @@ def assess(root, task):
         if not contract:
             return {'result': 'BLOCKED' if requires(task) else 'LEGACY_UNCERTIFIED',
                     'reason': 'PROTECTED_AUTHORITY_UNAVAILABLE' if policy is None else 'APPROVED_VERIFICATION_DEFINITION_MISSING', 'checks': []}
+        semantics = contract.get('completion_semantics')
+        if task.get('completion_semantics') != semantics:
+            raise ValueError('completion semantics differ from protected approval; owner reapproval required')
+        if semantics == 'implementation_qa_v1':
+            if qa_basis(root, task, contract) != _qa_approval(contract):
+                raise ValueError('latest QA differs from protected owner approval')
+        elif semantics is not None:
+            raise ValueError('unsupported official completion semantics')
         if task.get('criteria') != contract['criteria']:
             raise ValueError('completion criteria differ from protected approval')
         if task.get('completion_contract') != contract.get('completion_contract') or task.get('verification_contract') != contract.get('verification_contract'):
@@ -280,6 +391,9 @@ def assess(root, task):
                          'commit': current['commit'], 'job_id': payload['job_id']})
         passed = bool(rows) and all(r['result'] == 'PASS' for r in rows if r['required'])
         return {'result': 'PASS' if passed else 'BLOCKED', 'reason': None if passed else 'REQUIRED_CHECKS_INCOMPLETE',
+                'approval_type': 'OFFICIAL_CERTIFICATION',
+                'qa_authorization': {'approval_type':'QA_AUTHORIZATION', 'authority':'PROTECTED_ADMIN_POLICY',
+                                     'basis':_qa_approval(contract)} if semantics == 'implementation_qa_v1' else None,
                 **current, 'issuer': policy['issuer'], 'job_id': payload['job_id'], 'checks': rows,
                 'receipt_path':str(archive), 'receipt_sha256':sha(canonical(envelope))}
     except (ValueError, OSError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired) as error:

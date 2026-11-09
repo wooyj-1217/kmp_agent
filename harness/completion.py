@@ -220,9 +220,65 @@ def _usage(manager, state, task, run):
             raise ValueError('completion usage UNKNOWN: ambiguous or conflicting execution binding')
 
 
-def gate(manager, state, task):
-    from harness.protected_verification import gate as protected_gate
-    protected_gate(manager, task)
+IMPLEMENTATION_SEMANTICS = 'implementation_qa_v1'
+
+
+def execution_review(task, review):
+    """Recognize a scoped execution receipt, never an official certificate.
+
+    The remaining artifact/code checks still run in verification/development_tracking.
+    An editable purpose flag alone cannot exempt an injected DONE from refresh.
+    """
+    receipt = task.get('execution_completion') or {}
+    code = (review.get('development_evidence') or {}).get('code_state') or {}
+    required = {c['id'] for c in task.get('criteria', []) if c.get('required')}
+    rows = {r['criterion_id']: r.get('result') for r in review.get('results', [])}
+    return bool(task.get('completion_semantics') == IMPLEMENTATION_SEMANTICS
+                and task.get('development_tracking')
+                and (task.get('development_delegation') or task.get('coordination_plan_id'))
+                and review.get('purpose') == 'execution'
+                and receipt.get('review_run_id') == review.get('agent_run_id')
+                and receipt.get('code_state_sha256') == code.get('state_sha256')
+                and code.get('state_sha256')
+                and required and all(rows.get(c) == 'PASS' for c in required)
+                and not review.get('protected_verification'))
+
+
+def observation_review(task, review):
+    receipt = task.get('qa_observation_completion') or {}
+    required = {c['id'] for c in task.get('criteria', []) if c.get('required')}
+    rows = {r['criterion_id']: r.get('result') for r in review.get('results', [])}
+    return bool(task.get('completion_semantics') == 'qa_observation_v1'
+                and task.get('role') == 'verification' and task.get('qa_config')
+                and review.get('purpose') == 'qa_observation'
+                and receipt.get('review_run_id') == review.get('agent_run_id')
+                and required and all(rows.get(c) == 'PASS' for c in required)
+                and not review.get('protected_verification'))
+
+
+def scoped_review(task, review):
+    return execution_review(task, review) or observation_review(task, review)
+
+
+def execution_code_matches(task, review, current):
+    """Allow content-preserving commits only for an implementation receipt.
+
+    Official reviews retain exact HEAD/index/code-state validation. This does
+    not revive invalidated history or accept changed files, modes or scope.
+    """
+    previous = (review.get('development_evidence') or {}).get('code_state') or {}
+    return bool(execution_review(task, review)
+                and previous.get('files') is not None
+                and all(k in previous and k in current and previous[k] == current[k]
+                        for k in ('scope', 'files', 'modes')))
+
+
+def gate(manager, state, task, *, purpose='official'):
+    if purpose not in {'official', 'execution', 'qa_observation'}:
+        raise ValueError('unknown completion purpose')
+    if purpose == 'official':
+        from harness.protected_verification import gate as protected_gate
+        protected_gate(manager, task)
     config = task.get('completion_contract')
     if not config:
         return

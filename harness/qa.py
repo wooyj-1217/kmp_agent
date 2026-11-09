@@ -160,6 +160,8 @@ class QA:
         config={'generated_paths':generated,'repair_criteria':copy.deepcopy(links),'repair_criteria_definitions':{c['id']:copy.deepcopy(c) for c in state['tasks'].get(repair_task_id,{}).get('criteria',[]) if c['id'] in links},'context_artifacts':context_refs,'images':image_refs,'manifest_scope':scope,'stage':stage,'executable':executable,'timeout':timeout,'target_task_id':target_task_id,'original_requests':refs,'commands':commands,'repair_task_id':repair_task_id,'target_manifest':scoped_manifest(self.root,scope,generated),'target_baseline':copy.deepcopy(target.get('development_tracking',{}).get('baselines',target.get('inputs',[]))),'attempts':[]}
         def op(s):
             t=s['tasks'][task_id];t['qa_config']=config
+            if target.get('completion_semantics') == 'implementation_qa_v1':
+                t['completion_semantics']='qa_observation_v1'
             self.tasks._event(s,'qa_configured',t,observed={'stage':stage,'target_task_id':target_task_id,'original_requests':refs})
         self.tasks._mutate('configure_qa',op,task_id)
         return config
@@ -210,6 +212,9 @@ class QA:
             return closed
         return self.tasks._mutate('qa_verified_issue_resolution',op,qa_task_id)
 
+    from harness.process_ownership import managed_task
+
+    @managed_task
     def execute(self,task_id,worker=None,repair=None,executable=None,timeout=None):
         self.tasks.require_dispatch(task_id, preflight=True)
         context={'phase':'preflight','owned_runs':[]}
@@ -397,7 +402,8 @@ class QA:
             if task.get('verification_contract'):
                 from harness.verification import qa_receipts
                 review_rows=qa_receipts(self.tasks,task_id,review,result,review_rows,workspace,base)
-            self.tasks.review(task_id,review['agent_run_id'],review_rows,'QA '+outcome+'; local evidence check, not self approval')
+            self.tasks.review(task_id,review['agent_run_id'],review_rows,'QA '+outcome+'; local evidence check, not self approval',
+                              purpose='qa_observation' if task.get('completion_semantics') == 'qa_observation_v1' else 'official')
             context['phase']='findings'
             attempt={'agent_run_id':aid,'review_run_id':review['agent_run_id'],'outcome':outcome,'report':self.tasks.artifact(str(report_path.relative_to(self.root))),'finding_ids':[],'repair':'NOT_RUN'}
             for f in (result or {}).get('findings',[]):

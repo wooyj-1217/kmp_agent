@@ -167,8 +167,9 @@ QA reports carry `authority: AGENT_QA_OBSERVATION_ONLY`; their criterion results
 findings and bounded repair requests remain available. `official_verification`
 is a separate read-only assessment of the target. QA checks only its mapped
 criteria; a summary, successful implementation report or partial QA cannot issue
-an official PASS or cover another platform. Existing owner receipt handoff still
-passes through the protected gate at `Tasks.review`.
+an official PASS or cover another platform. An official owner completion review
+still passes through the protected gate at `Tasks.review`; the scoped reviews
+described below do not certify the owner.
 
 The protected job executes the administrator-approved definition against the
 submitted commit. Completion checks its signature, issuer, commit, plan and each
@@ -177,3 +178,19 @@ mandatory execution blocks completion. See [protected verification](protected-ve
 for reapproval after test/baseline/CI changes and deployment boundaries. Local QA
 PASS terminology in earlier sections denotes that local QA result, not an
 administrator-issued whole-product acceptance.
+
+For a target with `completion_semantics: implementation_qa_v1`, configure marks
+the QA task `qa_observation_v1`. Its local final review uses
+`purpose='qa_observation'` and stores a `qa_observation_completion` receipt. DONE
+here means the scoped QA observation completed; it does not require a protected
+publisher and cannot issue official certification or establish human approval.
+Existing unmarked QA tasks retain their earlier review semantics.
+
+Official certification of the target is a separate explicit review. It requires
+the latest exact passing QA attempt, unchanged report/evidence and target code,
+plus administrator approval of that exact QA basis in the protected policy and
+valid protected execution evidence. QA FAIL, stale or altered evidence and code
+changes cannot be replaced by a local PASS/DONE claim. The publisher signs the
+administrator-approved QA basis; local QA state alone is not its trust root.
+See the protected contract for the exact approval fields. This does not deploy
+the authority or automatically dispatch QA or certification.

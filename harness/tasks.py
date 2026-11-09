@@ -39,6 +39,11 @@ class Tasks:
             handle.flush()
             os.fsync(handle.fileno())
         temporary.replace(self.path)
+        descriptor = os.open(self.directory, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
     def _flush(self, state):
         if len(state["outbox"]) > 1 and all(e["event_type"] == "usage_attributed" for e in state["outbox"]):
@@ -67,7 +72,12 @@ class Tasks:
 
     def _mutate(self, action, operation, task_id=UNKNOWN):
         from harness.tracking_io import state_lock
-        with state_lock(self.root, self.directory / "state.lock", action):
+        from harness.integration_transaction import read_barrier
+        # Refresh, gates and persistence must see one settled integration view.
+        # A live writer settles normally; only an abandoned journal needs recovery.
+        # Wait for integration before taking the ledger lock, so a live writer
+        # cannot consume another reader's shorter ledger-lock deadline.
+        with read_barrier(self.root), state_lock(self.root, self.directory / "state.lock", action):
             state = json.loads(self.path.read_text()) if self.path.exists() else {"schema_version": 1, "tasks": {}, "outbox": []}
             from harness.protected_verification import validate_ledger
             validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
@@ -81,6 +91,8 @@ class Tasks:
             original = copy.deepcopy(state)
             try:
                 from harness.execution_policy import gate
+                from harness.recovery import progress_gate
+                progress_gate(self, task_id, action)
                 gate(self, state, task_id, action)
                 result = operation(state)
                 validate_ledger(self.root, state, allow_registration=action in {'register','register_execution_plan'})
@@ -240,6 +252,9 @@ class Tasks:
                 "design_status": {"specification": "NOT_STARTED", "mockup": "NOT_PRODUCED",
                                   "visual_review": "NOT_RUN", "visual_evidence": None},
                 "visual_required": visual_required}
+        if execution_scope == 'code_implementation':
+            from harness.completion import IMPLEMENTATION_SEMANTICS
+            task['completion_semantics'] = IMPLEMENTATION_SEMANTICS
         policy_path = self.root / '.harness/verification-policy.json'
         if policy_path.exists():
             policy = json.loads(policy_path.read_text())
@@ -345,7 +360,12 @@ class Tasks:
             if task.get('verification_required') and not task.get('verification_contract'):
                 raise ValueError('required verification contract missing before execution')
             expected = "IN_REVIEW" if review else "READY"
-            if task["state"] != expected or role not in ROLES or (not review and role != task["role"]):
+            from harness.completion import execution_review
+            previous = (task.get('reviews') or [{}])[-1]
+            certification_review = bool(review and task['state'] == 'DONE'
+                                        and execution_review(task, previous)
+                                        and task.get('validation_status', {}).get(previous.get('agent_run_id'), {}).get('state') == 'CURRENT')
+            if (task["state"] != expected and not certification_review) or role not in ROLES or (not review and role != task["role"]):
                 raise ValueError("state or role does not permit execution")
             if review and role not in {"verification", "orchestrator"}:
                 raise ValueError("review role must be verification or orchestrator")
@@ -398,6 +418,24 @@ class Tasks:
             from harness.usage_context import frozen
             # Copy the context before emitting start; later task edits never relabel it.
             run['usage_context'] = frozen(state, task, run, usage_context)
+            from harness.process_ownership import current_lease
+            lease = current_lease(self.root, task_id)
+            if lease is not None:
+                from harness.recovery import workspace_basis
+                lease.bind(reserved_id)
+                run['process_owner'] = lease.record()
+                run['recovery_start_basis'] = workspace_basis(self, task)
+                recovery = task.get('recovery') or {}
+                if not review and recovery.get('state')=='RECOVERABLE' and recovery.get('resume_dispatched') and not recovery.get('resumed_execution'):
+                    from harness.recovery import basis_identity
+                    checkpoint = recovery['checkpoint']
+                    if not self._valid_artifact(checkpoint):
+                        raise ValueError('recovery checkpoint changed before execution')
+                    expected = json.loads((self.root/checkpoint['snapshot']).read_text())['current_basis']
+                    if basis_identity(run['recovery_start_basis']) != basis_identity(expected):
+                        raise ValueError('recovery basis changed before execution; recheck required')
+                    run['recovery_from'] = recovery['recovery_id']
+                    recovery['resumed_execution'] = reserved_id
             task["executions"].append(run)
             if task.get('execution_contract'):
                 run['execution_contract'] = copy.deepcopy(task['execution_contract'])
@@ -406,6 +444,9 @@ class Tasks:
             if not review:
                 task["state"] = "IN_PROGRESS"
                 self._event(state, "task_state_changed", task, run["agent_run_id"], observed={"from": "READY", "to": "IN_PROGRESS"})
+            elif certification_review:
+                task['state'] = 'IN_REVIEW'
+                self._event(state, 'task_state_changed', task, run['agent_run_id'], observed={'from': 'DONE', 'to': 'IN_REVIEW', 'reason': 'explicit certification review; implementation receipt retained'})
             self._event(state, "agent_run_started", task, run["agent_run_id"], observed={"started_at": run["started_at"], "inputs": run["inputs"], "baseline": run.get("baseline"), "code_state": run.get("code_state_start")},
                         summary={"role": role, "execution_mode": execution_mode, "independent_model_spawned": False})
             return copy.deepcopy(run)
@@ -545,9 +586,21 @@ class Tasks:
             self._event(state, "task_state_changed", task, agent_run_id, observed={"from": "IN_PROGRESS", "to": "IN_REVIEW", "design_status": task["design_status"]})
         self._mutate("submit", operation, task_id)
 
-    def review(self, task_id, agent_run_id, results, summary, design_checks=None):
+    def review(self, task_id, agent_run_id, results, summary, design_checks=None, *, purpose='official'):
         def operation(state):
             task = state["tasks"][task_id]
+            from harness.completion import IMPLEMENTATION_SEMANTICS
+            if purpose not in {'official', 'execution', 'qa_observation'}:
+                raise ValueError('unknown review purpose')
+            if purpose == 'execution' and not (
+                    task.get('completion_semantics') == IMPLEMENTATION_SEMANTICS
+                    and task.get('development_tracking')
+                    and (task.get('development_delegation') or task.get('coordination_plan_id'))):
+                raise ValueError('execution review requires a configured delegated implementation')
+            if purpose == 'qa_observation' and not (
+                    task.get('completion_semantics') == 'qa_observation_v1'
+                    and task.get('role') == 'verification' and task.get('qa_config')):
+                raise ValueError('QA observation review requires a configured scoped QA task')
             from harness.stage_readiness import STAGES
             for result in results:
                 if 'return_stage' in result and (result['result']!='FAIL' or result['return_stage'] not in STAGES or task['feature_id'] not in state.get('stage_workflows',{}) or not result.get('reason')):
@@ -606,9 +659,10 @@ class Tasks:
             official_proof = None
             if passed:
                 from harness.protected_verification import gate as protected_gate
-                official_proof = protected_gate(self, task)
+                if purpose == 'official':
+                    official_proof = protected_gate(self, task)
                 from harness.completion import gate as completion_gate
-                completion_gate(self, state, task)
+                completion_gate(self, state, task, purpose=purpose)
             passed = passed and (not task["visual_required"] or task["design_status"]["visual_review"] == "PASS")
             passed = passed and (task["role"] != "design" or task["design_status"]["specification"] == "COMPLETE")
             from harness.project_contract import review_gate
@@ -626,7 +680,8 @@ class Tasks:
                 passed = passed and task["design_status"]["mockup"] == "COMPLETE"
                 passed = passed and all(task["design_status"].get("checks", {}).get(k, {}).get("result") == "PASS"
                                         for k in ("structure", "interaction", "visual"))
-            record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"])}
+            record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"]), 'purpose': purpose,
+                      'approval_type': 'ROLE_REVIEW', 'human_approval': 'NOT_ESTABLISHED'}
             if official_proof and official_proof['result'] == 'PASS':
                 record['protected_verification'] = official_proof
             if verification_proof is not None:
@@ -653,6 +708,13 @@ class Tasks:
                             raise ValueError("PASS evidence requires exact code state and baseline")
                 record["development_evidence"] = {"code_state": code, "baseline": baseline(task)}
                 task.setdefault("validation_status", {})[agent_run_id] = {"state": "CURRENT" if passed else "NOT_PASSED"}
+            if passed and purpose == 'execution':
+                task['execution_completion'] = {'review_run_id': agent_run_id,
+                    'code_state_sha256': record['development_evidence']['code_state']['state_sha256'],
+                    'claim_scope': 'IMPLEMENTATION_ONLY', 'human_approval': 'NOT_ESTABLISHED'}
+            if passed and purpose == 'qa_observation':
+                task['qa_observation_completion'] = {'review_run_id': agent_run_id,
+                    'claim_scope': 'QA_OBSERVATION_ONLY', 'human_approval': 'NOT_ESTABLISHED'}
             task["reviews"].append(record)
             task.update(state="DONE" if passed else "BLOCKED", blocked_reason=None if passed else "Required review failed or NOT_RUN, or required visual review incomplete")
             if task.get("delivery"):
@@ -665,7 +727,7 @@ class Tasks:
                 run["code_state_result"] = copy.deepcopy(record["development_evidence"]["code_state"])
             from harness.sequential import finish
             finish(self, task, run)
-            self._event(state, "task_reviewed", task, agent_run_id, observed={"results": checked, "design_status": task["design_status"], "development_evidence": record.get("development_evidence")}, summary={"reviewer_role": run["role"], "result": summary})
+            self._event(state, "task_reviewed", task, agent_run_id, observed={"results": checked, "purpose": purpose, "design_status": task["design_status"], "development_evidence": record.get("development_evidence")}, summary={"reviewer_role": run["role"], "result": summary})
             self._event(state, "agent_run_finished", task, agent_run_id, observed={"ended_at": run["ended_at"], "outputs": run["outputs"]})
             self._event(state, "task_state_changed", task, agent_run_id, observed={"from": "IN_REVIEW", "to": task["state"], "reason": task["blocked_reason"]})
             return task["state"]
