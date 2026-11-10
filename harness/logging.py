@@ -347,6 +347,9 @@ class Logger:
 
     def checkpoint(self, run_id, result, finish=False):
         start = self.run(run_id)
+        if finish and start['work_type'] == 'PRODUCT':
+            from harness.product_guard import finish as guard_finish
+            guard_finish(self.root,run_id)
         if any(e["run_id"] == run_id and e["event_type"] == "run_finished" for e in self.read()):
             raise ValueError("run already finished")
         observed = {"changed_files": changes(start["observed"]["files"], snapshot(self.root)),
@@ -396,6 +399,8 @@ class Logger:
             raise ValueError("command cwd must exist inside target project")
         if not command or command[0] != "rtk":
             raise ValueError("wrapped commands must start with rtk")
+        from harness.product_guard import authorize_command
+        authorize_command(self.root, policy_state, task_id, command, run_id=run_id)
         before = snapshot(self.root)
         call_id = str(uuid.uuid4())
         metadata = {**binding, "call_id": call_id, "command_kind": command_kind,

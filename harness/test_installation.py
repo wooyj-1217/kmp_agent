@@ -136,8 +136,10 @@ class InstallationTests(unittest.TestCase):
         self.assert_owned_preserved()
         hooks = boot.read(self.target / ".codex/hooks.json")
         commands = [h["command"] for g in hooks["hooks"]["Stop"] for h in g["hooks"]]
-        self.assertEqual(len(commands), 2)
+        self.assertEqual(len(commands), 3)
         self.assertIn("product-owned-hook", commands)
+        self.assertEqual(1,sum(command.endswith(' guard') for command in commands))
+        self.assertEqual(1,len(hooks['hooks']['PreToolUse']))
         self.assertNotIn(str(ROOT), json.dumps(hooks))
         self.assertFalse(Path(result["installation"]["code_path"]).is_absolute())
         self.assertEqual(git("check-ignore", ".kmp-agent/releases/" + self.first + "/VERSION", cwd=self.target),

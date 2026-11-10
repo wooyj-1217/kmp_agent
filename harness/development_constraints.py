@@ -93,8 +93,11 @@ def _authoritative(manager, archive=True, product=False):
     lineage = lineage_load(manager.root)
     if product and lineage['scope'] != 'PRODUCT':
         raise ValueError('product implementation cannot use trial development decisions')
-    if not compare(manager.root)['structurally_ready']:
+    comparison = compare(manager.root)
+    if not comparison['structurally_ready']:
         raise ValueError('development decisions need approved, complete requirement lineage')
+    if product and not comparison['authorization_ready']:
+        raise ValueError('product technology decisions require current native human authorization; derived labels or general plan approval are insufficient')
     rows = [r for r in lineage['requirements'] if KEY in r['expected']]
     if len(rows) != 1:
         raise ValueError('exactly one authoritative requirement must define development_constraints')

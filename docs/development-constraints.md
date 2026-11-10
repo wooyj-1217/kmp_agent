@@ -2,6 +2,8 @@
 
 개발 소스의 계약이다. 별도 승인 원장이나 제품 스택을 만들지 않고 [요구사항 출처·일치 계약](requirement-lineage.md)의 `requirement-lineage.json`을 재사용한다. 설치본·릴리스·적용 프로젝트로 자동 전파하지 않는다.
 
+설치된 제품의 raw 도구 호출·종료·게시 연결은 [제품 도구 검사](product-tool-enforcement.md)를 따른다. PRODUCT 기술 결정은 구조상 출처 연결뿐 아니라 현재 native 인간 승인도 필요하다. 기능 기획 승인만으로 기술 정책을 바꾸거나 승인 레이블을 직접 기재해 적용하지 않는다.
+
 ## 원본과 구성
 
 정확히 하나의 authoritative requirement의 `expected.development_constraints`에 아래 정책을 둔다. 승인 의미·원본 진위는 기존 독립 requirements QA가 확인한다. AGENT_DERIVED나 설정의 CONFIRMED 표기만으로 기술 변경을 승인하지 않는다. PRODUCT의 `code_implementation` 작업에는 필수이며 PRODUCT lineage가 필요하다. 그 밖의 작업은 lineage에 이 정책을 명시한 경우에만 적용한다. 정책을 명시하지 않은 기존 입력 해석·시험을 소급 인증하지 않는다.

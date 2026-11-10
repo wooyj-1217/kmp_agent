@@ -10,15 +10,15 @@ import bootstrap
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--target", type=Path, required=True)
-    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "planning", "design", "development", "verification", "qa", "task", "usage-register", "usage-poll", "command", "collection-report", "start", "finish"])
+    parser.add_argument("action", choices=["init", "status", "update", "recover", "hook", "guard", "planning", "design", "development", "verification", "qa", "task", "usage-register", "usage-poll", "command", "collection-report", "start", "finish"])
     parser.add_argument("--source")
     parser.add_argument("--ref")
     parser.add_argument("--task-id")
     parser.add_argument("--run-id", default="UNKNOWN")
     parser.add_argument("--tracking-settings", type=Path, help="One-time project modules/commands JSON, reused after init")
-    parser.add_argument("--operation", choices=["register", "configure-completion", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
+    parser.add_argument("--operation", choices=["register", "register-execution-plan", "configure-execution-policy", "bind-execution-session", "configure-task-plan", "open-question", "answer-question", "question-status", "configure-completion", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     parser.add_argument("--agent-run-id", default="UNKNOWN")
     parser.add_argument("--attempt-id", default="UNKNOWN")
@@ -34,6 +34,9 @@ def main():
     args = parser.parse_args()
     target = args.target.resolve()
     command_exit = None
+    if args.action == "guard":
+        from harness.product_guard import main as guard_main
+        return guard_main(target)
     if args.action == "hook":
         hook = bootstrap.load(ROOT / "harness/codex_sync.py", "installed_codex_hook")
         return hook.supervise()

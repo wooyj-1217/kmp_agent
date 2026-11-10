@@ -102,6 +102,8 @@ class Development:
         config={'children':specifications,'architecture':arch,'shared_owners':owners,'integration_commands':integration_commands,'max_parallel':max_parallel,'executable':executable,'timeout':timeout}
         constraints.gate(self.tasks,parent)
         constraints.check_plan(self.tasks,parent,arch,specifications,integration_commands)
+        from harness.product_guard import configured_adapter
+        configured_adapter(self.tasks,parent,integration_commands+[command for child in specifications for command in child['verification_commands']],executable)
         if constraints.load(self.tasks,parent) is not None and parent.get('stage_contract',{}).get('stage')=='integration_verification':
             raise ValueError('integration_verification requires separate product acceptance, not implementation delegation')
         # All constraints are checked before creating any child.
@@ -283,6 +285,10 @@ class Development:
         if not previous.get('development_delegation'):
             raise ValueError('development delegation plan required before coordinator execution')
         config=previous['development_delegation']
+        from harness.product_guard import configured_adapter, installed
+        if installed(self.root) and worker is not None:
+            raise ValueError('installed development requires native adapters, not injected workers')
+        configured_adapter(self.tasks,previous,config['integration_commands']+[command for child in config['children'] for command in child['verification_commands']],config['executable'])
         constraints.check_plan(self.tasks,previous,config['architecture'],config['children'],config['integration_commands'])
         if worker is None:
             from harness.execution_plan import require

@@ -103,6 +103,14 @@ def hook_spec(target=None):
     return result
 
 
+def guard_spec(target):
+    if not (Path(target) / '.kmp-agent/installation.json').is_file():
+        return {}
+    command = 'rtk proxy python3 "$(rtk proxy git rev-parse --show-toplevel)/.kmp-agent/agent.py" guard'
+    return {event: {'type':'command', 'command':command, 'timeout':30}
+            for event in ('PreToolUse','Stop')}
+
+
 def fingerprint(target, skills=None):
     """Version availability, not proof that every role document was read."""
     target = Path(target).resolve()
@@ -123,7 +131,7 @@ def fingerprint(target, skills=None):
     files = {kind: {str(p.relative_to(ROOT)): checksum(p.read_bytes()) for p in group if p.is_file()}
              for kind, group in paths.items()}
     hashes = {kind: checksum(group) for kind, group in files.items()}
-    hashes["settings"] = checksum({"shared_hooks": hook_spec(target), "target_inputs": {
+    hashes["settings"] = checksum({"shared_hooks": hook_spec(target), "product_guards": guard_spec(target), "target_inputs": {
         str(p.relative_to(target)): checksum(p.read_bytes()) if p.exists() else None
         for p in (target / "AGENTS.md", target / ".codex/hooks.json", target / ".codex/config.toml", target / ".kmp-agent/project.json")}})
     git = subprocess.run(["rtk", "proxy", "git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True)
@@ -160,6 +168,19 @@ def plan(target, skills):
             groups.append({"hooks": [expected]})
         else:
             matches[0].update(expected)
+    for event, expected in guard_spec(target).items():
+        groups = tree.setdefault(event, [])
+        matches = [(group,handler) for group in groups for handler in group.get('hooks', [])
+                   if handler.get('command') == expected['command']]
+        if len(matches) > 1:
+            raise ValueError('duplicate product guard: '+event)
+        if matches:
+            group, handler = matches[0]
+            if group.get('matcher') not in {None,'','*'}:
+                raise ValueError('product guard must cover all tools: '+event)
+            handler.update(expected)
+        else:
+            groups.append({'hooks':[expected]})
     original = hook_path.read_text() if hook_path.exists() else None
     desired = {}
     if original is None or json.loads(original) != hooks:

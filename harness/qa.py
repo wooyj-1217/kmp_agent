@@ -147,6 +147,8 @@ class QA:
         if not criteria or any(not c.get('id') or not c.get('description') or type(c.get('required')) is not bool for c in criteria):raise ValueError('explicit QA criteria required')
         commands=commands or []
         if any(not isinstance(c,list) or not c or not all(isinstance(x,str) for x in c) for c in commands):raise ValueError('commands must be argv lists')
+        from harness.product_guard import configured_adapter
+        configured_adapter(self.tasks,target,commands,executable)
         from harness.qa_policy import generated_paths as check_generated,repair_criteria as check_links
         protected=[r['path'] for r in refs+target['inputs']+target['outputs']+image_refs+context_refs]
         protected+=target.get('development_tracking',{}).get('code_paths',[])
@@ -234,6 +236,10 @@ class QA:
         task=self.tasks.read()['tasks'][task_id];config=task.get('qa_config')
         executable=executable or (config or {}).get('executable','codex');timeout=timeout or (config or {}).get('timeout',600)
         if task['role']!='verification' or not config:raise ValueError('QA must be configured on verification task')
+        from harness.product_guard import configured_adapter, installed
+        if installed(self.root) and (worker is not None or repair is not None):
+            raise ValueError('installed QA requires native adapters, not injected workers')
+        configured_adapter(self.tasks,self.tasks.read()['tasks'][config['target_task_id']],config['commands'],executable)
         if any(r.get('ended_at') is None for r in task['executions']):raise ValueError('QA already has an active execution')
         if any(str(v).startswith('SYMLINK:') for v in manifest(self.root).values()):raise ValueError('QA isolation refuses product symlinks')
         if task['state']=='DONE':raise ValueError('QA already completed; configure a new retest task')
