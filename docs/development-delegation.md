@@ -46,7 +46,7 @@ rtk proxy python3 -B -m harness.cli --target /absolute/project development --run
 
 유효한 구현 실행 receipt에 한해 검토 범위·파일 내용·파일 모드가 모두 같으면 제출 commit으로 HEAD/index가 바뀐 것만으로 무효화하지 않는다. 이미 `RECHECK_REQUIRED`인 과거 판정은 이 예외로 자동 복원하지 않는다. 파일·모드·범위 또는 입력·증거 변경 검사는 유지하며, 공식 검토와 보호 인증은 제출 commit·tree·해시의 정확한 일치를 계속 요구한다.
 
-기존 저장 작업에는 새 의미를 일괄 소급 적용하지 않는다. 과거 DONE과 `LEGACY_UNCERTIFIED` 이력은 공식 인증으로 승격하지 않는다. 다음 QA 호출·공식 검토는 여전히 명시 호출이며 자동 오케스트레이션은 추가하지 않는다.
+기존 저장 작업에는 새 의미를 일괄 소급 적용하지 않는다. 과거 DONE과 `LEGACY_UNCERTIFIED` 이력은 공식 인증으로 승격하지 않는다. 직접 development 호출은 구현 범위에서 끝난다. 계약 기반 단계 연쇄·QA 호출은 별도의 [foreground 오케스트레이터](orchestration.md)가 담당하며, 공식 검토·인증은 해당 권한과 증거를 계속 요구한다.
 
 승인 제약이 있으면 계획의 UI 소유권은 정책과 같아야 하며 통합 명령은 선택한 모든 타깃의 승인 명령을 포함해야 한다. 자식의 금지 소스 패턴 검사와 부모의 필수 패턴·진입 파일·UI 경로 검사를 구분한다. 통합 증거는 제출 work 실행에 연결된 native 명령 시작/종료·argv·출력 digest와 대조한다. 웹 누락이나 실행 불가를 PASS로 바꾸지 않는다. integration_verification은 별도 제품 인수 단계이며 구현 위임으로 대체하지 않는다.
 

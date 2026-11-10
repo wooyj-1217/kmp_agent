@@ -36,6 +36,10 @@ python3 -m harness.orchestrator --root . --run-id RUN --feature-id FEATURE resum
 
 `worker`(각 stage argv), `reviewer.command`(argv), QA `executable`은 합성 테스트·명시적 adapter용 선택 항목이다. 기본 모델 실행은 기존 Codex 실행기를 사용한다. custom reviewer에는 마지막 argv로 packet JSON 경로를 전달하며 stdout으로 `{summary, results, evidence_documents?, design_checks?}` JSON을 반환한다. `evidence_documents`의 안전한 파일명→내용을 adapter가 execution UUID 경로에 저장하고 `@파일명` 참조를 실제 증거 경로로 바꾼다. 결과 PASS는 독립 프로세스의 판단이며 controller가 생성하지 않는다. 디자인의 실제 구조/상호작용/시각 증거 계약은 기존 Tasks.review가 검사한다. 합성 PNG·합성 reviewer 성공을 실제 시각 검증으로 해석해서는 안 된다.
 
+## 검증 범위
+
+0.4.0 준비 시점의 실제 모델 기획→디자인→개발→QA 전체 E2E는 **NOT_RUN**이다. 기존 검증은 합성 worker·reviewer를 사용하는 subprocess 통합·계약 회귀 범위이며, 실제 제품 산출물·시각 품질의 실증이 아니다. 기본 Codex 실행기 연결 구현과 실제 모델 전체 완주 기록을 구분한다. 버전별 실행 근거는 [0.4.0 지원 현황](releases/v0.4.0.md)을 참조한다.
+
 ## 권한·상태 계약
 
 - `CONTINUE`: 현재 호출 안에서 다음 action을 선택할 수 있다.
