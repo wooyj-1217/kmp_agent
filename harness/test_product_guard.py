@@ -66,6 +66,38 @@ class InstalledProductGuard(unittest.TestCase):
             self.denied(self.tool(command=command))
         self.denied(self.tool('mcp__filesystem__write_file', 'anything'))
 
+    def test_git_read_options_cannot_launch_programs_or_write_files(self):
+        for command in (
+                'git ls-remote --upload-pack="touch guard-bypassed" .',
+                'git ls-remote -u "touch guard-bypassed" .',
+                'git ls-remote -utouch .',
+                'git ls-remote --upload="touch guard-bypassed" .',
+                'git ls-remote "ext::touch guard-bypassed"',
+                'git ls-remote custom-helper://argument',
+                'git cat-file --filters HEAD:shared/App.kt',
+                'git cat-file --fil HEAD:shared/App.kt',
+                'git diff --out=guard-bypassed',
+                'git show --ext HEAD',
+                'git show --text HEAD'):
+            with self.subTest(command=command):
+                self.denied(self.tool(command=command))
+
+    def test_ordinary_git_reads_and_option_like_paths_remain_available(self):
+        for command in ('git ls-remote origin', 'git ls-remote https://example.invalid/repo.git',
+                        'git cat-file -p HEAD', 'git diff -- --output=source.txt'):
+            with self.subTest(command=command):
+                self.assertEqual({}, self.tool(command=command))
+
+    def test_denied_git_upload_pack_never_creates_marker(self):
+        # Dispatch exactly as a hook-aware runner would; this executed touch on
+        # the original guard even though git subsequently exited with 128.
+        command = 'git ls-remote --upload-pack="touch guard-bypassed" .'
+        decision = self.tool(command=command)
+        if decision.get('hookSpecificOutput', {}).get('permissionDecision') != 'deny':
+            subprocess.run(command, shell=True, cwd=self.root, capture_output=True)
+        self.assertFalse((self.root/'guard-bypassed').exists())
+        self.denied(decision)
+
     def test_role_worker_and_target_override_are_not_metadata(self):
         for extra in ('--worker \'["python3","evil.py"]\'', '--worker=evil', '--target /other'):
             self.denied(self.tool(command='python3 .kmp-agent/agent.py planning --task-id PLAN '+extra))

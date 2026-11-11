@@ -225,6 +225,31 @@ def _option(argv, name):
     return argv[argv.index(name)+1]
 
 
+def _git_read(args):
+    if not args or args[0] not in GIT_READ:
+        return False
+    if args[0] == 'ls-remote':
+        for arg in args[1:]:
+            if re.match(r'^[A-Za-z0-9+.-]+::', arg):
+                return False  # Explicit remote-helper command/transport.
+            scheme = re.match(r'^([A-Za-z0-9+.-]+)://', arg)
+            if scheme and scheme[1] not in {'git', 'file', 'http', 'https', 'ssh'}:
+                return False
+    # Git accepts abbreviated long options. Merely matching --output or
+    # --upload-pack verbatim leaves --out/--upload and -u executable escapes.
+    dangerous = ('--output', '--ext-diff', '--textconv', '--filters', '--upload-pack')
+    for arg in args[1:]:
+        if arg == '--':
+            break  # Remaining arguments are paths, not options.
+        option = arg.split('=', 1)[0]
+        if option.startswith('--') and len(option) > 2 and any(
+                full.startswith(option) or option.startswith(full) for full in dangerous):
+            return False
+        if args[0] == 'ls-remote' and arg.startswith('-') and not arg.startswith('--') and 'u' in arg[1:]:
+            return False
+    return True
+
+
 def _shell(root, state, session, command):
     argv = _argv(command)
     program = Path(argv[0]).name
@@ -240,7 +265,7 @@ def _shell(root, state, session, command):
             if len(args) < 3 or (Path(root)/args[1]).resolve() != Path(root).resolve():
                 raise ValueError('Git mutation must target this project root')
             args = args[2:]
-        if args and args[0] in GIT_READ and not any(x.startswith(('--output','--ext-diff','--textconv')) for x in args[1:]):
+        if _git_read(args):
             return
         if args and args[0] == 'add':
             active(root,state,session); return
