@@ -8,7 +8,7 @@
 
 [배포 버전별 지원 현황](docs/releases/README.md): 설치한 태그/SHA의 제공 범위·실행 방식·검증 근거와 미배포 작업본을 구분한다.
 
-[하네스 시행착오](docs/retrospective.md): 구축·운영에서 확인한 문제와 개선 결과의 요약.
+[과거 시험·회고 보존](docs/examples-separation.md): 예제와 검증 기록의 로컬 보존·별도 실행 경계.
 
 [버전 고정 설치·init·update](docs/installation.md): 특정 태그/커밋 설치, 프로젝트별 설정·데이터 보존과 명시적 업데이트.
 [연결·동작 점검](docs/harness-projects.md): 설치 버전의 훅·로그·재시작 판정과 개발용 원본 참조 점검.
