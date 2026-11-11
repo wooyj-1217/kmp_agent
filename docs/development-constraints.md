@@ -6,6 +6,8 @@
 
 ## 원본과 구성
 
+DB 초기 결정은 [DB 기본 스택 확인](project-settings.md#db-기본-스택-확인)에 따라 공통 기본 조합의 사용/변경을 확인한다. 기본안 제시는 제품의 승인된 DB 결정이나 사용 여부를 대신하지 않으며, 확정 뒤 이 계약에 연결한다.
+
 정확히 하나의 authoritative requirement의 `expected.development_constraints`에 아래 정책을 둔다. 승인 의미·원본 진위는 기존 독립 requirements QA가 확인한다. AGENT_DERIVED나 설정의 CONFIRMED 표기만으로 기술 변경을 승인하지 않는다. PRODUCT의 `code_implementation` 작업에는 필수이며 PRODUCT lineage가 필요하다. 그 밖의 작업은 lineage에 이 정책을 명시한 경우에만 적용한다. 정책을 명시하지 않은 기존 입력 해석·시험을 소급 인증하지 않는다.
 
 ```json

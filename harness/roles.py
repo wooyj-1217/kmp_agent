@@ -152,6 +152,14 @@ class Roles:
                 "stage_contract": task.get("stage_contract"),
                 "inputs": sources, "protocol": PROTOCOL,
                 "instruction": "Use only supplied frozen sources and explicit decisions. No previous conversation is available. "
+                "Product client development MUST use Kotlin Multiplatform (KMP). KMP is mandatory, not a stack choice. "
+                "Return conflicting non-KMP client requirements before implementation; do not force unrelated planning/design decisions. "
+                "For development, identify shared modules/source sets, selected targets, sharing boundaries and target build/verification commands. "
+                "Target selection, Compose UI sharing and server technology remain project decisions. "
+                "DB defaults: new Kotlin/JVM server uses PostgreSQL + Exposed SQL DSL (JDBC) + Flyway; KMP local storage uses SQLite + SQLDelight. "
+                "Before a NEW product's first development, ask once whether to use these defaults or other specified values, unless already decided. "
+                "For products already in development, follow their existing DB specifications; never reset them or re-ask default adoption on feature work, resume or harness updates. "
+                "Inspect existing specs/settings/code first; ask only about actual missing or conflicting DB decisions. Defaults do not imply a DB is needed or authorize adoption without an answer. "
                 "Return JSON matching protocol. Never edit source files or another role's decisions. "
                 "Inspect existing sources before asking questions; assumptions stay INFERRED/UNKNOWN. "
                 "Only unresolved material decisions require waiting; do not mark unexecuted validation PASS. "
