@@ -141,7 +141,7 @@ JSON에는 해당 메서드의 이름 있는 인자를 넣는다. 예: ready는 
 
 ## 실제 인계 시험
 
-[시험 입력](examples/task-handoff/brief.md) → [기획 산출물](examples/task-handoff/requirements.md) → [기획 검토](examples/task-handoff/planning-review.md) → [디자인 산출물](examples/task-handoff/design.md) → [디자인 검토](examples/task-handoff/design-review.md)를 수행했다.
+과거 시험 입력·기획/디자인 산출물·검토는 [예제 분리 경계](examples-separation.md)에 따라 원래 로컬 경로에 보존한다. 아래는 당시 수행한 문서 인계 시험의 결과이며 현재 제품 작업의 필수 입력이 아니다.
 
 | 작업 | 결과 | 의미 |
 | --- | --- | --- |

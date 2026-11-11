@@ -9,15 +9,15 @@
 개발용 로컬 참조 대상은 `.harness/projects.json`에 등록할 수 있다(Git 제외). 상대 경로는 실행 도구 루트를 기준으로 한다. 다른 환경에서는 `--config <JSON>` 또는 `--target <저장소 루트>`를 사용할 수 있다. 일반 설치 대상에는 `.kmp-agent/project.json`과 프로젝트 진입 명령을 사용하며 원본 작업 트리의 버전을 자동 배포하지 않는다.
 
 ```json
-{"targets": [{"path": "../kmp_agent_demo_app", "skills": []}]}
+{"targets": [{"path": "../your-product", "skills": []}]}
 ```
 
-skills에는 공통 `.agents/skills/<이름>/SKILL.md`가 존재하는 스킬만 명시한다. 선택하지 않은 스킬은 설치하지 않는다. 현재 공통 스킬이 없는 데모의 skills는 빈 배열이며 N/A다. 외부 설치 스킬이나 개인 설정을 공통 스킬로 복제하지 않는다.
+skills에는 공통 `.agents/skills/<이름>/SKILL.md`가 존재하는 스킬만 명시한다. 선택하지 않은 스킬은 설치하지 않는다. 공통 스킬을 선택하지 않는 제품은 skills를 빈 배열로 둔다. 외부 설치 스킬이나 개인 설정을 공통 스킬로 복제하지 않는다.
 
 ```sh
 rtk proxy python3 harness/projects.py apply --config .harness/projects.json
 rtk proxy python3 harness/projects.py check --config .harness/projects.json
-rtk proxy python3 harness/projects.py verify --target ../kmp_agent_demo_app --session-id <실제 세션 ID> --message-id <실제 메시지 ID>
+rtk proxy python3 harness/projects.py verify --target ../your-product --session-id <실제 세션 ID> --message-id <실제 메시지 ID>
 ```
 
 apply는 필요한 연결 설정만 갱신하고 현재 증거로 검증한다. check/verify는 대상 설정·이벤트·원본을 수정하지 않는다. 종료 코드 0은 모든 지정 대상의 VERIFIED만 의미한다. 설정 쓰기가 성공했어도 실제 검증 대기·재시작 필요·실패이면 1이다. JSON의 connection과 runtime 결과를 따로 읽는다.

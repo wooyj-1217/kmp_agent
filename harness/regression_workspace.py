@@ -104,7 +104,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['list', 'run'])
     parser.add_argument('--workspace-root', default=str(Path(__file__).resolve().parents[2]))
-    parser.add_argument('--workspace', default=str(Path(__file__).resolve().parents[1] / 'regression/workspace.json'))
+    parser.add_argument('--workspace', required=True, help='Explicit project-owned workspace JSON; no bundled product default')
     parser.add_argument('--suite', choices=['smoke', 'full'], default='smoke')
     parser.add_argument('--platform', action='append')
     parser.add_argument('--scenario', action='append')

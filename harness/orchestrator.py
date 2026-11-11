@@ -69,7 +69,9 @@ def _task_contract(task):
         'role', 'criteria', 'max_attempts', 'visual_required', 'execution_scope',
         'work_type', 'execution_contract', 'verification_contract', 'completion_contract',
         'work_plan')} | {'role_contract': {k: copy.deepcopy(task.get('role_contract', {}).get(k))
-                                         for k in ('folder', 'scope', 'change_id', 'design_targets')}}
+                                         for k in ('folder', 'scope', 'change_id', 'design_targets')}
+                                     | ({'ui_applicability':copy.deepcopy(task['role_contract']['ui_applicability'])}
+                                        if task.get('role_contract', {}).get('ui_applicability') else {})}
 
 
 def _implementation_contract(task):
@@ -353,14 +355,20 @@ def _review(manager, tid, spec):
                   'criteria': task['criteria'], 'inputs': task['inputs'], 'outputs': task['outputs'],
                   'design_status': task.get('design_status'), 'role_contract': task.get('role_contract'),
                   'instruction': 'Independently inspect each criterion and current outputs. Return JSON {summary,results:[{criterion_id,result:PASS|FAIL|NOT_RUN,evidence:relative_path}],evidence_documents:{safe_name:content},design_checks:optional}. Reference generated evidence as @safe_name; the adapter persists it. Never invent evidence, human approval or official certification. Design checks must follow the existing structure/interaction/visual report contract; unobserved visuals are NOT_RUN. Do not write project source files.'}
+        if task.get('role_contract', {}).get('ui_applicability'):
+            packet['instruction'] += ' UI is explicitly NOT_APPLICABLE: inspect the source-bound declaration and interface/error contracts; omit design_checks and never report visual PASS.'
         path = directory / 'packet.json'
         path.write_text(json.dumps(packet, ensure_ascii=False, indent=2))
         result_path = directory / 'result.json'
         command = spec.get('command')
         argv = command + [str(path)] if command else ['codex', 'exec', '--ignore-user-config', '--sandbox', 'read-only', '--skip-git-repo-check', '-o', str(result_path), 'Read ' + str(path) + ' and perform its ROLE_REVIEW. Output JSON only.']
         try:
+            if task.get('role_contract', {}).get('ui_applicability'):
+                manager._mutate('role_process', lambda state: manager._event(state, 'role_process', state['tasks'][tid], aid, observed={'process_state':'role_process_started','independent_model_spawned':command is None,'argv':argv}), tid)
             with model_slot(manager, tid, aid, spec.get('timeout', 300)):
                 result = managed_command(manager, tid, argv, manager.root, timeout=spec.get('timeout', 300))
+            if task.get('role_contract', {}).get('ui_applicability'):
+                manager._mutate('role_process', lambda state: manager._event(state, 'role_process', state['tasks'][tid], aid, observed={'process_state':'role_process_finished','exit_code':result.returncode}), tid)
             (directory / 'stdout.log').write_text(result.stdout)
             (directory / 'stderr.log').write_text(result.stderr)
             if result.returncode:

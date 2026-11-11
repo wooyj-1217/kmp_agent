@@ -58,4 +58,4 @@ rtk proxy python3 -m harness.protected_verification status --root /absolute/proj
 
 과거 원장은 읽고 원문을 보존한다. 보호 계약 없는 과거 작업은 `LEGACY_UNCERTIFIED`이며 새 공식 PASS로 승격하지 않는다. [기존 receipt 계약](verification-reliability.md), [QA 관찰/보완](qa.md), [개발 계획](templates/development-plan.md)을 함께 참조한다.
 
-실제 HTTP 실행 예시는 [별도 Ktor 메모 fixture](../tools/fixtures/ktor-memo/README.md)를 참조한다. 고유 메모의 POST 생성·GET 재조회는 독립 server/API 기준이며 데모 앱 연동이나 서버 재시작 영속성을 검증하지 않는다. 모바일 UI 기준의 결과로 대체하지 않는다.
+선택 HTTP 시험과 앱별 fixture는 [별도 로컬 companion](examples-separation.md)에서 명시한 하네스 source/ref로 실행한다. 해당 시험은 현재 하네스·새 설치물의 기본 입력이 아니다. server/API 증거는 그 시험의 선언 범위에만 적용하고 제품 연동·재시작 영속성·모바일 UI 검증으로 확대하지 않는다.

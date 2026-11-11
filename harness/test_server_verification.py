@@ -1,6 +1,6 @@
-"""Server-specific real completion entrypoint; authority and signatures are fixtures.
+"""Required server criterion gate; authority and signatures are synthetic fixtures.
 
-This does not provision administrator authority or certify the memo demo.
+This does not execute an application, provision authority or certify a product.
 """
 import copy
 import json
@@ -22,8 +22,12 @@ class ServerVerificationTests(unittest.TestCase):
 
     def setUp(self):
         fixtures.ProtectedVerificationTests.setUp(self)
-        self.server = json.loads((Path(__file__).resolve().parents[1] /
-            'tools/fixtures/ktor-memo/verification.json').read_text())['checks'][0]
+        self.server = {'id':'synthetic-server-check','criterion_id':'SERVER-CONTRACT',
+                       'platform':'server','kind':'api','required':True,
+                       'command':['rtk','proxy','python3','contract-check.py'],
+                       'expected':'Synthetic server criterion must be independently present and passing',
+                       'expected_tests':['ServerContract.required_check'],
+                       'results':[{'path':'verification/server.xml','format':'junit'}]}
         self.criteria.append({'id': self.server['criterion_id'], 'required': True,
                               'description': self.server['expected']})
         self.definition['checks'].append(copy.deepcopy(self.server))
@@ -41,7 +45,7 @@ class ServerVerificationTests(unittest.TestCase):
     def sign_server(self, mode='pass', observation=None, evidence_root=None):
         def change(payload):
             server = payload['checks'][-1]
-            server['scenarios'] = [{'id': 'KtorMemo.create_then_get', 'result': 'PASS'}]
+            server['scenarios'] = [{'id': 'ServerContract.required_check', 'result': 'PASS'}]
             if observation is not None:
                 server.clear(); server.update(copy.deepcopy(observation))
                 for ref in server.get('result_files', []) + server.get('outputs', []):
@@ -53,7 +57,7 @@ class ServerVerificationTests(unittest.TestCase):
                 payload['checks'].pop()
             elif mode == 'fail':
                 server.update(result='FAIL', reason='SCENARIO_FAILED', exit_code=1,
-                              scenarios=[{'id': 'KtorMemo.create_then_get', 'result': 'FAIL'}])
+                              scenarios=[{'id': 'ServerContract.required_check', 'result': 'FAIL'}])
         return self.sign(change)
 
     def test_client_pass_cannot_replace_missing_required_server(self):

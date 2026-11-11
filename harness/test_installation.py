@@ -11,6 +11,13 @@ import unittest
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+DEVELOPMENT_MARKERS = (
+    "docs/examples/fixture.md", "docs/retrospective.md", "docs/memo-real-trial-request.md",
+    "docs/memo-trial.md", "regression/workspace.json", "regression/catalog.json",
+    "harness/trial.py", "harness/role_trial.py", "harness/star_trial.py",
+    "harness/role_example_worker.py", "harness/dashboard_fixture.py",
+    "harness/test_support/fixture.py",
+)
 spec = importlib.util.spec_from_file_location("installer_tested", ROOT / "bootstrap.py")
 boot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boot)
@@ -31,8 +38,14 @@ class InstallationTests(unittest.TestCase):
         source.mkdir()
         for name in ["bootstrap.py", "VERSION", "AGENTS.md", "README.md", "design.md", "plan.md", ".gitignore"]:
             shutil.copy2(ROOT / name, source / name)
-        shutil.copytree(ROOT / "harness", source / "harness", ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copytree(ROOT / "docs", source / "docs", ignore=shutil.ignore_patterns("local-environment.md"))
+        shutil.copytree(ROOT / "harness", source / "harness", ignore=shutil.ignore_patterns("__pycache__", "trial.py", "role_trial.py", "star_trial.py", "role_example_worker.py", "dashboard_fixture.py"))
+        shutil.copytree(ROOT / "docs", source / "docs", ignore=shutil.ignore_patterns("local-environment.md", "examples", "retrospective.md", "memo-real-trial-request.md", "memo-trial.md"))
+        # Synthetic old-release markers exercise sparse exclusion without a
+        # dependency on historical product examples in this source checkout.
+        for name in DEVELOPMENT_MARKERS:
+            marker = source / name
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("# synthetic development-only marker\n")
         skill = source / ".agents/skills/fixture-skill"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("synthetic shared skill\n")
@@ -43,6 +56,7 @@ class InstallationTests(unittest.TestCase):
         (source / "VERSION").write_text("0.1.0\n")  # Synthetic first release, independent of candidate VERSION.
         git("init", "--quiet", source)
         git("add", ".", cwd=source)
+        git("add", "-f", *DEVELOPMENT_MARKERS, cwd=source)
         git("add", "-f", ".agents/skills/fixture-skill/SKILL.md", cwd=source)
         git("-c", "user.name=Synthetic Test", "-c", "user.email=synthetic@example.invalid", "commit", "--quiet", "-m", "fixture release one", cwd=source)
         cls.first = git("rev-parse", "HEAD", cwd=source)
@@ -181,6 +195,7 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(manifest["file_profile"], "product-v1")
         self.assertFalse(list((code / "harness").glob("test_*.py")))
         for name in ("docs/examples", "docs/retrospective.md", "docs/memo-real-trial-request.md",
+                     "docs/memo-trial.md", "regression", "harness/test_support",
                      "tools/dev-check.py", "harness/run_tests.py", "harness/trial.py",
                      "harness/role_trial.py", "harness/star_trial.py", "harness/role_example_worker.py",
                      "harness/dashboard_fixture.py", "harness/request_link_render_check.js"):

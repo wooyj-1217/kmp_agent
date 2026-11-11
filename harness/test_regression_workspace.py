@@ -1,5 +1,8 @@
 """Independent offline workspace selection and fail-closed orchestration tests."""
 import copy
+import contextlib
+import io
+import sys
 import hashlib
 import json
 from pathlib import Path
@@ -18,7 +21,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.projects = {}
         layout = {'harness-project': [('server-api', 'server', True), ('server-negative', 'server', False)],
-                  'memo-project': [('android-ui', 'android', True), ('ios-ui', 'ios', True), ('web-ui', 'web', True),
+                  'client-project': [('android-ui', 'android', True), ('ios-ui', 'ios', True), ('web-ui', 'web', True),
                                    ('common-logic', 'common', False), ('android-lint', 'android', False),
                                    ('android-screen', 'android', False), ('web-lint', 'web', False)]}
         for name, entries in layout.items():
@@ -30,7 +33,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
                 definition['checks'].append({'id': identity, 'criterion_id': criterion, 'platform': platform,
                     'kind': 'api' if platform == 'server' else 'test', 'required': True,
                     'command': ['rtk', 'proxy', 'python3', 'fixture.py', '--case', identity],
-                    'expected': 'isolated unique memo result', 'expected_tests': [identity],
+                    'expected': 'isolated synthetic contract result', 'expected_tests': [identity],
                     'results': [{'path': 'verification/' + identity + '.xml', 'format': 'junit'}]})
                 catalog['scenarios'].append({'id': identity, 'criterion_id': criterion, 'platform': platform,
                     'tool': 'fixture', 'scope': 'API fixture' if platform == 'server' else 'client fixture',
@@ -97,7 +100,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
                 workspace.plan(self.root, self.path, **kwargs)
 
     def test_missing_required_platform_is_not_smoke_success(self):
-        self.projects['memo-project']['catalog']['scenarios'][1]['suites'] = ['full']
+        self.projects['client-project']['catalog']['scenarios'][1]['suites'] = ['full']
         self.save()
         with self.assertRaises(ValueError): workspace.plan(self.root, self.path)
         self.assertEqual(self.selected_ids(workspace.plan(self.root, self.path, platforms=['android'])), ['android-ui'])
@@ -109,11 +112,11 @@ class RegressionWorkspaceTests(unittest.TestCase):
             self.config['projects'][1][field] = self.config['projects'][0][field]; self.save()
             with self.subTest(field=field), self.assertRaises(ValueError): workspace.plan(self.root, self.path)
         self.config = original
-        self.projects['memo-project']['catalog']['scenarios'][0]['id'] = 'server-api'; self.save()
+        self.projects['client-project']['catalog']['scenarios'][0]['id'] = 'server-api'; self.save()
         with self.assertRaisesRegex(ValueError, 'duplicate.*scenario'): workspace.plan(self.root, self.path)
 
     def test_project_and_catalog_escape_paths_are_rejected(self):
-        for key, value in [('root', '../outside'), ('root', str(self.root/'memo-project')), ('catalog', '../harness-project/catalog.json')]:
+        for key, value in [('root', '../outside'), ('root', str(self.root/'client-project')), ('catalog', '../harness-project/catalog.json')]:
             original = copy.deepcopy(self.config)
             self.config['projects'][1][key] = value; self.save()
             with self.subTest(key=key, value=value), self.assertRaises(ValueError): workspace.plan(self.root, self.path)
@@ -150,7 +153,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
         def changed(root, *args, **kwargs):
             value = self.fake_run(root, *args, **kwargs)
             if Path(root).name == 'harness-project':
-                path = self.projects['memo-project']['root']/'definition.json'
+                path = self.projects['client-project']['root']/'definition.json'
                 definition = json.loads(path.read_text()); definition['plan_version'] = 'unreviewed-v2'
                 path.write_text(json.dumps(definition))
             return value
@@ -160,7 +163,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
     def test_later_project_modifying_completed_project_source_blocks_workspace(self):
         def changed(root, *args, **kwargs):
             value = self.fake_run(root, *args, **kwargs)
-            if Path(root).name == 'memo-project':
+            if Path(root).name == 'client-project':
                 (self.projects['harness-project']['root']/'code.txt').write_text('changed after server observation')
             return value
         with patch.object(regression, 'run', side_effect=changed): result = workspace.run(self.root, self.path)
@@ -169,7 +172,7 @@ class RegressionWorkspaceTests(unittest.TestCase):
     def test_later_project_changing_completed_project_ignored_definition_blocks_workspace(self):
         def changed(root, *args, **kwargs):
             value = self.fake_run(root, *args, **kwargs)
-            if Path(root).name == 'memo-project':
+            if Path(root).name == 'client-project':
                 # source_state intentionally hashes only code.txt in this fixture;
                 # ignored definition changes must be caught by final plan checks.
                 path = self.projects['harness-project']['root']/'definition.json'
@@ -199,6 +202,19 @@ class RegressionWorkspaceTests(unittest.TestCase):
         with patch.object(regression, 'run', side_effect=deleted): result = workspace.run(self.root, self.path)
         self.assertEqual(result['selection_result'], 'FAIL')
         self.assertFalse(result['workspace_unchanged'])
+
+    def test_cli_requires_explicit_workspace_without_dispatch(self):
+        with patch.object(sys, 'argv', ['regression_workspace', 'list']), contextlib.redirect_stderr(io.StringIO()) as errors, patch.object(workspace, 'plan') as plan:
+            with self.assertRaises(SystemExit) as exit:
+                workspace.main()
+        self.assertEqual(exit.exception.code, 2)
+        self.assertIn('--workspace', errors.getvalue())
+        plan.assert_not_called()
+
+    def test_cli_dispatches_only_the_explicit_workspace(self):
+        with patch.object(sys, 'argv', ['regression_workspace', 'list', '--workspace-root', str(self.root), '--workspace', str(self.path)]), patch.object(workspace, 'plan', return_value={'selection_result':'OBSERVED_PASS'}) as plan, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(workspace.main(), 0)
+        self.assertEqual(plan.call_args.args[:2], (str(self.root), str(self.path)))
 
 
 if __name__ == '__main__':

@@ -14,3 +14,22 @@ __pycache__/
 
 # Local verification reports, screenshots, logs, and patches
 /verification/
+
+# Product examples and optional app trials live in a separate local companion.
+/docs/examples/
+/docs/memo-real-trial-request.md
+/docs/memo-trial.md
+/docs/retrospective.md
+/tools/fixtures/
+/tools/memo_*.py
+/tools/audit_memo_real.py
+/tools/finalize_memo_trial.py
+/tools/verify_agent_trials.py
+/tools/build_agent_flow_fixture.py
+/harness/trial.py
+/harness/role_trial.py
+/harness/star_trial.py
+/harness/role_example_worker.py
+/harness/dashboard_fixture.py
+/harness/test_memo_trial_contract.py
+/regression/

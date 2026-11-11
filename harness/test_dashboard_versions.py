@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from harness.dashboard import snapshot
-from harness.dashboard_fixture import write_fixture
+from harness.test_support.dashboard import write_fixture
 from harness.dashboard_versions import version_identity, select
 
 

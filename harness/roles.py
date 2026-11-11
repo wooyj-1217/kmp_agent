@@ -36,7 +36,7 @@ class Roles:
         self.tasks = Tasks(root, run_id)
         self.root = self.tasks.root
 
-    def setup(self, task_id, folder, planning_version=None, change_id=None, design_version=None, design_targets=None):
+    def setup(self, task_id, folder, planning_version=None, change_id=None, design_version=None, design_targets=None, ui_applicability=None):
         folder = folder_key(self.tasks, folder)
         def operation(state):
             task = state["tasks"][task_id]
@@ -49,6 +49,12 @@ class Roles:
                 task["role_contract"].update(design_version=design_version, scope="development_plan" if full_plan else "input_interpretation_only")
             if design_targets:
                 task["role_contract"]["design_targets"] = design_targets
+            if ui_applicability:
+                from harness.ui_applicability import bind
+                binding = bind(self.tasks, task, ui_applicability)
+                task['role_contract']['ui_applicability'] = binding
+                for ref in binding['inputs']:
+                    task['inputs'] = [r for r in task['inputs'] if r['path'] != ref['path']] + [ref]
             self.tasks._event(state, "role_configured", task, observed=task["role_contract"])
         return self.tasks._mutate("role_setup", operation, task_id)
 
@@ -71,6 +77,8 @@ class Roles:
         task = self.tasks.read()["tasks"][task_id]
         if task["role"] != role or not task.get("role_contract"):
             raise ValueError("role mismatch or missing setup")
+        from harness.ui_applicability import validate as validate_ui
+        validate_ui(self.tasks, task)
         if task["state"] == "DONE":
             return {"skipped": True, "task_id": task_id, "delivery": task.get("delivery")}
         if role == "development":
@@ -173,6 +181,11 @@ class Roles:
                 "For configured design_targets, return target_artifacts {target:{entry:feature-relative HTML path,screens:[],requirements:[]}} for every target. "
                 "App HTML is a native-style simulation, not native execution. Responsive web needs distinct mobile and desktop composition/interaction. "
                 "Do not claim browser checks: a separate reviewer executes and records them."}
+        if task.get('role_contract', {}).get('ui_applicability'):
+            packet['instruction'] = packet['instruction'].replace('design publishes design.md and prototype/ including tokens.css, components.html, system.md and actual HTML.', 'design publishes design.md with the nonvisual interface contract.')
+            packet['instruction'] += (' UI is explicitly NOT_APPLICABLE. Preserve the named nonvisual '
+                'interfaces, commands/API inputs, outputs, errors and requirement mapping in this role\'s deliverable. Do not create prototype '
+                'HTML, screenshots or claim visual PASS. All normal independent role criteria remain required.')
         if task.get('role_contract', {}).get('scope') == 'development_plan':
             from harness.implementation_bridge import FIELDS, OPTIONAL
             packet['implementation_plan_contract'] = {'required_fields': sorted(FIELDS), 'optional_fields': sorted(OPTIONAL),
@@ -291,10 +304,14 @@ class Roles:
                 preview.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 preview.write_text(logging.redact(item["content"]))
             return self.tasks.checkpoint(task_id, agent_run_id, response["summary"], str(result_path.relative_to(self.root)))
-        required = ({"requirements.md"} if task["role"] == "planning" else {"development-plan.md"} if task["role"] == "development" else {"design.md", "prototype/index.html", "prototype/tokens.css", "prototype/components.html", "prototype/system.md"})
+        from harness.ui_applicability import validate as validate_ui
+        nonvisual = validate_ui(self.tasks, task)
+        required = ({"requirements.md"} if task["role"] == "planning" else {"development-plan.md"} if task["role"] == "development" else {"design.md"} if nonvisual else {"design.md", "prototype/index.html", "prototype/tokens.css", "prototype/components.html", "prototype/system.md"})
         if not required.issubset(set(paths)):
             raise ValueError("missing required actual deliverable files")
-        if task["role"] == "design":
+        if task["role"] == "design" and nonvisual and any(p.startswith("prototype/") for p in paths):
+            raise ValueError("nonvisual design must not publish a visual prototype")
+        if task["role"] == "design" and not nonvisual:
             from harness.design_assets import validate
             self.write(directory / (result_path.stem + "-source-check.json"), validate(files))
             targets = task["role_contract"].get("design_targets", [])
@@ -350,6 +367,8 @@ class Roles:
             dest.write_text(logging.redact(item["content"]))
             outputs.append(str(dest.relative_to(self.root)))
         status = {"specification": "COMPLETE", "mockup": "COMPLETE", "visual_review": "NOT_RUN"} if task["role"] == "design" else None
+        if status and nonvisual:
+            status.update(mockup="NOT_APPLICABLE", visual_review="NOT_APPLICABLE")
         self.tasks.submit(task_id, agent_run_id, outputs, response["summary"], status, task["role_contract"] if task["role"] != "development" else None)
         if task["role"] == "design" and response.get("target_artifacts"):
             def targets_saved(state):

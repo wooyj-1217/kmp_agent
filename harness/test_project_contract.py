@@ -1,4 +1,4 @@
-"""Stage gate tests using the retained memo example, never a product/API/DB run."""
+"""Stage gate contracts with temporary synthetic inputs, never a product/API/DB run."""
 import copy
 import json
 import subprocess
@@ -19,8 +19,8 @@ class ProjectContract(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve()
         self.synthetic_authority = synthetic_authority(self, self.root)
-        self.t = Tasks(self.root, 'memo-project-contract-fixture')
-        (self.root/'requirements.md').write_text((ROOT/'docs/examples/role-execution/requirements.md').read_text())
+        self.t = Tasks(self.root, 'synthetic-project-contract')
+        (self.root/'requirements.md').write_text('Synthetic stage contract input; no product specification or external example dependency.')
         (self.root/'contract.md').write_text('Synthetic fixture: API/policy/runbook/migration/AC contents are NOT product decisions or actual execution.')
         (self.root/'.gitignore').write_text('.harness/\n')
         for args in [('init','-q'),('config','user.name','Fixture'),('config','user.email','fixture@example.invalid'),('add','.'),('commit','-qm','temporary baseline')]:
@@ -42,7 +42,7 @@ class ProjectContract(unittest.TestCase):
         return data
 
     def task(self, tid, stage, data, deps=None):
-        self.t.register('MEMO',tid,'development','memo stage fixture','harness validation only',
+        self.t.register('SYNTHETIC',tid,'development','stage contract fixture','harness validation only',
                         [{'id':'C','required':True,'text':'fixture evidence'}],['requirements.md'],dependencies=deps)
         self.configure(tid, stage, data)
         task = self.t.read()['tasks'][tid]

@@ -105,12 +105,12 @@ actual 로그의 recorded_at/observed.occurred_at과 누락된 harness 필드를
 ## 재현·검증
 
 ```sh
-rtk proxy python3 -B -m harness.dashboard_fixture --root /tmp/kmp-dashboard-synthetic
+rtk proxy python3 -B -m harness.test_support.dashboard --root /tmp/kmp-dashboard-synthetic
 rtk proxy python3 -B -m harness.dashboard --root /tmp/kmp-dashboard-synthetic --port 8780
 rtk proxy python3 -B -m unittest harness.test_dashboard harness.test_acceptance_contract harness.test_project_contract harness.test_development_gates
 ```
 
-fixture는 합성 데이터다. 실제 제품 진행률이나 인수 결과가 아니다. 미선택/정상/동시 진행/수정·재검증/사람 판단/차단 종료를 선택해 확인한다. 원본 기록 불변, 범위 격리, 중복·캐시 산술, 누락·단가 미확인, 경로 차단, 기능 PASS의 합의 PASS 대체 거부를 자동 검증한다.
+fixture는 단위 계약 검사용 제품무관 합성 데이터다. 앱 예제·앱 요구사항·채택 기술 스택을 포함하지 않는다. 실제 제품 진행률이나 인수 결과가 아니다. 미선택/정상/동시 진행/수정·재검증/사람 판단/차단 종료를 선택해 확인한다. 원본 기록 불변, 범위 격리, 중복·캐시 산술, 누락·단가 미확인, 경로 차단, 기능 PASS의 합의 PASS 대체 거부를 자동 검증한다.
 
 남은 연결 데이터: 과거 run별 목표·범위·정확한 역할 실행 연결, 단계 필수 작업/완료 조건, 승인 권한 원문·승인 시안, 상태/플랫폼별 실제 관측, 응답별 사용량 귀속·요금 조건, 수집 완전성, heartbeat. 화면만으로 복원하지 않는다. 이번 변경은 독립 역할 자동 실행기/전체 성공 자동 판정기/하네스 배포가 아니다.
 
