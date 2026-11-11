@@ -54,6 +54,8 @@ PR 생성·검증·병합·작업 완료는 [별도 상태](../task-management.m
 
 코드 구현 작업은 [개발 추적](../development-tracking.md)의 공통 게이트에서 기존 frozen 입력·대상 Git을 자동 연결하거나 누락 항목을 안내해 차단한다. 문서 작업은 execution_scope=documentation, 현재 역할 실행기의 입력 해석은 input_interpretation_only로 구분한다. 설정이 없는 실행의 제출·검증·인계를 허용하지 않는다.
 
+메인 직접 구현도 동일하다. [제품 도구 검사](../product-tool-enforcement.md)를 통해 승인된 기술 제약·현재 활성 실행을 소스 작성 전에 확인하며, 일반 도구·셸로 lifecycle 검사를 생략하지 않는다. 공통 Compose·서버 기술 등 기존 제품 요구는 독립 재구현에서도 유지한다. 기술 변경은 해당 원본 정책과 결합된 인간 승인으로만 갱신한다.
+
 
 ## 구성된 개발 위임 실행 (2026-10-27 로컬 개발 소스)
 

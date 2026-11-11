@@ -359,6 +359,9 @@ class Roles:
 
     @managed_task
     def execute(self, task_id, role, worker=None, timeout=300):
+        from harness.product_guard import installed
+        if installed(self.root) and worker is not None:
+            raise ValueError('installed role execution cannot inject an arbitrary worker')
         task=self.tasks.read()['tasks'][task_id]
         if task['state'] != 'DONE':
             self.tasks.require_dispatch(task_id, preflight=True)

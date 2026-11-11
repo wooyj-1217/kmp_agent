@@ -62,7 +62,7 @@ rtk proxy python3 .kmp-agent/agent.py recover
 
 update의 태그는 실제 게시된 버전으로 바꾸며 --ref를 생략하면 실패한다. source 생략 시 설치 정보를 재사용하고 다른 저장소는 --source로 명시한다. 원격 최신 버전을 자동 적용하는 명령은 없다. 설치/init/update 종료 코드 0은 설치·정적 연결 성공, status 종료 코드 0은 현재 버전의 실제 대상 훅 수집 VERIFIED다. 미검증·재시작·복구 대기·실패 상태의 status는 1이다.
 
-최초 init 뒤 대상의 `/hooks`에서 두 정의를 검토·신뢰하고 새 Codex 세션에서 일반 요청을 보낸다. 업데이트의 공용 훅 명령은 같은 프로젝트 진입 파일을 사용하므로 보통 변하지 않지만 지침·스킬·시작 설정은 새 세션에서 검증한다. 파일 갱신만으로 적용 완료라 하지 않는다. 내부 테스트·모의 훅 성공과 실제 Codex 세션 PASS는 별개다.
+최초 init 뒤 대상의 `/hooks`에서 수신·Stop 수집 및 PreToolUse·Stop 제품 검사 정의를 검토·신뢰하고 새 Codex 세션에서 일반 요청을 보낸다. [제품 도구 검사](product-tool-enforcement.md)는 이 변경을 포함한 버전을 선택한 설치 프로젝트에 적용한다. 업데이트의 공용 훅 명령은 같은 프로젝트 진입 파일을 사용하지만 지침·스킬·시작 설정은 새 세션에서 검증한다. 파일 갱신만으로 적용 완료라 하지 않는다. 내부 테스트·모의 훅 성공과 실제 Codex 세션 PASS는 별개다.
 
 ## 결함 수정 버전 적용과 작업 재개
 
@@ -80,7 +80,7 @@ update의 태그는 실제 게시된 버전으로 바꾸며 --ref를 생략하�
 | `.kmp-agent/installation.json` | 추적 가능한 project_id·설치 출처·요청 ref·실제 SHA·VERSION·상대 코드 경로·이전 설치 정보 |
 | `.kmp-agent/project.json` | 안정적인 project_id·상대 project_path·선택 공통 skills 배열. 제품 고유 키 보존 |
 | `.kmp-agent/agent.py` | 추적 가능한 고정 진입 파일. 설치 정보에서 실행 코드를 선택; 개인 절대 경로 없음 |
-| `AGENTS.md` 관리 블록·`.codex/hooks.json` | 프로젝트 설정. 제품 지침·다른 훅 보존; 두 수집 훅만 관리 |
+| `AGENTS.md` 관리 블록·`.codex/hooks.json` | 프로젝트 설정. 제품 지침·다른 훅 보존; 수신·Stop 수집 및 PreToolUse·Stop 제품 검사 관리 |
 | `.harness/` | 프로젝트의 기존 로그·분석·실행 상태·복구 저널. Git 제외·도구 코드와 분리 |
 
 새 대상의 설치 정보·진입 파일·설정은 Git에서 추적할 수 있고 설치 코드는 제외된다. 기존 프로젝트의 광범위한 ignore 규칙은 지우지 않으므로 필요한 설정이 이미 무시되는 경우 검토 후 해당 파일만 명시적으로 추가한다. 설치기는 staging·커밋·push를 하지 않는다.

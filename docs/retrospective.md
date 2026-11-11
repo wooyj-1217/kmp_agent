@@ -94,6 +94,12 @@
 - 같은 PR의 디자인 산출물 회귀 보완: 저장된 시각 검토 PASS를 인계에 허용하는 경로와 신규 제출이 PASS를 자칭하는 경로를 구분했다. 명시 제출은 기존 거부 계약을 유지하고, 검토된 목업 인계는 허용한다. 기존 test_design_mockup_outputs 7개 재실행 PASS.
 - 근거·한계: 로컬 verification/manual/recovery-boundary-20261106/의 events-before.log·events-after.log·events-recovery-final.log 및 ownership-after/runtime-before/actual-owner/integrationpins/parent-death-resume 관련 실행 로그에 보존한다. 정확한 전체 회귀 결과는 별도 확인한다. 이 근거는 운영 root 서비스·전원 손실·동일 계정 공격 방어 검증이 아니다. [실행 복구 계약](recovery-contract.md)의 적용 범위와 미확인을 따른다.
 
+### RETRO-H013 — 읽기 명령의 옵션이 별도 프로그램을 실행
+
+- 기대/실제·영향: PR #14의 Git 읽기 허용 목록이 `ls-remote --upload-pack`을 허용해 계약 미설정 상태에서도 외부 프로그램이 실행됐다. Git의 종료 코드가 실패여도 표식 파일 생성은 이미 일어났다.
+- 원인·대응: 명령 이름만으로 읽기를 판정한 경계를 보완해 실행·출력 옵션의 축약형, 필터와 명시적 remote-helper 경로도 검사한다. 원격 별칭의 기존 설정 및 OS 수준 차단은 별도 범위다.
+- 근거·재검증: `harness/test_product_guard.py`의 표식 파일 회귀 검사와 정상 읽기 허용 검사를 추가했다. 후속 검증에서는 수정 SHA `f0bca7b`를 임시 제품 프로젝트에 원격 설치하고 사용자 승인 후 공식 화면에서 신뢰했다. 새 Codex v0.167.1 프로세스의 `hooks/list`에서 4개 훅 모두 trusted/enabled, 오류·경고 없음을 확인했다. 실제 모델의 읽기는 실행됐고 소스 패치·Python·Git 우회는 PreToolUse에서 거절됐으며 소스 해시와 표식 파일 부재를 확인했다. native 세션에 연결한 미완료 TODO의 Stop 차단도 관측한 뒤 시험 턴을 중단했다. 원본은 로컬 `verification/pr14-effectiveness-20261111/`에 보존한다. 이 결과는 해당 설치본·런타임 검증이며 다른 프로젝트의 활성화나 제품 인수를 대신하지 않는다.
+
 <!-- codex-retrospective:end -->
 
 ## 수동 메모
