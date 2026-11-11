@@ -98,7 +98,7 @@
 
 - 기대/실제·영향: PR #14의 Git 읽기 허용 목록이 `ls-remote --upload-pack`을 허용해 계약 미설정 상태에서도 외부 프로그램이 실행됐다. Git의 종료 코드가 실패여도 표식 파일 생성은 이미 일어났다.
 - 원인·대응: 명령 이름만으로 읽기를 판정한 경계를 보완해 실행·출력 옵션의 축약형, 필터와 명시적 remote-helper 경로도 검사한다. 원격 별칭의 기존 설정 및 OS 수준 차단은 별도 범위다.
-- 근거·재검증: `harness/test_product_guard.py`의 표식 파일 회귀 검사와 정상 읽기 허용 검사를 추가했다. 작업별 원본은 로컬 `verification/pr14-effectiveness-20261111/`에 보존하며 실제 설치본 훅 신뢰·로드 검증은 NOT_RUN이다.
+- 근거·재검증: `harness/test_product_guard.py`의 표식 파일 회귀 검사와 정상 읽기 허용 검사를 추가했다. 후속 검증에서는 수정 SHA `f0bca7b`를 임시 제품 프로젝트에 원격 설치하고 사용자 승인 후 공식 화면에서 신뢰했다. 새 Codex v0.167.1 프로세스의 `hooks/list`에서 4개 훅 모두 trusted/enabled, 오류·경고 없음을 확인했다. 실제 모델의 읽기는 실행됐고 소스 패치·Python·Git 우회는 PreToolUse에서 거절됐으며 소스 해시와 표식 파일 부재를 확인했다. native 세션에 연결한 미완료 TODO의 Stop 차단도 관측한 뒤 시험 턴을 중단했다. 원본은 로컬 `verification/pr14-effectiveness-20261111/`에 보존한다. 이 결과는 해당 설치본·런타임 검증이며 다른 프로젝트의 활성화나 제품 인수를 대신하지 않는다.
 
 <!-- codex-retrospective:end -->
 
