@@ -30,10 +30,17 @@ def capture_budget(root, task_id):
     started=time.monotonic();previous=_deadline.get()
     token=_deadline.set(min(previous,started+CAPTURE_TIMEOUT_SECONDS) if previous else started+CAPTURE_TIMEOUT_SECONDS)
     trace(root,'capture_started',task_id=task_id)
-    try:yield
+    try:
+        yield
+        check_deadline()
     finally:
         trace(root,'capture_finished',task_id=task_id,elapsed_seconds=time.monotonic()-started)
         _deadline.reset(token)
+
+
+def check_deadline():
+    if _deadline.get() is not None and time.monotonic() >= _deadline.get():
+        raise ValueError('capture inspection deadline exceeded; validation not established')
 
 
 def run_git(root, *args, input=None):

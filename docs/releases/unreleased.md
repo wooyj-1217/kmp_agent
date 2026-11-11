@@ -8,6 +8,12 @@
 - companion은 명시한 하네스 source/ref로 별도 실행한다. 실제 실행 허가 원문과 합성 fixture의 계보·독립 QA 원칙을 유지하고, 개별 실제 모델 검증 기록과 원문은 로컬에만 보존한다. 새 원격 생성·공개는 포함하지 않는다.
 - [UI 비해당 계약](../ui-applicability.md)은 명시적 선언을 현재 요구사항 계보와 연결하고 입력으로 동결한다. CLI 등의 인터페이스 설계·독립 검토는 유지하며 mockup·시각 검증은 NOT_APPLICABLE로 기록한다. 기존 visual_required=False만으로 개발 인계를 허용하지 않는다.
 
+## 개발 추적과 사용량 회귀
+
+- [개발 추적](../development-tracking.md)은 불변 Git 객체만 캐시하고 현재 Git 열거는 한 refresh 안에서만 공유한다. 단계 종료 시 단일 scope도 Git·파일 내용·모드·symlink를 재확인하며 캐시 경로도 deadline을 검사한다. 상태 조회는 명령 전후 refresh를 마친 최종 저장 상태를 반환한다.
+- 공통 사용량 회귀는 고정된 비공개 폴더에 의존하던 skip 시험을 명시적 합성 legacy 필수 시험으로 대체한다. 첫 복구·합계 보존·동일 제목 QA 구분·수정 분류·멱등성·입력 원본 불변을 검증하며 실제 모델 실행으로 표시하지 않는다.
+- 실제 corpus 검증은 [별도 로컬 companion](../examples-separation.md)의 명시적 경로·해시 manifest로 선택 실행하며 공통 설치 입력에 포함하지 않는다. 원래 private legacy corpus 미제공은 NOT_RUN으로 구분하고, 다른 실제 corpus의 합계 보존이나 선택 회귀 결과를 그 시험 또는 전체 검증의 PASS로 확대하지 않는다.
+
 ## KMP 개발 기준
 
 - 적용 제품의 클라이언트 개발에서 Kotlin Multiplatform을 필수로 사용한다. 비 KMP 클라이언트 요구는 구현 전 계약 충돌로 반환하도록 공통 지침·역할 입력·개발자 위임 프롬프트를 맞춘다.

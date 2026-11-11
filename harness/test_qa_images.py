@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -18,6 +19,9 @@ PNG = b'\x89PNG\r\n\x1a\nsynthetic image fixture'
 
 class QAImageTests(unittest.TestCase):
     def setUp(self):
+        # Observe the host before model-transport Popen mocks replace subprocess globally.
+        from harness.process_ownership import _host_boot
+        _host_boot()
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
@@ -57,23 +61,18 @@ class QAImageTests(unittest.TestCase):
 
     def test_mock_popen_receives_image_and_hashed_attachment_manifest(self):
         aid = self.begin()
-        received = []
-        class Child:
-            pid = 987654
-            returncode = 0
-            def __init__(self, argv, **kwargs):
-                received.extend(argv)
-                Path(argv[argv.index('-o') + 1]).write_text('{}')
-            def communicate(self, *args, **kwargs):
-                return '', ''
+        # Real local synthetic process exercises ownership; no model is invoked.
+        binary=self.root/'synthetic-image-adapter.py'
+        argv_path=self.root/'received-argv.json'
+        binary.write_text('#!'+sys.executable+'\nimport json,pathlib,sys\npathlib.Path('+repr(str(argv_path))+').write_text(json.dumps(sys.argv))\npathlib.Path(sys.argv[sys.argv.index("-o")+1]).write_text("{}")\n')
+        binary.chmod(0o700)
         output = self.root / 'runtime-evidence'
-        with patch('harness.delegation_runtime.subprocess.Popen', Child), \
-                patch.object(Roles, 'collect_codex', return_value={'usage': 'UNKNOWN'}):
-            result = run_codex(self.tasks, 'QA', aid, self.root, {}, output, 'mock-native', 5,
-                               image_paths=['design/capture.png'], result_schema={'type': 'object'},
-                               result_validator=lambda value: value)
-        self.assertEqual(result['returncode'], 0)
-        self.assertEqual(received[received.index('--image') + 1], str(self.root / 'design/capture.png'))
+        with patch.object(Roles, 'collect_codex', return_value={'usage':'UNKNOWN'}):
+            result=run_codex(self.tasks,'QA',aid,self.root,{},output,str(binary),5,
+                             image_paths=['design/capture.png'],result_schema={'type':'object'},result_validator=lambda value:value)
+        self.assertEqual(result['returncode'],0)
+        received=json.loads(argv_path.read_text())
+        self.assertEqual(received[received.index('--image')+1],str(self.root/'design/capture.png'))
         self.assertEqual(received[-1], '-')
         manifest = json.loads((output / 'attached-images.json').read_text())
         self.assertEqual(manifest, [{'path': 'design/capture.png', 'sha256': hashlib.sha256(PNG).hexdigest()}])

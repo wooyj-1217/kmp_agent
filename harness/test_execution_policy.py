@@ -18,6 +18,9 @@ SESSION = '00000000-0000-4000-8000-000000000001'
 
 class ExecutionPolicyTests(unittest.TestCase):
     def setUp(self):
+        # Observe the host before model-transport Popen mocks replace subprocess globally.
+        from harness.process_ownership import _host_boot
+        _host_boot()
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve()
         self.home = self.root / 'home'

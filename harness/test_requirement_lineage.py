@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from harness.requirement_lineage import compare, file_ref, configure_qa, require_review
 from harness.tasks import Tasks
 from harness.qa import QA
@@ -13,8 +14,35 @@ class LineageTest(unittest.TestCase):
         for name in ['user.md','approved.md','derived.md']:(self.root/name).write_text(name)
         self.c={'schema_version':1,'scope':'PRODUCT','purpose':'unchanged implementation','sources':[dict(id=i,kind=k,anchor='paragraph1',**file_ref(self.root,p)) for i,k,p in [('U','USER_ORIGINAL','user.md'),('A','APPROVED_REQUIREMENTS','approved.md'),('D','AGENT_DERIVED','derived.md')]],'requirements':[{'id':'R','source':'A','anchor':'R','expected':{'limit':12,'behavior':'retain'}}],'derived_items':[{'id':'D1','source':'D','anchor':'D1','source_ids':['R'],'expected':{'limit':12,'behavior':'retain'}}]};self.c['sources'][1]['approval']={'source':'U','anchor':'approved requirements','approved_sha256':self.c['sources'][1]['sha256']};self.save()
     def save(self):(self.root/'requirement-lineage.json').write_text(json.dumps(self.c))
-    def task(self):
-        m=Tasks(self.root,'lineage-test');m.register('F','TARGET','development','target','test',[{'id':'A','description':'target','required':True}],['user.md','approved.md','derived.md','requirement-lineage.json'],execution_scope='documentation');return m
+    def task(self, authorized=False):
+        if not authorized:
+            m=Tasks(self.root,'lineage-test');m.register('F','TARGET','development','target','test',[{'id':'A','description':'target','required':True}],['user.md','approved.md','derived.md','requirement-lineage.json'],execution_scope='documentation')
+            return m
+        # Unit-only synthetic native input tests typed approval, never real authority.
+        from harness.decisions import digest
+        from harness.requirement_lineage import approval_subject, load
+        session='00000000-0000-4000-8000-000000000711'
+        native=self.root/'synthetic-native/session.jsonl';native.parent.mkdir()
+        records=[{'type':'session_meta','payload':{'id':session,'source':'cli'}}]
+        def write():native.write_text(''.join(json.dumps(r)+'\n' for r in records))
+        write()
+        store=patch('harness.decisions.native_store',return_value=native.parent);store.start();self.addCleanup(store.stop)
+        self.c['human_authorization']={'question_id':'SYNTHETIC-LINEAGE-AUTH','task_id':'TARGET'};self.save()
+        m=Tasks(self.root,'lineage-test');m.register('F','TARGET','development','target','test',[{'id':'A','description':'target','required':True}],['user.md','approved.md','derived.md','requirement-lineage.json'],execution_scope='documentation')
+        m.configure_execution_policy(str(native),session,apply_to_work_types=['PRODUCT'])
+        m.open_question('SYNTHETIC-LINEAGE-AUTH','Synthetic unit fixture only: approve exact lineage contract?', ['TARGET'],
+            [{'id':'approve','label':'Approve synthetic unit lineage contract'}],approval_purpose='requirement_lineage',
+            approval_subject=approval_subject(load(self.root)),approval_artifacts=[x['path'] for x in self.c['sources']])
+        q=m.question_status()['SYNTHETIC-LINEAGE-AUTH']
+        records.append({'type':'response_item','payload':{'type':'function_call','name':'request_user_input_async','call_id':'synthetic-unit-prompt','arguments':json.dumps({'questions':[{'question':q['question'],'options':['Approve synthetic unit lineage contract']}]})}})
+        item=json.dumps(['request_user_input_async','synthetic-unit-prompt',0],separators=(',',':'))
+        text='<send_user_message_question_reply>\n'+json.dumps([{'answer':'Approve synthetic unit lineage contract','question':q['question'],'questionItemId':item}])+'\n</send_user_message_question_reply>'
+        event={'type':'event_msg','payload':{'type':'user_message','message':text}}
+        user={'type':'response_item','payload':{'type':'message','role':'user','content':[{'type':'input_text','text':text}]}}
+        records.extend([event,user]);write()
+        m.answer_question('SYNTHETIC-LINEAGE-AUTH',record_ordinal=3,payload_sha256=digest(event['payload']),user_input_record_ordinal=4,user_input_payload_sha256=digest(user['payload']))
+        self.assertEqual(compare(self.root)['human_authorization']['status'],'CONFIRMED')
+        return m
     def review(self,m):
         configure_qa(self.root,'lineage-test','PRE-QA','TARGET')
         def worker(w,p):
@@ -86,19 +114,19 @@ class LineageTest(unittest.TestCase):
         self.task()
         with self.assertRaisesRegex(ValueError,'agent-derived'):QA(self.root,'lineage-test').configure('BAD','planning','TARGET',['derived.md'],[{'id':'Q','required':True,'description':'test'}])
     def test_mock_pass_not_independent(self):
-        m=self.task();r=self.review(m);self.assertEqual(r['outcome'],'PASS');require_review(m,m.read()['tasks']['TARGET'],allow_mock=True)
+        m=self.task(authorized=True);r=self.review(m);self.assertEqual(r['outcome'],'PASS');require_review(m,m.read()['tasks']['TARGET'],allow_mock=True)
         with self.assertRaisesRegex(ValueError,'independent'):require_review(m,m.read()['tasks']['TARGET'])
         report=json.loads((self.root/r['report']['path']).read_text());self.assertEqual(report['product_requirements_fulfillment'],'NOT_ESTABLISHED')
     def test_missing_and_stale_review(self):
-        m=self.task()
+        m=self.task(authorized=True)
         with self.assertRaisesRegex(ValueError,'independent'):require_review(m,m.read()['tasks']['TARGET'])
         self.review(m);self.c['purpose']='new purpose';self.save()
         with self.assertRaises(ValueError):require_review(m,m.read()['tasks']['TARGET'],allow_mock=True)
     def test_implementation_change_does_not_invalidate_source_alignment(self):
-        m=self.task();self.review(m);(self.root/'implementation.txt').write_text('new code')
+        m=self.task(authorized=True);self.review(m);(self.root/'implementation.txt').write_text('new code')
         require_review(m,m.read()['tasks']['TARGET'],allow_mock=True)
     def test_claimed_independent_mode_without_process_evidence_rejected(self):
-        m=self.task();self.review(m)
+        m=self.task(authorized=True);self.review(m)
         def change(state):
             qa=state['tasks']['PRE-QA']
             for run in qa['executions']:
@@ -106,6 +134,6 @@ class LineageTest(unittest.TestCase):
         m._mutate('synthetic_fixture',change,task_id='PRE-QA')
         with self.assertRaisesRegex(ValueError,'independent'):require_review(m,m.read()['tasks']['TARGET'])
     def test_unapproved_change_blocks_qa(self):
-        self.c['derived_items'][0]['expected']['limit']=3;self.save();m=self.task();self.assertEqual(self.review(m)['outcome'],'BLOCKED')
+        self.c['derived_items'][0]['expected']['limit']=3;self.save();m=self.task(authorized=True);self.assertEqual(self.review(m)['outcome'],'BLOCKED')
 
 if __name__=='__main__':unittest.main()

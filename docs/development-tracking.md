@@ -53,6 +53,10 @@ baseline 값은 검증 실행에 저장된 객체 전체를 그대로 참조한�
 
 작업 명령·show·refresh-validation 시 코드/입력/계약과 과거 검증 기준을 비교한다. 변경·조회 실패·영향 미상이면 기존 validation_status의 review 실행 키를 RECHECK_REQUIRED로 표시한다. 과거 PASS·근거·출력은 변경하지 않고 코드 원복만으로 CURRENT를 회복하지 않는다. 재검증은 새 작업/실행과 새 근거로 남긴다. 최신 검증이 재검증 필요이면 handoff를 거부한다. 상시 파일 감시기는 없으므로 외부 수정 직후에는 refresh-validation으로 명시 점검한다.
 
+검사 비용을 줄일 때는 불변 commit의 tree·blob 해시만 캐시한다. 현재 파일 목록·HEAD·index·상태는 한 refresh 안에서만 공유하고 다음 refresh에서는 다시 조회한다. 독립 Git 조회는 최대 4개를 병렬 실행하되 호출자의 같은 절대 deadline을 유지한다. 단계 종료 시 scope가 하나인 경우도 Git 조회 결과와 관측 파일의 내용 해시·모드·symlink 여부를 재확인하며, 이미 dirty인 파일의 추가 변경도 검출한다. 캐시를 사용해 Git을 호출하지 않는 경로도 파일 처리 중·정상 종료 시 deadline을 확인한다. 변경·초과·조회 실패가 확인되면 CURRENT를 반환하지 않고 해당 검증을 RECHECK_REQUIRED로 남긴다.
+
+작업 상태 조회는 명령 전후 refresh를 마친 최종 상태를 저장한 뒤 그 상태를 반환한다. 이 검사는 외부 파일 수정을 막는 잠금이나 원자적 파일시스템 스냅샷이 아니며, 관측 이후의 변경까지 유효성을 보장하지 않는다. 시간 제한·상태 잠금 실패와 과거 검증 무효화는 성공이나 사용량 0으로 대체하지 않는다.
+
 ## CR과 기준 갱신
 
 기존 deliverables.change에 before_baselines/after_baselines를 전달하면 개발 변경 근거를 추가한다. 기준은 종류별 artifact 객체 또는 대상 상대 경로다. 이전 기준은 현재 작업본 경로 대신 기존 frozen artifact 객체를 사용해야 한다. 기존 before(P/D ID), impacts(requirements/screens/checks/tasks), reason, evidence를 유지한다.
@@ -67,4 +71,4 @@ checkpoint는 실행 상태·질문·결정·보관 문서로 같은 실행을 �
 
 ## 확인 범위
 
-`python3 -B -m unittest harness.test_development_tracking harness.test_development_gates`는 임시 Git 대상에서 실제 commit·파일 수정·코드 실행으로 확인한다. 사용자 저장소의 commit/tag/push나 demo-app 구현은 수행하지 않는다. API 내용은 시험 계약이며 실제 서비스 호환성·제품 API 연동 검증은 아니다.
+`python3 -B -m unittest harness.test_development_tracking harness.test_development_gates harness.test_tracking_io`는 임시 Git 대상에서 실제 commit·파일 수정·코드 실행과 검사 deadline·최신성·잠금 경계를 확인한다. 사용자 저장소의 commit/tag/push나 demo-app 구현은 수행하지 않는다. API 내용은 시험 계약이며 실제 서비스 호환성·제품 API 연동 검증은 아니다.

@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import sys
 import tempfile
 import time
@@ -217,24 +216,57 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':300,'output_to
         self.assertEqual(project(self.root)['deduplicated_events'],0)
 
 
-class ActualRecoveryTests(unittest.TestCase):
-    def test_real_web_and_three_same_title_qa_tasks_preserve_totals_and_idempotence(self):
-        source=Path(__file__).resolve().parents[2]/'v1/memo-real-20261027'
-        if not source.exists():self.skipTest('private real record corpus is not distributed with harness')
+class SyntheticLegacyRecoveryTests(unittest.TestCase):
+    """Portable replacement for ActualRecoveryTests; never claims actual model usage.
+
+    The original private-corpus test is archived in the local examples companion.
+    The mandatory invariants remain: recovery, totals, same-title QA identity,
+    repair purpose, idempotence and unchanged source tasks/events.
+    """
+
+    def test_legacy_repair_and_three_same_title_qa_preserve_totals_and_idempotence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
-            for relative in ['.harness/tasks/tasks.yaml','.harness/logs/events.jsonl']:
-                p=root/relative;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source/relative,p)
+            totals={'CHANGE-REPAIR':61,'CHECK-A':127,'CHECK-B':233,'CHECK-C':349}
+            tasks={};events=[]
+            for index,(tid,tokens) in enumerate(totals.items()):
+                role='development' if tid=='CHANGE-REPAIR' else 'verification'
+                aid='synthetic-execution-'+str(index)
+                run={'agent_run_id':aid,'run_id':'synthetic-run','role':role,'kind':'work',
+                     'started_at':'2026-01-03T00:00:00Z','execution_mode':'current_agent',
+                     'usage_bindings':[{'session_id':'synthetic-session','response_id':tid}]}
+                task={'task_id':tid,'title':'Same QA title' if role=='verification' else 'Typed repair',
+                      'role':role,'project_id':'synthetic-legacy','executions':[run]}
+                if role=='verification':
+                    config={'stage':'retest' if tid=='CHECK-B' else 'implementation',
+                            'target_task_id':'TARGET','repair_task_id':'CHANGE-REPAIR' if tid=='CHECK-A' else None}
+                    task['qa_config']=config
+                    events.append({'event_type':'qa_configured','task_id':tid,
+                                   'recorded_at':'2026-01-01T00:00:00Z','observed':config})
+                tasks[tid]=task
+                events.append({'event_id':'synthetic-usage-'+str(index),'event_type':'model_usage',
+                    'task_id':tid,'agent_run_id':aid,'source':{'session_id':'synthetic-session','kind':'SYNTHETIC'},
+                    'observed':{'response_id':tid,'model':'SYNTHETIC_PROTOCOL_ONLY',
+                                'usage_semantics':'per_response_increment',
+                                'usage':{'input_tokens':tokens-5,'cached_input_tokens':3,
+                                         'output_tokens':5,'total_tokens':tokens}}})
+            for relative,value in [('.harness/tasks/tasks.yaml',json.dumps({'tasks':tasks})),
+                                   ('.harness/logs/events.jsonl',''.join(json.dumps(e)+'\n' for e in events))]:
+                p=root/relative;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(value)
             originals={r:hashlib.sha256((root/r).read_bytes()).hexdigest() for r in ['.harness/tasks/tasks.yaml','.harness/logs/events.jsonl']}
             before=project(root);first=recover(root);blob=(root/'.harness/usage/classifications.jsonl').read_bytes();second=recover(root);after=project(root)
-            self.assertGreater(first['added'],0);self.assertEqual(second['added'],0)
+            self.assertEqual(first['added'],len(tasks));self.assertEqual(second['added'],0)
             self.assertEqual(blob,(root/'.harness/usage/classifications.jsonl').read_bytes())
-            self.assertEqual(before['known_tokens'],2927905);self.assertEqual(after['known_tokens'],before['known_tokens'])
-            self.assertEqual(project(root,'FIX-WEB-CHILD')['known_tokens'],178168)
-            self.assertEqual(project(root,'FIX-WEB-CHILD')['purposes'][0]['code'],'defect_fix')
+            self.assertEqual(before['known_tokens'],sum(totals.values()));self.assertEqual(after['known_tokens'],before['known_tokens'])
+            self.assertEqual(project(root,'CHANGE-REPAIR')['known_tokens'],totals['CHANGE-REPAIR'])
+            self.assertEqual(project(root,'CHANGE-REPAIR')['purposes'][0]['code'],'defect_fix')
             sums={t['task_id']:t['direct_tokens'] for t in after['tasks']}
-            self.assertEqual([sums[k] for k in ['QA-IMPLEMENTATION-R2-RETEST','QA-IMPLEMENTATION-FINAL','QA-USER-GOAL']],[280738,286266,645902])
-            self.assertEqual(sum(sums[k] for k in ['QA-IMPLEMENTATION-R2-RETEST','QA-IMPLEMENTATION-FINAL','QA-USER-GOAL']),1212906)
+            self.assertEqual(sums,totals)
+            qa_ids=['CHECK-A','CHECK-B','CHECK-C']
+            self.assertEqual(len({tasks[k]['title'] for k in qa_ids}),1)
+            self.assertEqual([sums[k] for k in qa_ids],[totals[k] for k in qa_ids])
+            self.assertEqual(sum(sums[k] for k in qa_ids),sum(totals[k] for k in qa_ids))
+            self.assertEqual(project(root,'CHECK-B')['purposes'][0]['code'],'qa_retest')
             self.assertEqual(originals,{r:hashlib.sha256((root/r).read_bytes()).hexdigest() for r in originals})
 
 

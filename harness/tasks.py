@@ -112,6 +112,8 @@ class Tasks:
                 result = state['tasks'][task_id]['state']
             self._save(state)
             self._flush(state)
+            if action == 'read':
+                return copy.deepcopy(state)
             return result
 
     def read(self):

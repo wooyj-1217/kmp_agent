@@ -1,11 +1,17 @@
 """Target-repository development evidence in the existing task registry. No code restore."""
 import copy
+from collections import OrderedDict
+from contextlib import contextmanager
+from contextvars import ContextVar, copy_context
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
 import subprocess
-from harness.tracking_io import run_git, capture_budget
+import threading
+from harness.tracking_io import run_git, capture_budget, check_deadline
 
 
 def digest(data):
@@ -19,6 +25,91 @@ def git(root, *args, input=None):
     return result.stdout
 
 
+@lru_cache(maxsize=32)
+def committed_tree(root, head):
+    """Only immutable Git objects are shared; working state is always re-read."""
+    return tuple(git(root, "ls-tree", "-r", "-z", head).split(b"\0"))
+
+
+_blob_hashes = OrderedDict()
+_blob_lock = threading.Lock()
+_capture_batch = ContextVar('development_capture_batch', default=None)
+
+
+def committed_hashes(root, oids):
+    root = str(root)
+    with _blob_lock:
+        found = {oid: _blob_hashes[(root, oid)] for oid in oids if (root, oid) in _blob_hashes}
+    missing = [oid for oid in oids if oid not in found]
+    if missing:
+        data = git(root, 'cat-file', '--batch', input=('\n'.join(missing)+'\n').encode())
+        position = 0
+        for oid in missing:
+            newline = data.index(b'\n', position)
+            header = data[position:newline].split(); position = newline+1
+            if len(header)!=3 or header[0].decode()!=oid or header[1]!=b'blob':
+                raise ValueError('invalid immutable Git blob batch')
+            size = int(header[2]); blob = data[position:position+size]; position += size
+            if len(blob)!=size or data[position:position+1]!=b'\n':
+                raise ValueError('truncated immutable Git blob batch')
+            position += 1; found[oid] = digest(blob)
+        if position!=len(data):
+            raise ValueError('unexpected Git blob batch data')
+        with _blob_lock:
+            for oid in missing:
+                _blob_hashes[(root, oid)] = found[oid]
+            while len(_blob_hashes)>4096:
+                _blob_hashes.popitem(last=False)
+    return found
+
+
+def repository_view(root):
+    commands = [('rev-parse', '--show-toplevel', 'HEAD^{commit}'),
+                ('ls-files', '-z', '--cached', '--others', '--exclude-standard'),
+                ('status', '--porcelain=v1', '--untracked-files=all'),
+                ('ls-files', '--stage', '-z')]
+    # Independent, read-only Git queries share the caller's absolute deadline.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(copy_context().run, git, root, *args) for args in commands]
+        results = [future.result() for future in futures]
+    identity = results[0].decode().rstrip('\n')
+    repository, head = identity.rsplit('\n', 1)
+    if Path(repository).resolve() != Path(root):
+        raise ValueError("task root must be the target Git repository root")
+    return {'head': head,
+            'names': results[1], 'status': results[2], 'index': results[3]}
+
+
+@contextmanager
+def capture_batch(root):
+    """Share Git enumeration only within one refresh, with a fresh exit check."""
+    batch={'root':str(root), 'view':None, 'count':0, 'observations':[]}
+    token=_capture_batch.set(batch)
+    try:
+        yield
+        if batch['view'] is not None:
+            with capture_budget(root, 'shared-refresh-final'):
+                if repository_view(root)!=batch['view']:
+                    raise ValueError('repository changed during shared inspection')
+                for files, modes in batch['observations']:
+                    verify_working_files(root, files, modes)
+    finally:
+        _capture_batch.reset(token)
+
+
+def verify_working_files(root, files, modes):
+    for name, checksum in files.items():
+        check_deadline()
+        path = root / name
+        if path.is_symlink():
+            raise ValueError('code path became a symlink during capture')
+        current = digest(path.read_bytes()) if path.is_file() else None
+        mode = path.stat().st_mode & 0o777 if path.is_file() else None
+        if current != checksum or mode != modes.get(name):
+            raise ValueError('working code changed during capture')
+        check_deadline()
+
+
 def capture(manager, task):
     with capture_budget(manager.root, task['task_id']):
         return _capture(manager, task)
@@ -27,11 +118,17 @@ def capture(manager, task):
 def _capture(manager, task):
     config = task["development_tracking"]
     root = manager.root
-    if Path(git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve() != root:
-        raise ValueError("task root must be the target Git repository root")
-    head = git(root, "rev-parse", "HEAD").decode().strip()
-    names = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").decode().split("\0")
-    tree = git(root, "ls-tree", "-r", "-z", head).split(b"\0")
+    batch=_capture_batch.get()
+    shared=batch is not None and batch['root']==str(root)
+    if shared:
+        if batch['view'] is None: batch['view']=repository_view(root)
+        batch['count']+=1
+        view=batch['view']
+    else:
+        view=repository_view(root)
+    head=view['head']
+    names=view['names'].decode().split("\0")
+    tree = committed_tree(str(root), head)
     committed_ids = {}
     for entry in tree:
         if not entry: continue
@@ -42,6 +139,7 @@ def _capture(manager, task):
     paths = config["code_paths"]
     files = {}
     for name in sorted(set(names) - {""}):
+        check_deadline()
         if name.startswith((".harness/", ".git/", ".kmp-agent/")):
             continue
         if paths and not any(name == p or name.startswith(p + "/") for p in paths):
@@ -52,34 +150,24 @@ def _capture(manager, task):
         files[name] = digest(path.read_bytes()) if path.is_file() else None
     # Immutable OIDs preserve HEAD identity while one batch avoids F processes.
     oids=list(dict.fromkeys(committed_ids[name] for name in files if name in committed_ids))
-    committed_hashes={}
-    if oids:
-        data=git(root,'cat-file','--batch',input=('\n'.join(oids)+'\n').encode());position=0
-        for oid in oids:
-            newline=data.index(b'\n',position);header=data[position:newline].split();position=newline+1
-            if len(header)!=3 or header[0].decode()!=oid or header[1]!=b'blob':raise ValueError('invalid immutable Git blob batch')
-            size=int(header[2]);blob=data[position:position+size];position+=size
-            if len(blob)!=size or data[position:position+1]!=b'\n':raise ValueError('truncated immutable Git blob batch')
-            position+=1;committed_hashes[oid]=digest(blob)
-        if position!=len(data):raise ValueError('unexpected Git blob batch data')
+    hashes=committed_hashes(root, oids)
     changed = {}
     for name, checksum in files.items():
-        committed=committed_hashes.get(committed_ids.get(name))
+        committed=hashes.get(committed_ids.get(name))
         if committed != checksum: changed[name]={'head_sha256':committed,'working_sha256':checksum}
-    status = git(root, "status", "--porcelain=v1", "--untracked-files=all").decode()
+    status = view['status'].decode()
     status = [line for line in status.splitlines() if not line[3:].startswith((".harness/", ".kmp-agent/"))]
-    index = [entry for entry in git(root, "ls-files", "--stage", "-z").decode().split("\0")
+    index = [entry for entry in view['index'].decode().split("\0")
              if entry and entry.split("\t", 1)[-1] in files]
     if any(entry.startswith("160000 ") for entry in index):
         raise ValueError("submodule code state requires explicit separate target task")
     modes = {name: (root / name).stat().st_mode & 0o777 for name in files if (root / name).is_file()}
     identity = {"head": head, "files": files, "index": index, "modes": modes}
-    if git(root, "rev-parse", "HEAD").decode().strip() != head:
+    if not shared and git(root, "rev-parse", "HEAD^{commit}").decode().strip() != head:
         raise ValueError("target HEAD changed during capture")
-    for name, checksum in files.items():
-        path = root / name
-        if (digest(path.read_bytes()) if path.is_file() else None) != checksum:
-            raise ValueError("target files changed during capture")
+    verify_working_files(root, files, modes)
+    if shared:
+        batch['observations'].append((files, modes))
     return {"observed_at": datetime.now(timezone.utc).isoformat(),
             "repository_root": str(root), "head": head, "dirty": bool(status),
             "scope": paths or ("FULL_REPOSITORY" if config.get("scope_policy") == "full_repository" else "UNKNOWN_FULL_REPOSITORY"), "files": files, "index": index, "modes": modes, "changed_files": changed,
@@ -156,6 +244,23 @@ def check_peers(state, task):
 
 
 def refresh(manager, state):
+    try:
+        with capture_batch(manager.root):
+            _refresh(manager, state)
+    except (ValueError, OSError, KeyError, TypeError):
+        # A changed shared enumeration cannot certify any review from this
+        # phase. The next phase gets a new view; no stale PASS is returned.
+        for task in state['tasks'].values():
+            for review in task['reviews']:
+                if not review.get('development_evidence'): continue
+                key=review['agent_run_id']
+                if task.get('validation_status',{}).get(key,{}).get('state')=='RECHECK_REQUIRED': continue
+                status={'state':'RECHECK_REQUIRED','reasons':['current code/contract impact cannot be established']}
+                task.setdefault('validation_status',{})[key]=status
+                manager._event(state,'development_validation_invalidated',task,key,observed=status)
+
+
+def _refresh(manager, state):
     for task in state["tasks"].values():
         if not task.get("development_tracking"):
             for review in task["reviews"]:
