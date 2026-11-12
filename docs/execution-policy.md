@@ -75,7 +75,7 @@ rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation revise-execu
 
 `Tasks.open_question(question_id, question, affected_task_ids, options=..., ...)`으로 필수 질문을 등록한다. 선택지는 내부 ID와 사람이 읽는 `label`을 가진다. `Tasks.answer_question(...)`에는 실제 native 답변과 그 사용자 입력 기록의 ordinal·payload SHA-256을 전달한다. 임의로 만든 답변 텍스트를 전달하는 승인 API가 아니다. `Tasks.question_status()`는 같은 원장의 질문 상태를 조회한다.
 
-typed 승인 질문의 필수 ID는 `approve`이며 질문 표시 전에 검사한다. UI 표시 질문의 줄바꿈·512바이트 절단과 원래 전체 질문을 구분하고, 실제 호출 ID·항목·선택지·동결 계약을 검증한다. 이미 받은 원문은 `task --operation recover-question`의 명시적 근거로 복구할 수 있다. 선택지 ID 치환·범위 변경·자유문 승인 승격은 허용하지 않는다. 스키마·감사 이력·구버전의 잘못된 ID 제한은 [승인 처리와 복구](approval-authority.md#이미-받은-응답의-명시적-복구)를 따른다. 이 보완은 미배포이며 기존 v0.4.6에 소급되지 않는다.
+typed 승인 질문의 필수 ID는 `approve`이며 질문 표시 전에 검사한다. UI 표시 질문의 줄바꿈·512바이트 절단과 원래 전체 질문을 구분하고, 실제 호출 ID·항목·선택지·동결 계약을 검증한다. 이미 받은 원문은 `task --operation recover-question`의 명시적 근거로 복구할 수 있다. 선택지 ID 치환·범위 변경·자유문 승인 승격은 허용하지 않는다. 스키마·감사 이력·구버전의 잘못된 ID 제한은 [승인 처리와 복구](approval-authority.md#이미-받은-응답의-명시적-복구)를 따른다. 이 보완은 [v0.4.7 지원 범위](releases/v0.4.7.md)에 포함되며 기존 v0.4.6에 소급되지 않는다.
 
 CLI는 `tasks configure-execution-policy`, `tasks configure-task-plan`, `tasks open-question`, `tasks answer-question`, `tasks question-status`와 이름 있는 인자의 `--data` JSON을 사용한다. 실제 root native 세션의 절대경로와 UUID는 프로젝트 로컬에만 보관하고 공통 PR·합성 예제에는 넣지 않는다.
 
