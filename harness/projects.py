@@ -189,7 +189,10 @@ def plan(target, skills):
     path = target / "AGENTS.md"
     text = path.read_text() if path.exists() else "# Project instructions\n"
     relative = os.path.relpath(ROOT / "AGENTS.md", target)
-    block = (BEGIN + "\n" + f"공통 하네스 진입: [AGENTS.md]({relative}). 현재 역할에 필요한 지침만 읽는다.\n"
+    block = (BEGIN + "\n"
+             + "첫 도구 호출: exec_command마다 단순 셸 명령 하나만 실행한다. pwd와 rg --files는 별도 호출하며 && 또는 ;로 묶지 않는다.\n"
+             + '압축 원문 복원: 제공된 headroom_retrieve 도구의 스키마를 확인하고 {"hash":"출력에 제시된 hash 값"}로 호출한다. id를 추측해 사용하지 않는다.\n'
+             + f"공통 하네스 진입: [AGENTS.md]({relative}). 현재 역할에 필요한 지침만 읽는다.\n"
              "적용 상태: `.harness/integration-status.json`. 원문 수집은 신뢰된 훅이 수행하며 사용자에게 수동 sync를 요구하지 않는다.\n" + END)
     if BEGIN in text or END in text:
         if text.count(BEGIN) != 1 or text.count(END) != 1 or text.index(BEGIN) > text.index(END):

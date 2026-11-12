@@ -250,7 +250,7 @@ def _argv(command):
             continue
         if char in "'\"": quote = char
         elif char in ';&|<>`$(){}':
-            raise ValueError('compound/dynamic shell commands require an approved managed command; run one simple command per exec_command for reads')
+            raise ValueError('compound/dynamic shell commands require an approved managed command; run one simple command per exec_command for reads, for example pwd then a separate rg --files call; do not join them with && or ;')
     argv = shlex.split(command)
     if argv[:2] == ['rtk','proxy']: argv = argv[2:]
     elif argv[:1] == ['rtk']: argv = argv[1:]
@@ -352,7 +352,7 @@ def _content_read(args):
     if (not isinstance(args,dict) or set(args) != {'hash'}
             or not isinstance(args['hash'],str)
             or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',args['hash'])):
-        raise ValueError('headroom_retrieve requires exactly one literal hash string')
+        raise ValueError('headroom_retrieve requires exactly one literal hash string; retry with {"hash":"<hash from the compressed output>"}, not id; keep the returned hash unchanged')
 
 
 def _option(argv, name):

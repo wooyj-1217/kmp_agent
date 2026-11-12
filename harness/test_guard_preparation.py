@@ -23,6 +23,14 @@ class PreparationReadTests(unittest.TestCase):
         return guard.evaluate(self.root,dict(hook_event_name='PreToolUse',cwd=str(self.root),
                               session_id='synthetic-session',tool_name=tool,tool_input=args))
 
+    def test_wrong_headroom_key_gives_exact_retry_shape_without_accepting_id(self):
+        result=self.invoke('mcp__headroom__headroom_retrieve',{'id':'abc123def456'})
+        self.denied(result)
+        reason=result['hookSpecificOutput']['permissionDecisionReason']
+        self.assertIn('{"hash":',reason)
+        self.assertIn('not id',reason)
+        self.assertEqual({},self.invoke('mcp__headroom__headroom_retrieve',{'hash':'abc123def456'}))
+
     def test_headroom_original_output_is_a_read_before_any_task_exists(self):
         for name in ('mcp__headroom__headroom_retrieve','mcp__headroom.headroom_retrieve'):
             self.assertEqual({},self.invoke(name,{'hash':'abc123def456'}))
