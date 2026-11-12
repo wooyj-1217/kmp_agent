@@ -9,9 +9,10 @@
 | `v0.3.0` / VERSION `0.3.0` | [0.3.0 지원 범위](v0.3.0.md) · [본문 원본](v0.3.0-notes.md) | 개발 위임·독립 QA·요구사항 추적·대시보드 확장. 최종 SHA·원격 검증은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.3.0) 확인 |
 | `v0.4.0` / VERSION `0.4.0` | [0.4.0 지원 범위](v0.4.0.md) · [본문 원본](v0.4.0-notes.md) | foreground 연쇄 실행·승인·복구·완료 계약. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.0) 확인. 실제 모델 E2E NOT_RUN |
 | `v0.4.1` / VERSION `0.4.1` | [0.4.1 지원 범위](v0.4.1.md) · [본문 원본](v0.4.1-notes.md) | 제품 기술 계약의 도구·종료 검사와 Git 실행 우회 차단. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.1) 확인 |
+| `v0.5.0` / VERSION `0.5.0` | [0.5.0 지원 범위](v0.5.0.md) · [본문 원본](v0.5.0-notes.md) | KMP·DB 기준, UI 비해당 계약, 예제 분리와 추적·설치 CLI 수정. 최종 SHA·원격 태그 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.5.0) 확인 |
 | 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 배포 식별·게시 여부는 위 버전별 행 참조 |
 
-배포된 v0.4.1 이후의 변경은 [미배포 변경](unreleased.md)에 기록한다. 다음 버전 번호·후보·게시 일정은 별도로 확정한다.
+v0.5.0의 변경 범위는 해당 지원 현황에 고정한다. 이후 변경은 [미배포 변경](unreleased.md)에 기록한다. 태그·게시 완료 여부는 실제 GitHub Release로 확인한다.
 
 ## 범위와 판정
 

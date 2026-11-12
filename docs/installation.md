@@ -1,6 +1,6 @@
 # 버전 고정 설치·init·update
 
-일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.4.1의 [지원 범위](releases/v0.4.1.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.1)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
+일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.5.0의 [지원 범위](releases/v0.5.0.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.5.0)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
 
 ## 공통 도구와 프로젝트 데이터의 경계
 
@@ -22,13 +22,13 @@ rtk proxy python3 --version
 rtk proxy git --version
 ```
 
-아래 명령은 `v0.4.1`을 명시적으로 선택한다([지원 범위](releases/v0.4.1.md)). 태그 존재·설치 성공은 설치본의 실제 Codex 세션 검증을 뜻하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
+아래 명령은 `v0.5.0`을 명시적으로 선택한다([지원 범위](releases/v0.5.0.md)). 태그 존재·설치 성공은 설치본의 실제 Codex 세션 검증을 뜻하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
 
 ```sh
 rtk proxy git clone --no-checkout git@github.com:wooyj-1217/kmp_agent.git /tmp/kmp-agent-bootstrap
-rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.4.1
+rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.5.0
 rtk proxy git -C /tmp/kmp-agent-bootstrap checkout --detach FETCH_HEAD
-rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.4.1 --target /path/to/product
+rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.5.0 --target /path/to/product
 ```
 
 전체 커밋 SHA도 --ref에 지정할 수 있다. Git 인증은 기존 SSH/credential helper를 사용하고 인증값을 URL·설정에 넣지 않는다. 설치 시 태그를 커밋으로 해석해 SHA를 기록한다. 같은 source/ref의 install 재실행은 이미 고정한 정상 설치를 재사용하고 init을 반복하며, 이동한 태그를 조용히 다시 선택하지 않는다. 다른 버전은 update로 명시한다.
@@ -39,7 +39,7 @@ rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@git
 
 ## 제품 설치 파일 선별
 
-현재 작업본은 제품 예제·앱 시험 기록·도구를 공통 HEAD 밖으로 [분리](examples-separation.md)한다. 이 변경이 포함된 새 SHA를 선택한 설치는 예제 소스 없이 가져온다. 위의 기존 v0.4.1 설치 예시는 해당 과거 배포의 트리·지원 범위를 그대로 사용하며 새 분리가 소급 적용된다는 뜻이 아니다. 일반 전체 clone은 과거 예제 Git 객체도 받을 수 있다. 현재 트리만 필요한 개발용 clone은 명시한 새 태그에 `--depth 1 --branch <태그>`를 사용한다. 미배포 브랜치를 정식 태그처럼 쓰지 않는다.
+v0.5.0부터 제품 예제·앱 시험 기록·도구를 공통 HEAD 밖으로 [분리](examples-separation.md)한다. 이 변경이 포함된 새 SHA를 선택한 설치는 예제 소스 없이 가져온다. v0.5.0 설치 예시는 분리된 현재 트리를 사용한다. 과거 v0.4.1 및 이전 태그에는 이 분리가 소급 적용되지 않는다. 일반 전체 clone은 과거 예제 Git 객체도 받을 수 있다. 현재 트리만 필요한 개발용 clone은 명시한 새 태그에 `--depth 1 --branch <태그>`를 사용한다. 미배포 브랜치를 정식 태그처럼 쓰지 않는다.
 
 이 필터가 포함된 `bootstrap.py`로 새로 가져오는 설치·update 체크아웃은 Git sparse-checkout의 `product-v1` 구성을 사용한다. `installation.json`의 `file_profile`에 실제 구성을 기록한다. 개발 저장소의 파일을 삭제하는 방식이 아니며, 같은 태그/SHA와 Git clean 검증을 유지한다.
 
@@ -116,6 +116,6 @@ rtk proxy python3 -B -m harness.run_tests
 
 로컬 검증은 임시 Git 원본·태그/커밋·bare 저장소·별도 대상에서 설치→init→update, 반복 실행·데이터 보존·실패/중단 복구·모의 훅과 프로젝트 식별을 검사한다. 기본 테스트는 임시 데이터만 쓴다. 필요 시 테스트 실행 환경의 KMP_AGENT_TEST_REPORT로 결과 파일을 지정하면 대상 fixture에서 관측한 project_id·범위·결과를 내보낸다. 식별 누락을 검증하는 fixture 결과도 UNKNOWN과 이유를 유지한다. 실제 프로젝트 원격에는 push·tag를 하지 않는다. 새 배포 경로의 원격 설치·업데이트 결과는 해당 GitHub Release에서 확인한다. 설치본 Codex 세션 훅 신뢰/호출과 데모 설치는 별도로 검증하며, 실행 여부·대상 버전은 해당 Release에서 확인한다.
 
-## 0.4.1 검증 근거 확인
+## 0.5.0 검증 근거 확인
 
-태그는 `v0.4.1`, VERSION은 `0.4.1`이다. [지원 범위](releases/v0.4.1.md)와 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다.
+태그는 `v0.5.0`, VERSION은 `0.5.0`이다. [지원 범위](releases/v0.5.0.md)와 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다.
