@@ -1,6 +1,6 @@
 # 버전 고정 설치·init·update
 
-아래 v0.4.4 명령은 릴리스 후보 기준이다. [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)의 게시와 최종 검증 결과를 확인한 뒤 사용한다. 기존 v0.4.2 이하 guard에서의 첫 전환과 v0.4.3 설치본의 관리 update를 아래에서 구분한다. 태그·Release를 게시하기 전에는 이 안내를 배포 완료로 해석하지 않는다.
+아래 v0.4.4 명령은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)의 게시와 최종 검증 결과를 확인한 뒤 사용한다. 기존 v0.4.2 이하 guard에서의 첫 전환과 v0.4.3 설치본의 관리 update를 아래에서 구분한다. 태그 존재·설치 성공과 실제 제품 적용 성공을 구분한다.
 
 일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.4.4의 [지원 범위](releases/v0.4.4.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
 
@@ -144,4 +144,4 @@ rtk proxy python3 -B -m harness.run_tests
 
 ## 0.4.4 검증 근거 확인
 
-예정 태그는 `v0.4.4`, VERSION은 `0.4.4`이며 현재는 릴리스 후보다. [지원 범위](releases/v0.4.4.md)와 게시 후 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다. 실제 Codex 훅 전달·UI 연결·제품 전체 인수는 후보의 단위·설치 시험과 구분한다.
+태그는 `v0.4.4`, VERSION은 `0.4.4`이다. [지원 범위](releases/v0.4.4.md)와 게시 후 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다. 실제 Codex 훅 전달·UI 연결·제품 전체 인수는 후보의 단위·설치 시험과 구분한다.
