@@ -176,6 +176,43 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual('documentation',task['execution_scope'])
         self.assertFalse((self.target/'shared/App.kt').exists())
 
+    def test_installed_additional_stage_uses_official_revision_and_document_scope(self):
+        self.install()
+        data=self.target/'docs/guard-inputs/stage.json'
+        data.parent.mkdir(parents=True,exist_ok=True)
+        (self.target/'docs/scope.md').write_text('Synthetic stage addition and review scope')
+        def task(operation, values, code=0):
+            data.write_text(json.dumps(values))
+            payload=dict(hook_event_name='PreToolUse',cwd=str(self.target),session_id='synthetic',
+                         tool_name='exec_command',tool_input={'cmd':'python3 .kmp-agent/agent.py task --run-id STAGES --operation '+operation+' --data docs/guard-inputs/stage.json'})
+            guarded=self.cli('guard',input=json.dumps(payload))
+            self.assertEqual({},json.loads(guarded.stdout))
+            result=self.cli('task','--run-id','STAGES','--operation',operation,'--data','docs/guard-inputs/stage.json')
+            self.assertEqual(code,result.returncode,result.stdout+result.stderr)
+            return json.loads(result.stdout)
+        def spec(tid, role):
+            return dict(feature_id='F',task_id=tid,role=role,title='Synthetic preparation',scope='Documents only',
+                        criteria=[dict(id='A',required=True)],inputs=[],work_type='PRODUCT',execution_scope='documentation')
+        task('register-execution-plan',dict(request_type='IMPLEMENT',procedure='delivery_with_qa',goal='Synthetic product',
+             steps=[spec('PLAN','planning')],scope_source='docs/scope.md'))
+        task('register',spec('DESIGN','design'))
+        fields=dict(completion_criteria=['Draft reviewed'],inputs=['docs/scope.md'],outputs=['docs/mockup.html'],verification=['Review draft'])
+        detailed=dict(task_id='DESIGN',work_plan=dict(version=1,owner='design',whole_plan_task_id='DESIGN',
+                      steps=[dict(id='D1',action='Prepare a draft',**fields)],**fields),reason='Explicit design work')
+        failure=task('configure-task-plan',detailed,code=1)
+        self.assertIn('revise-execution-plan',failure['cause'])
+        self.assertNotIn('interrupted update',failure['recovery'])
+        revision=task('revise-execution-plan',dict(added_steps=[],existing_task_ids=['DESIGN'],reason='Add design stage',evidence='docs/scope.md'))
+        self.assertEqual(['PLAN','DESIGN'],revision['task_ids'])
+        task('configure-task-plan',detailed)
+        documents=task('configure-documents',dict(task_id='DESIGN',paths=['docs/mockup.html','prototype/tokens.css','project-settings.json'],reason='Review artifacts'))
+        self.assertIn('docs/mockup.html',documents['paths'])
+        for name in ('collaborationspawn_agent','webrun'):
+            payload=dict(hook_event_name='PreToolUse',cwd=str(self.target),tool_name=name,tool_input={})
+            result=self.cli('guard',input=json.dumps(payload))
+            self.assertEqual({},json.loads(result.stdout))
+        self.assertFalse((self.target/'docs/mockup.html').exists())  # Scope is not execution or approval.
+
     def test_install_init_idempotent_preserves_product_and_trackable_metadata(self):
         result = self.install()
         self.assertEqual(result["installation"]["commit"], self.first)

@@ -56,7 +56,7 @@ def bind_session(manager, root_session_path, root_session_id):
     value = {'root_session_path': str(path), 'root_session_id': root_session_id}
     def op(state):
         if not state.get('execution_policy'):
-            raise ValueError('configure the immutable project execution policy first')
+            raise ValueError('configure the immutable project execution policy first with task --operation configure-execution-policy; then bind-execution-session for this run')
         bindings = state.setdefault('execution_policy_bindings', {})
         old = bindings.get(manager.run_id)
         if old and old != value:
@@ -103,7 +103,7 @@ def configure_plan(manager, task_id, work_plan, reason):
             raise ValueError('owner must equal Task.role')
         member = membership(state, manager.run_id, task_id)
         if not member or plan.get('whole_plan_task_id') != member:
-            raise ValueError('task must be a member of the whole execution plan')
+            raise ValueError('task must be a member of the whole execution plan; use task --operation revise-execution-plan with existing_task_ids for an unstarted additional stage, then configure-task-plan with its resolved whole_plan_task_id')
         if task.get('work_plan') == plan and task.get('work_plan_run_id') == manager.run_id:
             return copy.deepcopy(plan)
         task.setdefault('work_plan_history', []).append({'plan': copy.deepcopy(plan), 'reason': reason, 'run_id': manager.run_id})
@@ -202,7 +202,7 @@ def gate(manager, state, task_id, action):
     if not membership(state, manager.run_id, task_id):
         raise ValueError('whole execution plan membership required before ' + action)
     if not task.get('work_plan') or task.get('work_plan_run_id') != manager.run_id:
-        raise ValueError('assigned detailed work plan required before ' + action)
+        raise ValueError('assigned detailed work plan required before ' + action + '; use task --operation configure-task-plan for this task in the current execution plan')
     if action == 'dispatch':
         active = [r for r in task['executions'] if not r.get('ended_at')]
         if len(active) != 1 or active[0].get('run_id') != manager.run_id or task['state'] != ('IN_REVIEW' if active[0].get('kind') == 'review' else 'IN_PROGRESS'):

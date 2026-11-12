@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--task-id")
     parser.add_argument("--run-id", default="UNKNOWN")
     parser.add_argument("--tracking-settings", type=Path, help="One-time project modules/commands JSON, reused after init")
-    parser.add_argument("--operation", choices=["register", "register-execution-plan", "configure-execution-policy", "bind-execution-session", "configure-task-plan", "open-question", "answer-question", "question-status", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
+    parser.add_argument("--operation", choices=["register", "register-execution-plan", "revise-execution-plan", "configure-execution-policy", "bind-execution-session", "configure-task-plan", "open-question", "answer-question", "question-status", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     parser.add_argument("--agent-run-id", default="UNKNOWN")
     parser.add_argument("--attempt-id", default="UNKNOWN")
@@ -172,9 +172,13 @@ def main():
                        'verification_scope':'target_project', 'identity_source':None}
         else:
             context = bootstrap.load(ROOT / "harness/context.py", "failed_tool_context").identify(target)
+        recovery = ("Inspect cause and task --help. Before ready/begin, use configure-execution-policy (once), "
+                    "register-execution-plan or revise-execution-plan, then configure-task-plan; bind-execution-session for a new run."
+                    if args.action == 'task' else
+                    "Use recover for an interrupted update; inspect source/ref, preserved settings and hook diagnostics.")
         print(json.dumps({**context, "result": "FAIL", "error_type": type(error).__name__,
                           "cause": str(error) if isinstance(error, ValueError) else "Tool configuration operation failed",
-                          "recovery": "Use recover for an interrupted update; inspect source/ref, preserved settings and hook diagnostics."}, ensure_ascii=False))
+                          "recovery": recovery}, ensure_ascii=False))
         return 1
 
 

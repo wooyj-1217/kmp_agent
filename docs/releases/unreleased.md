@@ -1,5 +1,11 @@
 # 미배포 변경
 
+## 제품 준비·추가 단계 연결 보완
+
+실제 훅의 `collaborationspawn_agent`·`webrun` 이름을 정확한 조회/검토 별칭으로 지원하고, 제한된 세션 진단 argv를 추가한다. 공식 task CLI로 신규·기존 미착수 단계를 전체 계획에 명시 추가할 수 있다. 같은 프로젝트·작업 종류, 변경 근거·원자성·타 계획 소속 검사를 유지한다. design documentation의 정확한 HTML/CSS 시안 경로와 루트 project-settings.json 초안 등록, 준비 순서별 복구 안내를 보완한다. 제품 구현·원본 승인·ready/begin 조건은 유지한다.
+
+이 항목은 미배포이며 v0.4.5 태그·설치본을 바꾸지 않는다. 합성 guard·설치 CLI 회귀와 실제 모델/제품 재개를 구분한다. OS 샌드박스의 app-server 초기화 실패는 별도 환경 문제이며 이 수정으로 해결됐다고 주장하지 않는다.
+
 v0.4.2 이후 관리 update 수정은 [v0.4.3 지원 범위](v0.4.3.md)에 연결했다. 기존 v0.4.2 guard에서의 최초 전환은 사용자 터미널 새 bootstrap이 필요하며, v0.4.3 설치 후 다음 명시적 update부터 지원 관리 경로를 사용한다. 최종 SHA·검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.3)에서 확정한다. 이후 변경은 이 문서에 기록한다. 과거 배포 설명·검증 원본은 보존한다.
 
 ## v0.4.4

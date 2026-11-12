@@ -27,6 +27,12 @@ MANAGEMENT = {'task', 'start', 'planning', 'design', 'development', 'verificatio
               'qa', 'usage-register', 'usage-poll', 'collection-report', 'status'}
 HELP_ACTIONS = MANAGEMENT | {'init','update','recover','hook','guard','finish','command'}
 CONTENT_READ_TOOLS = {'mcp__headroom__headroom_retrieve', 'mcp__headroom.headroom_retrieve'}
+# Native hook names can concatenate namespace and method. Accept only observed,
+# exact aliases; stripping punctuation from arbitrary names would widen authority.
+COLLABORATION_ACTIONS = {'spawn_agent', 'send_message', 'wait_agent',
+                         'followup_task', 'list_agents', 'interrupt_agent'}
+TOOL_ALIASES = {'collaboration'+action: action for action in COLLABORATION_ACTIONS}
+WEB_READ_TOOLS = {'web.run', 'web__run', 'webrun'}
 
 
 def installed(root):
@@ -319,10 +325,16 @@ def configure_documents(manager, task_id, paths, reason):
     if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)) or not isinstance(reason,str) or not reason.strip():
         raise ValueError('explicit unique document paths and reason required')
     names = [relative(manager.root, path) for path in paths]
-    if any(not (name.endswith('.md') or name == 'requirement-lineage.json' or name.startswith('docs/') and name.endswith('.json')) for name in names):
-        raise ValueError('document scope requires document/metadata paths')
     def operation(state):
         task = state['tasks'][task_id]
+        def document(name):
+            metadata = (name.endswith('.md') or name in {'requirement-lineage.json', 'project-settings.json'}
+                        or name.startswith('docs/') and name.endswith('.json'))
+            design = (task.get('role') == 'design' and task.get('execution_scope') == 'documentation'
+                      and name.startswith(('docs/', 'prototype/')) and name.endswith(('.html', '.css')))
+            return metadata or design
+        if any(not document(name) for name in names):
+            raise ValueError('document scope requires document/metadata paths; design documentation may freeze exact docs/ or prototype/ HTML/CSS paths; product source requires an implementation contract')
         if task.get('state') not in {'TODO','READY'} or task.get('executions') or task.get('document_scope'):
             raise ValueError('document scope must be frozen once before execution')
         task['document_scope'] = {'paths':names, 'reason':reason}
@@ -426,6 +438,8 @@ def _shell(root, state, session, command):
         raise ValueError('executable paths cannot impersonate read-only command names')
     if program in {'pwd','ls','cat','head','tail','wc'}:
         return
+    if argv in (['printenv', 'CODEX_THREAD_ID'], ['ps', '-axo', 'pid,args']):
+        return  # Exact session diagnostics, never a general environment dump.
     if program == 'sed' and _sed_read(argv):
         return
     if program == 'rg' and not any(x.startswith(('--pre','--hostname-bin')) for x in argv[1:]):
@@ -574,6 +588,7 @@ def evaluate(root, payload):
         state = None
         if event == 'PreToolUse':
             tool, args = payload.get('tool_name',''), payload.get('tool_input',{})
+            tool = TOOL_ALIASES.get(tool, tool)
             if tool.startswith('collaboration.') and tool.split('.',1)[1] in READ_TOOLS:
                 tool = tool.split('.',1)[1]
             if tool.startswith('functions.') and tool.split('.',1)[1] in READ_TOOLS | {'exec_command','apply_patch'}:
@@ -587,7 +602,7 @@ def evaluate(root, payload):
                 return {}
             if tool == 'mcp__codex_tui__list_threads':
                 return {}  # Discovery only; thread creation does not switch cwd.
-            if tool in READ_TOOLS or tool.startswith('mcp__serena__') and tool.rsplit('__',1)[-1] in SERENA_READ:
+            if tool in READ_TOOLS or tool in WEB_READ_TOOLS or tool.startswith('mcp__serena__') and tool.rsplit('__',1)[-1] in SERENA_READ:
                 return {}
             command = args.get('command',args.get('cmd')) if isinstance(args,dict) else args
             if tool in {'apply_patch','Edit','Write'}:

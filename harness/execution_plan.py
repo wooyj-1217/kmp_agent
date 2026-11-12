@@ -55,15 +55,43 @@ def attach_existing(manager, task_ids, request_type, procedure, goal, scope_sour
     return manager._mutate('connect_execution_plan',op)
 
 
-def revise(manager, added_steps, reason, evidence):
-    if not reason:raise ValueError('plan change reason required')
+def revise(manager, added_steps, reason, evidence, existing_task_ids=None):
+    if not isinstance(reason,str) or not reason.strip():raise ValueError('plan change reason required')
+    if not isinstance(added_steps,list) or any(not isinstance(s,dict) for s in added_steps):
+        raise ValueError('added_steps must be a list of new task specifications')
+    existing_task_ids=[] if existing_task_ids is None else existing_task_ids
+    if (not isinstance(existing_task_ids,list) or any(not isinstance(t,str) or not t for t in existing_task_ids)
+            or len(set(existing_task_ids))!=len(existing_task_ids) or not (added_steps or existing_task_ids)):
+        raise ValueError('explicit unique existing_task_ids or new added_steps required')
     proof=manager.artifact(evidence)
     def op(state):
-        plan=state['execution_plans'][manager.run_id]
+        plan=state.get('execution_plans',{}).get(manager.run_id)
+        if not plan or not plan.get('task_ids'):
+            raise ValueError('register-execution-plan for this run before revising it')
+        tasks=state['tasks'];anchor=tasks[plan['task_ids'][0]]
+        identity=(anchor['project_id'],anchor['work_type'])
+        if anchor['project_id']!=manager.context['project_id'] or any((tasks[t]['project_id'],tasks[t]['work_type'])!=identity for t in plan['task_ids']):
+            raise ValueError('execution plan must contain one current project and work type')
+        for tid in existing_task_ids:
+            task=tasks.get(tid)
+            if task is None or tid in plan['task_ids']:
+                raise ValueError('existing task must exist and not already belong to this execution plan')
+            if (task['project_id'],task['work_type'])!=identity:
+                raise ValueError('existing task must have the same project and work type as the execution plan')
+            if task.get('state') not in {'TODO','READY','BLOCKED'} or task.get('executions') or task.get('applicability',{}).get('status')=='EXCLUDED':
+                raise ValueError('only unstarted applicable existing tasks can be added to an execution plan')
+            from harness.execution_policy import membership
+            if any(membership(state,run,tid) for run in state.get('execution_plans',{})):
+                raise ValueError('existing task already belongs to an execution plan; use its original plan')
+        if any(spec.get('work_type','HARNESS_BUILD')!=identity[1] for spec in added_steps):
+            raise ValueError('execution plan revision cannot combine product and harness work types')
         for spec in added_steps:
             manager._register_state(state,**spec);plan['task_ids'].append(spec['task_id'])
-        plan['history'].append({'reason':reason,'evidence':proof,'task_ids':plan['task_ids'][:]})
-        manager._event(state,'execution_plan_revised',state['tasks'][plan['task_ids'][0]],observed={'reason':reason,'evidence':proof,'task_ids':plan['task_ids'][:]})
+        plan['task_ids'].extend(existing_task_ids)
+        revision={'reason':reason,'evidence':proof,'task_ids':plan['task_ids'][:],
+                  'added_task_ids':[s['task_id'] for s in added_steps],'existing_task_ids':existing_task_ids[:]}
+        plan['history'].append(revision)
+        manager._event(state,'execution_plan_revised',state['tasks'][plan['task_ids'][0]],observed=revision)
         return copy.deepcopy(plan)
     return manager._mutate('revise_execution_plan',op)
 
