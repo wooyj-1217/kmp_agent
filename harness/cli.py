@@ -5,6 +5,10 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if __name__ == '__main__' and not __package__:
+    # File execution adds harness/ to sys.path, shadowing stdlib logging when
+    # concurrent.futures is imported by the normal task inspection path.
+    sys.path[:] = [p for p in sys.path if Path(p or '.').resolve() != ROOT / 'harness']
 sys.path.insert(0, str(ROOT))
 import bootstrap
 
