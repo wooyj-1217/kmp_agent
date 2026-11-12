@@ -50,6 +50,28 @@ class CompletionCliTests(unittest.TestCase):
         self.assertTrue(result['usage_required'])
         self.assertTrue(result['context_required'])
 
+    def test_revise_execution_plan_routes_existing_stage_through_selected_entry(self):
+        def step(tid):
+            return dict(feature_id='F', task_id=tid, role='planning', title='synthetic stage',
+                        scope='document preparation', criteria=[{'id':'AC','required':True}],
+                        inputs=['input.md'], execution_scope='documentation')
+        self.manager.register_execution_plan(request_type='HARNESS_IMPROVEMENT',
+            procedure='local_change_validation', goal='synthetic scope',
+            steps=[step('A')], scope_source='input.md')
+        self.manager.register(**step('B'))
+        data=self.root/'revision.json'
+        data.write_text(json.dumps(dict(added_steps=[],existing_task_ids=['B'],
+                                       reason='explicit new stage',evidence='input.md')))
+        code,result=self.invoke('task',operation='revise-execution-plan',data=data)
+        self.assertEqual((code,result['task_ids']),(0,['A','B']))
+        self.assertEqual(result['history'][-1]['existing_task_ids'],['B'])
+        self.assertNotIn('work_plan',self.manager.read()['tasks']['B'])
+        code,result=self.invoke('task',operation='revise-execution-plan',data=data)
+        self.assertEqual(code,1)
+        self.assertIn('already belong',result['cause'])
+        self.assertIn('revise-execution-plan',result['recovery'])
+        self.assertNotIn('Use recover',result['recovery'])
+
     def test_missing_native_identity_and_unknown_fields_are_rejected(self):
         work = self.begin('MAIN')
         data = self.root / 'bad.json'

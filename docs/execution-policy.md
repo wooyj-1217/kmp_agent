@@ -26,6 +26,31 @@
 
 다음 실행에서는 `Tasks.bind_execution_session(root_session_path, root_session_id)`로 해당 실행의 메인 원본을 명시 연결한다. 기존 실행의 연결을 바꾸거나 정책을 약화하지 않는다. 기존 작업을 새 실행에서 재시도할 때도 새 실행의 전체 계획 연결과 담당 계획 등록을 다시 확인한다.
 
+최초 실행은 `task --operation configure-execution-policy`로 정책과 원본 세션을 먼저 고정한다. 정책이 없는 상태에서 `bind-execution-session`을 호출하지 않는다. 정책 설정은 한 번이며 이후 실행만 별도 바인딩한다. 전체 계획 소속과 담당 상세 계획은 별도다. `configure-qa`만으로 QA 담당 계획이 생기지 않으므로 QA도 dispatch 전에 원장 역할·해결된 전체 계획 작업 ID로 `configure-task-plan`을 등록한다.
+
+### 이미 시작한 전체 계획에 단계 추가
+
+새 단계는 `task --operation revise-execution-plan`의 `added_steps`로 등록한다. 먼저 `register`로 만든 단계가 있다면 다시 등록하지 않고 `existing_task_ids`에 정확한 ID를 지정한다. 변경 이유와 실제 로컬 근거 파일을 함께 남긴다.
+
+```json
+{
+  "added_steps": [],
+  "existing_task_ids": ["DESIGN-STAGE", "DEVELOPMENT-PLAN-STAGE"],
+  "reason": "필요한 후속 검토 단계를 전체 계획에 명시적으로 추가",
+  "evidence": "docs/stage-change.md"
+}
+```
+
+```sh
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation revise-execution-plan --data docs/guard-inputs/plan-revision.json
+```
+
+연결 대상은 같은 프로젝트·작업 종류의 미착수 TODO/READY/BLOCKED 작업이어야 한다. 시작 이력·다른 전체 계획 소속·EXCLUDED·중복 ID는 거절한다. 신규·기존 추가 중 하나라도 부적합하면 전체 변경을 저장하지 않는다. 과거 순서·변경 근거는 보존하며 사후 연결을 사전 등록으로 표시하지 않는다. 이후 각 단계의 `configure-task-plan`, 문서/기술 계약, `ready`·`begin`은 그대로 필요하다. 계획 연결은 착수나 승인이 아니다.
+
+이 추가 단계 연결 경로는 미배포 변경이다. v0.4.5 설치본에는 소급 적용되지 않으며 수정 코드가 포함된 버전을 명시 선택해야 한다.
+
+### 담당 상세 계획 예시
+
 ```json
 {
   "version": 1,

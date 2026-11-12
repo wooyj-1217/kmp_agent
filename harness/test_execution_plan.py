@@ -32,6 +32,35 @@ class ExecutionPlanTests(unittest.TestCase):
   self.assertEqual(self.m.read()['tasks'],{})
  def test_revision_preserves_previous_order_and_reason(self):
   self.plan();revise(self.m,[self.step('B',['T'])],'add regression','scope.md');p=self.m.read()['execution_plans']['plan-run'];self.assertEqual(p['task_ids'],['T','B']);self.assertEqual(len(p['history']),2)
+ def test_revision_links_unstarted_existing_stage_before_detailed_plan(self):
+  self.plan();self.m.register(**self.step('B',['T']))
+  p=revise(self.m,[],'explicit stage addition','scope.md',existing_task_ids=['B'])
+  self.assertEqual(p['task_ids'],['T','B']);self.assertEqual(p['history'][-1]['existing_task_ids'],['B'])
+  fields=dict(completion_criteria=['check'],inputs=['scope.md'],outputs=['stage.md'],verification=['review'])
+  self.m.configure_task_plan('B',dict(version=1,owner='improvement',whole_plan_task_id='B',steps=[dict(id='B1',action='prepare',**fields)],**fields),'assigned stage plan')
+  self.assertEqual(require(self.m,'B')['task_ids'],['T','B'])
+ def test_revision_rejects_mixed_work_types_without_partial_changes(self):
+  self.plan();before=self.m.read();bad=self.step('C');bad['work_type']='PRODUCT'
+  with self.assertRaises(ValueError):revise(self.m,[self.step('B'),bad],'invalid mixture','scope.md')
+  self.assertEqual(self.m.read(),before)
+ def test_revision_rejects_duplicate_unknown_and_other_plan_connections(self):
+  self.plan();self.m.register(**self.step('B'));other=Tasks(self.root,'other-run')
+  register(other,'HARNESS_IMPROVEMENT','local_change_validation','other scope',[self.step('C')],'scope.md')
+  for ids in (['T'],['B','B'],['missing'],['C']):
+   before=self.m.read()
+   with self.assertRaises(ValueError):revise(self.m,[self.step('D')],'invalid connection','scope.md',existing_task_ids=ids)
+   self.assertEqual(self.m.read(),before)
+ def test_revision_rejects_started_excluded_and_foreign_tasks(self):
+  self.plan();self.m.register(**self.step('B'));self.m.ready('B');self.m.begin('B','improvement',execution_mode='current_agent')
+  self.m.register(**self.step('C'));self.m.register(**self.step('D'));self.m.register(**self.step('E'))
+  def mark(state):
+   state['tasks']['C']['applicability']={'status':'EXCLUDED'}
+   state['tasks']['D']['project_id']='foreign'
+   state['tasks']['E']['work_type']='PRODUCT'
+  self.m._mutate('synthetic_connection_constraints',mark)
+  for tid in ['B','C','D','E']:
+   with self.assertRaises(ValueError):revise(self.m,[],'invalid connection','scope.md',existing_task_ids=[tid])
+  self.assertEqual(self.m.read()['execution_plans']['plan-run']['task_ids'],['T'])
  def test_exclusion_requires_original_authority_and_never_marks_done(self):
   self.lineage();self.plan()
   with self.assertRaises(ValueError):exclude(self.m,'T','not applicable','D','agent says yes')
