@@ -565,7 +565,9 @@ def evaluate(root, payload):
     event = payload.get('hook_event_name')
     try:
         if Path(payload.get('cwd','')).resolve() != root:
-            raise ValueError('hook cwd differs from target project root')
+            raise ValueError('hook cwd differs from target project root '+str(root)
+                +'; keep this product session at its root. For harness repair, open a separate Codex session at a clone of the source recorded in .kmp-agent/installation.json'
+                +'; source may be a remote URL, not a local directory. Keep the handoff JSON in product docs/guard-inputs/ and preserve native evidence there; see the selected harness docs/harness-defect-pr.md for the separate-source handoff procedure')
         # A harness repair must remain possible when the product ledger is
         # blocked or malformed. Only this separately verified management
         # capability may bypass reading product state; no product work is allowed.

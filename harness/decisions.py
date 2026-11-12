@@ -114,6 +114,11 @@ def _replacement_binding(state, q, previous_id):
     return {'question_id': previous_id, 'decision_contract_sha256': digest(old)}
 
 
+def _validate_approval_options(options):
+    if not any(option['id'] == 'approve' for option in options):
+        raise ValueError("typed approval requires canonical option id 'approve' before displaying the question; option IDs are never inferred from labels")
+
+
 def open_question(manager, question_id, question, affected_task_ids, options=None,
                   answer_mode='EXPLICIT_CHOICE', question_item_id=None,
                   approval_purpose=None, approval_artifacts=None, approval_subject=None,
@@ -136,6 +141,8 @@ def open_question(manager, question_id, question, affected_task_ids, options=Non
     # Reject non-JSON/NaN payloads before opening any question.
     if approval_subject is not None:
         json.dumps(approval_subject, allow_nan=False)
+    if approval_purpose is not None:
+        _validate_approval_options(options)
     def op(state):
         policy = state.get('execution_policy_bindings', {}).get(manager.run_id)
         if not policy:
@@ -236,6 +243,48 @@ def input_text(record):
     return None
 
 
+def _display_echo_matches(body, echo):
+    """Known UI display transforms only. The full native call is authority."""
+    if not isinstance(echo, str):
+        return False
+    normalized = body.replace('\r\n', '\n').replace('\r', '\n').replace('\n', ' ')
+    variants = {body, normalized}
+    variants.update(value.encode('utf-8')[:512].decode('utf-8', errors='ignore')
+                    for value in (body, normalized) if len(value.encode('utf-8')) > 512)
+    return echo in variants
+
+
+def _unique_native_reply(records, identity, reply_ordinal):
+    """Count user response_items, not their adjacent mirror event records.
+
+    Scan through the current native tail also at consumption. A caller cannot
+    select an earlier approval locator while hiding a second reply/rejection.
+    """
+    prefix, suffix = '<send_user_message_question_reply>\n', '\n</send_user_message_question_reply>'
+    occurrences = []
+    for ordinal, record in enumerate(records, 1):
+        if record.get('type') != 'response_item':
+            continue
+        text = input_text(record)
+        if not isinstance(text, str) or not text.startswith(prefix) or not text.endswith(suffix):
+            continue
+        try:
+            replies = json.loads(text[len(prefix):-len(suffix)])
+        except ValueError:
+            continue
+        if not isinstance(replies, list):
+            continue
+        for reply in replies:
+            try:
+                key = json.loads(reply['questionItemId'])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if key == list(identity):
+                occurrences.append(ordinal)
+    if len(occurrences) != 1 or occurrences[0] not in {reply_ordinal, reply_ordinal + 1}:
+        raise ValueError('one unique native user response for this question item required; duplicate/conflicting replies cannot be selected individually')
+
+
 def structured_choice(text, records, boundary, reply_ordinal, question):
     """Resolve a real UI question reply against its native assistant prompt call."""
     prefix, suffix = '<send_user_message_question_reply>\n', '\n</send_user_message_question_reply>'
@@ -244,39 +293,55 @@ def structured_choice(text, records, boundary, reply_ordinal, question):
     replies = json.loads(text[len(prefix):-len(suffix)])
     if not isinstance(replies, list) or not replies or any(not isinstance(r, dict) for r in replies):
         raise ValueError('structured question replies required')
-    candidates = [r for r in replies if r.get('question') == question['question'] and
-                  (not question.get('question_item_id') or r.get('questionItemId') == question['question_item_id'])]
+    candidates, seen = [], set()
+    for reply in replies:
+        item = reply.get('questionItemId')
+        if not isinstance(item, str):
+            raise ValueError('native question item locator required')
+        key = json.loads(item)
+        if (not isinstance(key, list) or len(key) != 3
+                or key[0] not in {'request_user_input_async', 'request_user_input'}
+                or not isinstance(key[1], str) or not key[1]
+                or type(key[2]) is not int or key[2] < 0):
+            raise ValueError('native question item locator required')
+        identity = tuple(key)
+        if identity in seen:
+            raise ValueError('duplicate native question reply item')
+        seen.add(identity)
+        calls = [(i + 1, r.get('payload', {})) for i, r in enumerate(records)
+                 if i + 1 < reply_ordinal and r.get('type') == 'response_item'
+                 and r.get('payload', {}).get('type') == 'function_call'
+                 and r.get('payload', {}).get('call_id') == key[1]]
+        if len(calls) != 1:
+            raise ValueError('question must match one native prompt call after opening')
+        ordinal, call = calls[0]
+        if call.get('name') not in {key[0], 'functions.' + key[0]} or call.get('namespace') not in {None, 'functions'}:
+            raise ValueError('human input prompt call required')
+        args = json.loads(call['arguments']) if isinstance(call.get('arguments'), str) else call.get('arguments', {})
+        questions = args.get('questions', [])
+        if not isinstance(questions, list) or key[2] >= len(questions):
+            raise ValueError('native prompt question index invalid')
+        prompt = questions[key[2]]
+        body = prompt.get('question', prompt.get('title', prompt.get('prompt')))
+        # Select by authenticated full call content and locator, never by an
+        # echoed prefix. The current contract separately checks scope/files.
+        if body != question['question']:
+            continue
+        if question.get('question_item_id') and question['question_item_id'] != item:
+            continue
+        if ordinal <= boundary['records']:
+            raise ValueError('question must match one native prompt call after opening')
+        labels = [o if isinstance(o, str) else o.get('label') for o in prompt.get('options', [])]
+        if labels != [o['label'] for o in question['options']] or reply.get('answer') not in labels:
+            raise ValueError('native prompt option labels mismatch')
+        if not _display_echo_matches(body, reply.get('question')):
+            raise ValueError('native prompt display echo is not an exact supported UI transform')
+        _unique_native_reply(records, identity, reply_ordinal)
+        candidates.append({'text': reply['answer'], 'question_item_id': item,
+                           'prompt_record_ordinal': ordinal, 'prompt_payload_sha256': digest(call)})
     if len(candidates) != 1:
-        raise ValueError('one unambiguous structured reply for this question required')
-    reply = candidates[0]
-    item = reply.get('questionItemId')
-    key = json.loads(item)
-    if not isinstance(key, list) or len(key) != 3 or key[0] not in {'request_user_input_async', 'request_user_input'} or type(key[2]) is not int or key[2] < 0:
-        raise ValueError('native question item locator required')
-    if question.get('question_item_id') and question['question_item_id'] != item:
-        raise ValueError('reply belongs to another prompt item')
-    calls = [(i + 1, r.get('payload', {})) for i, r in enumerate(records)
-             if boundary['records'] < i + 1 < reply_ordinal and r.get('type') == 'response_item'
-             and r.get('payload', {}).get('type') == 'function_call'
-             and r.get('payload', {}).get('call_id') == key[1]]
-    if len(calls) != 1:
-        raise ValueError('question must match a native prompt call after opening')
-    ordinal, call = calls[0]
-    if call.get('name') not in {key[0], 'functions.' + key[0]}:
-        raise ValueError('human input prompt call required')
-    args = json.loads(call['arguments']) if isinstance(call.get('arguments'), str) else call.get('arguments', {})
-    questions = args.get('questions', [])
-    if key[2] >= len(questions):
-        raise ValueError('native prompt question index invalid')
-    prompt = questions[key[2]]
-    body = prompt.get('question', prompt.get('title', prompt.get('prompt')))
-    if body != question['question'] or reply.get('question') != body:
-        raise ValueError('native prompt question text mismatch')
-    labels = [o if isinstance(o, str) else o.get('label') for o in prompt.get('options', [])]
-    if labels != [o['label'] for o in question['options']] or reply.get('answer') not in labels:
-        raise ValueError('native prompt option labels mismatch')
-    return {'text': reply['answer'], 'question_item_id': item,
-            'prompt_record_ordinal': ordinal, 'prompt_payload_sha256': digest(call)}
+        raise ValueError('one unambiguous structured reply for this full native question required')
+    return candidates[0]
 
 
 def _contract_current(state, q, root=None):
@@ -447,74 +512,79 @@ def is_superseded(state, question):
     return bool(receipt and receipt.get('supersession_trace'))
 
 
+def _answer_question(manager, state, question_id, record_ordinal, payload_sha256,
+                     user_input_record_ordinal, user_input_payload_sha256):
+    q = state['required_questions'][question_id]
+    policy = state['execution_policy_bindings'][q['run_id']]
+    if q['run_id'] != manager.run_id or q['status'] != 'OPEN':
+        raise ValueError('an OPEN question in this run is required')
+    if not _contract_current(state, q, manager.root):
+        raise ValueError('question contract/input changed; new question required')
+    records, raw = native_records(policy['root_session_path'], policy['root_session_id'])
+    boundary = q['opened_source_boundary']
+    if hashlib.sha256(raw[:boundary['bytes']]).hexdigest() != boundary['sha256']:
+        raise ValueError('native root prefix changed since question')
+    indexes = (record_ordinal, user_input_record_ordinal)
+    if any(type(i) is not int or i <= boundary['records'] or i > len(records) for i in indexes):
+        raise ValueError('answer must be actually received after the question')
+    event, user = (records[i - 1] for i in indexes)
+    if digest(event.get('payload')) != payload_sha256 or digest(user.get('payload')) != user_input_payload_sha256:
+        raise ValueError('native answer locator/hash mismatch')
+    if event.get('type') != 'event_msg' or input_text(event) is None or user.get('type') != 'response_item':
+        raise ValueError('native human user_message and paired user input required')
+    if event.get('payload', {}).get('type') == 'item_completed' and event['payload'].get('thread_id') != policy['root_session_id']:
+        raise ValueError('UserMessage companion thread must equal native root session')
+    text = input_text(event)
+    if not isinstance(text, str) or text != input_text(user) or abs(record_ordinal - user_input_record_ordinal) != 1:
+        raise ValueError('adjacent matching native human input required; agent/tool/notifications forbidden')
+    if any(marker in text.lower() for marker in ('<subagent', '<environment', '<notification', 'message type: new_task', 'message type: message')):
+        raise ValueError('injected agent/environment messages are not human answers')
+    locator = {'session_id': policy['root_session_id'], 'record_ordinal': record_ordinal,
+               'payload_sha256': payload_sha256, 'user_input_record_ordinal': user_input_record_ordinal,
+               'user_input_payload_sha256': user_input_payload_sha256}
+    try:
+        structured = structured_choice(text, records, boundary, min(indexes), q) if q['answer_mode'] == 'EXPLICIT_CHOICE' else None
+    except (TypeError, KeyError, IndexError, AttributeError) as error:
+        raise ValueError('invalid native structured choice; keep waiting') from error
+    if ((q.get('decision_contract') or {}).get('purpose') or (q.get('decision_contract') or {}).get('supersedes')) and not structured:
+        raise ValueError('typed human approval requires a native structured prompt')
+    for other in state['required_questions'].values():
+        previous = other.get('answer') or {}
+        previous_source = previous.get('source', {})
+        if (previous_source.get('session_id'), previous_source.get('record_ordinal')) != (locator['session_id'], record_ordinal):
+            continue
+        old_item = (previous.get('structured_prompt') or {}).get('question_item_id')
+        if not structured or not old_item or old_item == structured['question_item_id']:
+            raise ValueError('native answer already used')
+    selected_text = structured['text'] if structured else text
+    matching = []
+    for qid, other in state['required_questions'].items():
+        if other['status'] != 'OPEN' or other['run_id'] != manager.run_id or other['answer_mode'] != 'EXPLICIT_CHOICE':
+            continue
+        if structured and qid != question_id:
+            continue
+        for option in other['options']:
+            if selected_text in (option['id'], option['label']):
+                matching.append((qid, option))
+    if q['answer_mode'] == 'FREEFORM':
+        q['received_freeform'] = {'source': locator, 'text': text}
+        q['human_review_required'] = True
+        return copy.deepcopy(q)
+    if len(matching) != 1 or matching[0][0] != question_id:
+        raise ValueError('answer does not uniquely select this pending question; keep waiting')
+    from harness.logging import now
+    q.update(status='ANSWERED', answer={'source': locator, 'text': text, 'option': matching[0][1],
+                                      'structured_prompt': structured, 'issued_at': now()})
+    if q.get('decision_contract'):
+        q['answer']['validation'] = {'contract_sha256': digest(q['decision_contract']),
+            'native_boundary': {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}}
+    manager._event(state, 'required_question_answered', state['tasks'][q['affected_task_ids'][0]], observed=q)
+    return copy.deepcopy(q)
+
+
 def answer_question(manager, question_id, record_ordinal, payload_sha256,
                     user_input_record_ordinal, user_input_payload_sha256):
     """Ordinals are one-based native JSONL records, not imported Logger events."""
-    def op(state):
-        q = state['required_questions'][question_id]
-        policy = state['execution_policy_bindings'][q['run_id']]
-        if q['run_id'] != manager.run_id or q['status'] != 'OPEN':
-            raise ValueError('an OPEN question in this run is required')
-        if not _contract_current(state, q, manager.root):
-            raise ValueError('question contract/input changed; new question required')
-        records, raw = native_records(policy['root_session_path'], policy['root_session_id'])
-        boundary = q['opened_source_boundary']
-        if hashlib.sha256(raw[:boundary['bytes']]).hexdigest() != boundary['sha256']:
-            raise ValueError('native root prefix changed since question')
-        indexes = (record_ordinal, user_input_record_ordinal)
-        if any(type(i) is not int or i <= boundary['records'] or i > len(records) for i in indexes):
-            raise ValueError('answer must be actually received after the question')
-        event, user = (records[i - 1] for i in indexes)
-        if digest(event.get('payload')) != payload_sha256 or digest(user.get('payload')) != user_input_payload_sha256:
-            raise ValueError('native answer locator/hash mismatch')
-        if event.get('type') != 'event_msg' or input_text(event) is None or user.get('type') != 'response_item':
-            raise ValueError('native human user_message and paired user input required')
-        if event.get('payload', {}).get('type') == 'item_completed' and event['payload'].get('thread_id') != policy['root_session_id']:
-            raise ValueError('UserMessage companion thread must equal native root session')
-        text = input_text(event)
-        if not isinstance(text, str) or text != input_text(user) or abs(record_ordinal - user_input_record_ordinal) != 1:
-            raise ValueError('adjacent matching native human input required; agent/tool/notifications forbidden')
-        if any(marker in text.lower() for marker in ('<subagent', '<environment', '<notification', 'message type: new_task', 'message type: message')):
-            raise ValueError('injected agent/environment messages are not human answers')
-        locator = {'session_id': policy['root_session_id'], 'record_ordinal': record_ordinal,
-                   'payload_sha256': payload_sha256, 'user_input_record_ordinal': user_input_record_ordinal,
-                   'user_input_payload_sha256': user_input_payload_sha256}
-        try:
-            structured = structured_choice(text, records, boundary, min(indexes), q) if q['answer_mode'] == 'EXPLICIT_CHOICE' else None
-        except (TypeError, KeyError, IndexError, AttributeError) as error:
-            raise ValueError('invalid native structured choice; keep waiting') from error
-        if ((q.get('decision_contract') or {}).get('purpose') or (q.get('decision_contract') or {}).get('supersedes')) and not structured:
-            raise ValueError('typed human approval requires a native structured prompt')
-        for other in state['required_questions'].values():
-            previous = other.get('answer') or {}
-            previous_source = previous.get('source', {})
-            if (previous_source.get('session_id'), previous_source.get('record_ordinal')) != (locator['session_id'], record_ordinal):
-                continue
-            old_item = (previous.get('structured_prompt') or {}).get('question_item_id')
-            if not structured or not old_item or old_item == structured['question_item_id']:
-                raise ValueError('native answer already used')
-        selected_text = structured['text'] if structured else text
-        matching = []
-        for qid, other in state['required_questions'].items():
-            if other['status'] != 'OPEN' or other['run_id'] != manager.run_id or other['answer_mode'] != 'EXPLICIT_CHOICE':
-                continue
-            if structured and qid != question_id:
-                continue
-            for option in other['options']:
-                if selected_text in (option['id'], option['label']):
-                    matching.append((qid, option))
-        if q['answer_mode'] == 'FREEFORM':
-            q['received_freeform'] = {'source': locator, 'text': text}
-            q['human_review_required'] = True
-            return copy.deepcopy(q)
-        if len(matching) != 1 or matching[0][0] != question_id:
-            raise ValueError('answer does not uniquely select this pending question; keep waiting')
-        from harness.logging import now
-        q.update(status='ANSWERED', answer={'source': locator, 'text': text, 'option': matching[0][1],
-                                          'structured_prompt': structured, 'issued_at': now()})
-        if q.get('decision_contract'):
-            q['answer']['validation'] = {'contract_sha256': digest(q['decision_contract']),
-                'native_boundary': {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}}
-        manager._event(state, 'required_question_answered', state['tasks'][q['affected_task_ids'][0]], observed=q)
-        return copy.deepcopy(q)
-    return manager._mutate('answer_question', op)
+    return manager._mutate('answer_question', lambda state: _answer_question(
+        manager, state, question_id, record_ordinal, payload_sha256,
+        user_input_record_ordinal, user_input_payload_sha256))
