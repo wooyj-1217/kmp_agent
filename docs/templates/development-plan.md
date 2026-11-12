@@ -3,12 +3,13 @@
 - 범위: 입력 해석·계획만. 앱 코드·빌드·실제 플랫폼 검증은 NOT_RUN.
 - 정확한 기획 P / 디자인 D / CR와 공식 검토 기록: <버전·원본 path/SHA·검토 참조>
 - 입력 확인: <requirements/design/tokens/components/prototype/AC/아키텍처 원문 목록과 이해한 내용>
-- 적용 지침: [개발 역할](../roles/development.md), 제품이 채택한 기술의 아키텍처. KMP 시험이면 [참조 구조](../product-architecture.md). 실제 존재하는 코드와 계획 모듈을 구분한다.
+- 적용 지침: [개발 역할](../roles/development.md), [제품 아키텍처](../product-architecture.md)의 KMP 필수 기준과 제품별 세부 기술 지침. 실제 존재하는 코드와 계획 모듈을 구분한다.
 
 ## 프로젝트 결정·진행 단계
 
 - 프로젝트 설정 원본·기준 snapshot: <project-settings.json 참조>. [단계 계약](../project-settings.md)의 상태·필수 입력을 사용하고 값을 복제하지 않는다.
 - 단계: <ui / client_integration / server_implementation / integration_verification / 입력 해석만>. 임시 계약·목 데이터, 진행 가능한 작업·차단된 작업, 필요한 결정·담당을 연결한다.
+- Kotlin Multiplatform 필수 적용과 실제 공유 모듈·소스셋·타깃별 빌드/검증 명령을 확인한다. KMP 미사용 계획은 구현 전에 계약 충돌로 반환한다.
 - 실제 구현 타깃·UI 기술·지원 범위, 타깃별 공유/플랫폼 책임·소유 모듈, 서버 없음/기존/신규와 서버·DB 결정을 확인한다. 미정을 확정으로 승격하지 않는다.
 - [승인된 개발 제약](../development-constraints.md) 원본 requirement ID·정책 digest·동결 참조: <참조 또는 비 PRODUCT에서 미지정 사유>. DB 엔진/위치/역할, UI 공유·소유 경로, 전체 타깃 진입 파일·명령·소스 규칙은 원본을 참조한다. 변경 제안은 승인과 재검토 전까지 구현하지 않는다.
 

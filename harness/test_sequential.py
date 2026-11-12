@@ -171,7 +171,7 @@ class TemporaryProjectCLI(unittest.TestCase):
             (root / "input.md").write_text("synthetic input")
             (root / "output.md").write_text("synthetic output")
             (root / "src").mkdir()
-            (root / "src/app.py").write_text("value = 1\n")
+            (root / "src/App.kt").write_text("val value = 1\n")
             (root / ".gitignore").write_text(".harness/\n.kmp-agent/\n.codex/\n")
             def git(*args):
                 return subprocess.run(["rtk", "proxy", "git", *args], cwd=root, check=True, capture_output=True)
@@ -179,12 +179,19 @@ class TemporaryProjectCLI(unittest.TestCase):
             git("-c", "user.name=Synthetic", "-c", "user.email=synthetic@example.invalid", "commit", "-qm", "disposable baseline")
             bootstrap.install(root, development=ROOT)
             env = {k: v for k, v in os.environ.items() if k != "CODEX_THREAD_ID"}
-            def cli(action, **options):
-                argv = ["rtk", "proxy", sys.executable, "-B", str(root / ".kmp-agent/agent.py"), action]
+            native=root/'synthetic-native/session.jsonl';native.parent.mkdir()
+            session='00000000-0000-4000-8000-000000000712'
+            native_records=[{'type':'session_meta','payload':{'id':session,'source':'cli'}}]
+            native.write_text(json.dumps(native_records[0])+'\n')
+            # Unit-only native-store location; the real installed entrypoint still runs.
+            shim=native.parent/'run_installed.py'
+            shim.write_text("import runpy,sys,subprocess\nfrom pathlib import Path\nfrom unittest.mock import patch\nsys.path.insert(0,%r)\nentry=sys.argv[1];sys.argv=sys.argv[1:]\npatch('harness.decisions.native_store',return_value=Path(%r)).start()\noriginal_call=subprocess.call\ndef invoke(argv,**kwargs):\n    if len(argv)>1 and argv[1]==%r:\n        return original_call([sys.executable,__file__,*argv[1:]],**kwargs)\n    return original_call(argv,**kwargs)\nsubprocess.call=invoke\nrunpy.run_path(entry,run_name='__main__')\n" % (str(ROOT),str(native.parent),str(ROOT/'harness/cli.py')))
+            def cli(action, expected_exit=0, **options):
+                argv = ["rtk", "proxy", sys.executable, '-B',str(shim),str(root / ".kmp-agent/agent.py"), action]
                 for name, value in options.items():
                     argv.extend(["--" + name.replace("_", "-"), str(value)])
                 proc = subprocess.run(argv, cwd=root, env=env, capture_output=True, text=True)
-                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertEqual(proc.returncode, expected_exit, proc.stdout + proc.stderr)
                 return json.loads(proc.stdout)
             config = Path(temporary) / "settings.json"
             config.write_text(json.dumps({"schema_version": 1, "modules": {"app": ["src"]}, "commands": {
@@ -193,31 +200,100 @@ class TemporaryProjectCLI(unittest.TestCase):
             settings_before = (root / seq.SETTINGS).read_bytes()
             cli("init")
             self.assertEqual((root / seq.SETTINGS).read_bytes(), settings_before)
-            run_id = cli("start", request="synthetic applied project run")["run_id"]
+            run_id = cli("start",work_type="PRODUCT",request="Synthetic installed command coverage; no product approval claim")["run_id"]
             def task(operation, data):
                 path = Path(temporary) / "operation.json"
                 path.write_text(json.dumps(data))
                 return cli("task", operation=operation, data=path, run_id=run_id)
-            task("register", {"feature_id": "F", "task_id": "T", "role": "development", "execution_scope": "code_implementation",
+            task("register", {"feature_id": "F", "task_id": "T", "role": "development", "execution_scope": "code_implementation", "work_type":"PRODUCT",
                 "title": "synthetic", "scope": "code", "criteria": [{"id": "AC", "required": True}], "inputs": ["input.md"]})
+            # Synthetic typed source approval is confined to an immutable document task;
+            # changing implementation bytes must not rewrite the approval's source task.
+            from harness.execution_plan import attach_existing
+            from harness.requirement_lineage import file_ref, approval_subject, load
+            from harness.decisions import digest
+            from harness.project_contract import FIELDS, DOCUMENTS, SERVER, API
+            manager=Tasks(root,run_id)
+            manager.register('F','AUTH','planning','Synthetic source approval','Unit fixture only; never human/product acceptance',[{'id':'A','required':True}],['input.md'],execution_scope='documentation')
+            policy={'settings':{'implementation_targets':['jvm'],'ui_technology':'Kotlin Multiplatform CLI','database':None,'server_mode':'none','code_ownership':'synthetic source'},
+                    'ui_sharing':'none','ui_owners':{},'platform_entrypoints':{'jvm':['src/App.kt']},
+                    'target_commands':{'jvm':[['rtk','proxy',sys.executable,'-c','pass']]},
+                    'source_rules':[{'glob':'src/*.kt','required_patterns':['val value'],'forbidden_patterns':[]}]}
+            lineage={'schema_version':1,'scope':'PRODUCT','purpose':'Synthetic installed CLI contract regression, not actual approval',
+                     'sources':[dict(id='U',kind='USER_ORIGINAL',anchor='synthetic source',**file_ref(root,'input.md'))],
+                     'requirements':[{'id':'TECH','source':'U','anchor':'synthetic source','expected':{'development_constraints':policy}}],
+                     'derived_items':[], 'human_authorization':{'question_id':'SYNTHETIC-APPROVAL','task_id':'AUTH'}}
+            # The exact policy is an authoritative fixture value, not an omitted requirement.
+            (root/'derived.md').write_text('Synthetic implementation mapping only')
+            lineage['sources'].append(dict(id='D',kind='AGENT_DERIVED',anchor='synthetic mapping',**file_ref(root,'derived.md')))
+            lineage['derived_items']=[{'id':'PLAN','source':'D','anchor':'synthetic mapping','source_ids':['TECH'],'expected':{'development_constraints':policy}}]
+            (root/'requirement-lineage.json').write_text(json.dumps(lineage))
+            store=patch('harness.decisions.native_store',return_value=native.parent);store.start();self.addCleanup(store.stop)
+            from harness.stage_readiness import DOMAINS, ROLES
+            stages={}
+            for stage,tid in [('planning','P'),('design','D'),('development_plan','PLAN')]:
+                checks={domain:stage+'-'+domain for domain in DOMAINS[stage]}
+                manager.register('F',tid,ROLES[stage], 'Synthetic '+stage,'Document contract fixture only; not a product or visual observation',
+                    [{'id':v,'required':True,'description':k} for k,v in checks.items()],['input.md'],
+                    work_type='PRODUCT',execution_scope='documentation')
+                stages[stage]={'task_id':tid,'checks':checks}
+            attach_existing(manager,['P','D','PLAN','T'],'IMPLEMENT','delivery_with_qa','Synthetic installed command coverage','input.md','Connect fixture before any work')
+            manager.configure_execution_policy(str(native),session,apply_to_work_types=['PRODUCT'])
+            manager.open_question('SYNTHETIC-APPROVAL','Synthetic unit only: approve exact technology source for command transport?', ['AUTH'],
+                [{'id':'approve','label':'Approve synthetic unit policy'}],approval_purpose='requirement_lineage',
+                approval_subject=approval_subject(load(root)),approval_artifacts=['input.md','derived.md'])
+            question=manager.question_status()['SYNTHETIC-APPROVAL']['question']
+            call='synthetic-sequential-prompt'
+            native_records.append({'type':'response_item','payload':{'type':'function_call','name':'request_user_input_async','call_id':call,'arguments':json.dumps({'questions':[{'question':question,'options':['Approve synthetic unit policy']}]})}})
+            item=json.dumps(['request_user_input_async',call,0],separators=(',',':'))
+            text='<send_user_message_question_reply>\n'+json.dumps([{'answer':'Approve synthetic unit policy','question':question,'questionItemId':item}])+'\n</send_user_message_question_reply>'
+            event={'type':'event_msg','payload':{'type':'user_message','message':text}}
+            user={'type':'response_item','payload':{'type':'message','role':'user','content':[{'type':'input_text','text':text}]}}
+            native_records.extend([event,user]);native.write_text(''.join(json.dumps(r)+'\n' for r in native_records))
+            manager.answer_question('SYNTHETIC-APPROVAL',record_ordinal=3,payload_sha256=digest(event['payload']),user_input_record_ordinal=4,user_input_payload_sha256=digest(user['payload']))
+            settings={k:{'status':'CONFIRMED','value':'synthetic contract','reason':'synthetic unit only'} for k in FIELDS}
+            for key in DOCUMENTS:settings[key]['value']='input.md'
+            for key,value in policy['settings'].items():settings[key]['value']=value
+            for key in SERVER|API:settings[key].update(status='NOT_APPLICABLE',value=None,reason='No server in this synthetic transport test')
+            (root/'product-settings.json').write_text(json.dumps(settings))
+            task('configure-stage',{'task_id':'T','stage':'ui','settings':'product-settings.json'})
+            manager.configure_task_plan('T',{'version':1,'owner':'development','whole_plan_task_id':'T','completion_criteria':['command and coverage observed'],'inputs':['input.md'],'outputs':['src/App.kt'],'verification':['approved test command'],'steps':[{'id':'S','action':'synthetic source change','completion_criteria':['command and coverage observed'],'inputs':['input.md'],'outputs':['src/App.kt'],'verification':['approved test command']}]},'Synthetic installed lifecycle fixture')
             task("configure-development", {"task_id": "T", "baselines": {"planning": "input.md"}, "code_paths": ["src"]})
             task("configure-collection", {"task_id": "T", "dependency_relations": [], "shared_modules": ["app"], "shared_resources": []})
+            manager.configure_stage_workflow('F',stages)
+            upstream=[]
+            for stage,config in stages.items():
+                tid=config['task_id']
+                fields={'completion_criteria':['synthetic document criteria'],'inputs':['input.md'],'outputs':[stage+'.md'],'verification':['synthetic unit review']}
+                manager.configure_task_plan(tid,{'version':1,'owner':ROLES[stage],'whole_plan_task_id':tid,
+                    **fields,'steps':[{'id':'S','action':'synthetic contract document',**fields}]},'Synthetic pre-work fixture plan')
+                manager.bind_stage_inputs(tid,['input.md',*upstream],'Explicit synthetic document baseline')
+                manager.ready(tid);work=manager.begin(tid,ROLES[stage])
+                document=stage+'.md';(root/document).write_text('Synthetic document contract; no visual/model/product observation.')
+                status={'specification':'COMPLETE','mockup':'NOT_PRODUCED','visual_review':'NOT_RUN'} if stage=='design' else None
+                manager.submit(tid,work['agent_run_id'],[document],'Synthetic document only',status)
+                review=manager.begin(tid,'verification',review=True,execution_mode='local_check')
+                manager.review(tid,review['agent_run_id'],[{'criterion_id':c,'result':'PASS','evidence':'input.md'} for c in config['checks'].values()],
+                    'Synthetic orchestration fixture; no real reviewer/model/product claim')
+                upstream.append(document)
+            manager.bind_stage_inputs('T',[a['path'] for a in manager.read()['tasks']['T']['inputs']]+upstream,'Bind current synthetic stage documents')
             task("ready", {"task_id": "T"})
             run = task("begin", {"task_id": "T", "role": "development"})
             cli("command", run_id=run_id, task_id="T", agent_run_id=run["agent_run_id"], attempt_id=run["attempt_id"], command_name="test")
-            (root / "src/app.py").write_text("value = 2\n")
-            task("submit", {"task_id": "T", "agent_run_id": run["agent_run_id"], "outputs": ["src/app.py"], "summary": "synthetic"})
+            (root / "src/App.kt").write_text("val value = 2\n")
+            task("submit", {"task_id": "T", "agent_run_id": run["agent_run_id"], "outputs": ["src/App.kt"], "summary": "synthetic"})
             result = cli("collection-report")
             self.assertEqual(result["commands_without_links"], 0)
             self.assertEqual(result["commands"][0]["returncode"]["value"], 0)
             execution = result["tasks"]["T"]["executions"][0]
-            self.assertEqual(execution["files"]["value"][0]["path"], "src/app.py")
-            self.assertEqual(execution["observed_modules"]["value"]["src/app.py"], ["app"])
+            self.assertEqual(execution["files"]["value"][0]["path"], "src/App.kt")
+            self.assertEqual(execution["observed_modules"]["value"]["src/App.kt"], ["app"])
             self.assertEqual(execution["modification_actor"], "UNKNOWN")
             self.assertEqual(result["parallelization_verdict"], "NOT_EVALUATED")
             self.assertTrue((root / ".harness/logs/sequential-coverage.json").is_file())
             self.assertEqual(execution["harness"]["value"]["mode"], "development")
-            cli("finish", run_id=run_id, result="synthetic complete")
+            refused=cli("finish",expected_exit=1,run_id=run_id,result="synthetic command observed, no QA claim")
+            self.assertIn("not officially DONE",refused["cause"])
             bootstrap.install(root, development=ROOT, update=True)
             self.assertEqual((root / seq.SETTINGS).read_bytes(), settings_before)
 

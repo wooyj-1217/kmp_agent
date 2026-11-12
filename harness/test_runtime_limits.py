@@ -19,6 +19,8 @@ from harness.roles import Roles
 
 class RuntimeLimitsTests(unittest.TestCase):
     def setUp(self):
+        from harness.process_ownership import _host_boot
+        _host_boot()  # Observe host outside the model-transport Popen mock.
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
         self.root=Path(temp.name);(self.root/'input.md').write_text('synthetic runtime admission fixture\n')
         run_id=Logger(self.root).start('HARNESS_BUILD','orchestrator','Isolated runtime limit tests, no model calls')
@@ -113,31 +115,36 @@ class RuntimeLimitsTests(unittest.TestCase):
         for parallel,budget in ((0,2),(9,2),(True,2),(2,0),(2,1001),(2,False)):
             with self.assertRaises(ValueError):configure(self.manager,parallel,budget)
         self.assertEqual(self.manager.read()['runtime_limits'],{'max_parallel':2,'max_executions':20})
+    def synthetic_adapter(self, body):
+        path=self.root/'synthetic-adapter.py'
+        path.write_text('#!'+sys.executable+'\n'+body)
+        path.chmod(0o700)
+        return str(path)
+
     def test_adapter_timeout_terminates_before_slot_release(self):
-        tid,aid=self.begin('verification');manager=self.manager
-        class Child:
-            pid=987654;returncode=None;calls=0
-            def __init__(self,argv,**kwargs):
-                assert manager.read()['runtime_budgets'][manager.run_id]['admissions'][-1]['released_at'] is None
-            def communicate(self,*args,**kwargs):
-                self.calls+=1
-                assert manager.read()['runtime_budgets'][manager.run_id]['admissions'][-1]['released_at'] is None
-                if self.calls==1:raise subprocess.TimeoutExpired('synthetic codex',1)
-                self.returncode=-15;return '', ''
-        with patch('harness.delegation_runtime.subprocess.Popen',Child),patch('harness.delegation_runtime.os.killpg') as kill,patch.object(Roles,'collect_codex',return_value={'usage':'UNKNOWN'}):
-            result=run_codex(manager,tid,aid,self.root,{},self.root/'timeout-evidence','mock-runtime',1)
+        tid,aid=self.begin('verification')
+        marker=self.root/'admission-held.json'
+        binary=self.synthetic_adapter("import json,pathlib,time\nstate=json.loads(pathlib.Path('.harness/tasks/tasks.yaml').read_text())\nassert state['runtime_budgets'][%r]['admissions'][-1]['released_at'] is None\npathlib.Path(%r).write_text('held')\ntime.sleep(20)\n" % (self.manager.run_id,str(marker)))
+        import os
+        real_killpg=os.killpg
+        def signal_while_admitted(*args):
+            self.assertIsNone(self.admissions()[0]['released_at'])
+            return real_killpg(*args)
+        with patch('harness.delegation_runtime.os.killpg',side_effect=signal_while_admitted) as kill,patch.object(Roles,'collect_codex',return_value={'usage':'UNKNOWN'}):
+            result=run_codex(self.manager,tid,aid,self.root,{},self.root/'timeout-evidence',binary,1)
+        self.assertEqual(marker.read_text(),'held')
         self.assertEqual(result['returncode'],124);self.assertEqual(result['error'],'TimeoutExpired')
         kill.assert_called();self.assertTrue(self.admissions()[0]['released_at'])
+
     def test_adapter_malformed_result_never_becomes_completion(self):
         tid,aid=self.begin('development')
-        class Child:
-            pid=987654;returncode=0
-            def __init__(self,argv,**kwargs):Path(argv[argv.index('-o')+1]).write_text('{}')
-            def communicate(self,*args,**kwargs):return '', ''
-        with patch('harness.delegation_runtime.subprocess.Popen',Child),patch.object(Roles,'collect_codex',return_value={'usage':'UNKNOWN'}):
-            result=run_codex(self.manager,tid,aid,self.root,{},self.root/'malformed-evidence','mock-runtime',1)
+        binary=self.synthetic_adapter("import pathlib,sys\npathlib.Path(sys.argv[sys.argv.index('-o')+1]).write_text('{}')\n")
+        with patch.object(Roles,'collect_codex',return_value={'usage':'UNKNOWN'}):
+            result=run_codex(self.manager,tid,aid,self.root,{},self.root/'malformed-evidence',binary,5)
+        self.assertEqual(result['returncode'],0)
         self.assertIsNone(result['result']);self.assertTrue(result['result_error']);self.assertEqual(result['usage_status'],'UNKNOWN')
         self.assertEqual(self.manager.read()['tasks'][tid]['state'],'IN_PROGRESS')
+
 
 
 

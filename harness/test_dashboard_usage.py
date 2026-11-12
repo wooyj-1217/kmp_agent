@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from harness.dashboard import snapshot
-from harness.dashboard_fixture import write_fixture
+from harness.test_support.dashboard import write_fixture
 from harness.dashboard_usage import token_parts
 
 

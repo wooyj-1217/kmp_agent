@@ -17,6 +17,8 @@ DOMAINS={'planning':('requirements','scope_policy','acceptance'),
 
 
 def contract_hash(task,config):
+    if task.get('role_contract', {}).get('ui_applicability'):
+        return log.digest(json.dumps({'task': {k:task.get(k) for k in ('task_id','feature_id','project_id','work_type','role','execution_scope','criteria')}, 'config':config, 'ui_applicability':task['role_contract']['ui_applicability']},sort_keys=True,ensure_ascii=False).encode())
     if 'human_approval_question_id' in config:
         return log.digest(json.dumps({k:task.get(k) for k in ('task_id','feature_id','project_id','work_type','role','execution_scope','criteria')},sort_keys=True,ensure_ascii=False).encode()+json.dumps({'checks':config['checks'],'human_approval_question_id':config['human_approval_question_id']},sort_keys=True).encode())
     return log.digest(json.dumps({k:task.get(k) for k in ('task_id','feature_id','project_id','work_type','role','execution_scope','criteria')},sort_keys=True,ensure_ascii=False).encode()+json.dumps(config['checks'],sort_keys=True).encode())
@@ -34,7 +36,8 @@ def configure(manager,feature_id,stages):
             if t.get('feature_id')!=feature_id or t.get('role')!=ROLES[name] or t.get('execution_scope')!='documentation' or t.get('task_id') in seen:
                 raise ValueError('stage needs a distinct documentation task of the correct feature and role; input interpretation is not a development plan')
             checks=c.get('checks',{})
-            if set(checks)!=set(DOMAINS[name]) or not set(checks.values())<=required or len(set(checks.values()))!=len(checks):
+            domains = ('interfaces', 'inputs_outputs', 'errors') if name == 'design' and t.get('role_contract', {}).get('ui_applicability') else DOMAINS[name]
+            if set(checks)!=set(domains) or not set(checks.values())<=required or len(set(checks.values()))!=len(checks):
                 raise ValueError('each stage domain must map to its own existing required criterion')
             seen.add(t['task_id'])
         if feature_id in state.get('stage_workflows',{}):raise ValueError('workflow already registered; preserve its revision history')
@@ -78,6 +81,15 @@ def assess(root,state,feature_id):
             status='RECHECK_REQUIRED';reasons.append('입력·산출물·검토 근거의 현재 해시/스냅샷 불일치')
         elif basis and review.get('stage_readiness_basis')!=basis:
             status='RECHECK_REQUIRED';reasons.append('검토 당시 선행 버전 연결이 현재 승인 입력과 다르거나 미확인')
+        if status == 'PASS' and t.get('role_contract', {}).get('ui_applicability'):
+            from harness.ui_applicability import validate
+            try:
+                from harness.tasks import Tasks
+                manager = object.__new__(Tasks)
+                manager.root = root
+                validate(manager, t, reviewed=True)
+            except (ValueError, OSError, KeyError):
+                status='RECHECK_REQUIRED';reasons.append('UI 비해당 계약·원본·독립 검토의 현재 연결 불일치')
         if status == 'PASS' and c.get('human_approval_question_id'):
             from harness.approvals import human_approval
             artifacts = {a['path']:a['sha256'] for a in t.get('inputs', []) + t.get('outputs', [])}
@@ -160,6 +172,8 @@ def return_to_stage(manager,feature_id,stage,reason,evidence,source_task_id=None
         tid=old['task_id']+'.R'+str(len(c['task_history']))
         if tid in state['tasks']:raise ValueError('revision task ID collision')
         new={k:copy.deepcopy(old[k]) for k in ('feature_id','role','work_type','project_id','scope','criteria','max_attempts','inputs','execution_scope','visual_required','execution_kind','dependencies') if k in old}
+        if old.get('role_contract', {}).get('ui_applicability'):
+            new['role_contract'] = copy.deepcopy(old['role_contract'])
         upstream=assess(manager.root,state,feature_id).get('basis',{})
         refs={a['path']:a for a in new['inputs']}
         for name in STAGES[:STAGES.index(stage)]:

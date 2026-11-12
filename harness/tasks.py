@@ -112,6 +112,8 @@ class Tasks:
                 result = state['tasks'][task_id]['state']
             self._save(state)
             self._flush(state)
+            if action == 'read':
+                return copy.deepcopy(state)
             return result
 
     def read(self):
@@ -570,12 +572,14 @@ class Tasks:
                 task["delivery"] = archive(self, state, task, refs, delivery)
             if task["role"] == "design":
                 task["design_status"] = {"specification": "NOT_STARTED", "mockup": "NOT_PRODUCED", "visual_review": "NOT_RUN", "visual_evidence": None}
+            from harness.ui_applicability import validate as validate_ui
+            nonvisual = validate_ui(self, task)
             if design_status:
                 if task["role"] != "design" or design_status.get("specification") not in {"IN_PROGRESS", "COMPLETE"}:
                     raise ValueError("invalid design status")
-                if design_status.get("mockup") not in {"NOT_PRODUCED", "IN_PROGRESS", "COMPLETE"}:
+                if design_status.get("mockup") not in ({"NOT_APPLICABLE"} if nonvisual else {"NOT_PRODUCED", "IN_PROGRESS", "COMPLETE"}):
                     raise ValueError("invalid mockup status")
-                if design_status.get("visual_review") != "NOT_RUN":
+                if design_status.get("visual_review") != ("NOT_APPLICABLE" if nonvisual else "NOT_RUN"):
                     raise ValueError("visual PASS/FAIL requires a separate visual review; not implemented")
                 task["design_status"].update(design_status)
             task.update(state="IN_REVIEW", outputs=refs)
@@ -654,6 +658,10 @@ class Tasks:
                 checked.append({**result, "evidence": evidence, "tested_outputs": copy.deepcopy(task["outputs"])})
             from harness.verification import review_gate as verification_gate
             verification_proof = verification_gate(self, task, run, checked, state)
+            from harness.ui_applicability import validate as validate_ui
+            nonvisual = validate_ui(self, task)
+            if nonvisual and design_checks:
+                raise ValueError('nonvisual role review cannot claim visual checks')
             required = {c["id"] for c in task["criteria"] if c["required"]}
             passed = all(r["result"] == "PASS" for r in checked if r["criterion_id"] in required)
             official_proof = None
@@ -682,6 +690,8 @@ class Tasks:
                                         for k in ("structure", "interaction", "visual"))
             record = {"agent_run_id": agent_run_id, "results": checked, "outputs": copy.deepcopy(task["outputs"]), 'purpose': purpose,
                       'approval_type': 'ROLE_REVIEW', 'human_approval': 'NOT_ESTABLISHED'}
+            if nonvisual:
+                record['ui_applicability'] = copy.deepcopy(nonvisual)
             if official_proof and official_proof['result'] == 'PASS':
                 record['protected_verification'] = official_proof
             if verification_proof is not None:
@@ -778,7 +788,13 @@ class Tasks:
                 raise ValueError("unresolved blocking findings prevent handoff")
             if any(state["tasks"][d]["state"] != "DONE" for d in target["dependencies"]):
                 raise ValueError("unfinished target dependency")
-            if target["role"] == "development" and source["role"] == "design" and not source["visual_required"]:
+            from harness.ui_applicability import validate as validate_ui
+            nonvisual = validate_ui(self, source, reviewed=True)
+            if target['role'] == 'development' and source['role'] == 'design' and nonvisual:
+                target_ui = validate_ui(self, target)
+                if target_ui != nonvisual:
+                    raise ValueError('development must freeze the same explicit nonvisual contract before handoff')
+            if target["role"] == "development" and source["role"] == "design" and not source["visual_required"] and not nonvisual:
                 raise ValueError("document-only design cannot hand off final UI to development")
             if not all(self._valid_artifact(a) for a in source["outputs"] + target["inputs"]):
                 raise ValueError("invalid handoff snapshot")

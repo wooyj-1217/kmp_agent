@@ -25,7 +25,7 @@ class RoleTests(unittest.TestCase):
         self.roles.setup(tid, "feature", planning, cr)
 
     def execute(self, tid, role):
-        return self.roles.execute(tid, role, [sys.executable, str(CODE / "harness/role_example_worker.py")])
+        return self.roles.execute(tid, role, [sys.executable, str(CODE / "harness/test_support/role_worker.py")])
 
     def review(self, tid, design=False, result="PASS", stale=False):
         task = self.tasks.read()["tasks"][tid]

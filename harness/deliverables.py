@@ -34,7 +34,9 @@ def archive(manager, state, task, refs, delivery):
     expected = str(base / ("requirements.md" if role == "planning" else "design.md"))
     if expected not in [a["path"] for a in refs]:
         raise ValueError("canonical role document missing")
-    if role == "design" and not any(Path(a["path"]).is_relative_to(base / "prototype") and a["path"].endswith(".html") for a in refs):
+    from harness.ui_applicability import validate as validate_ui
+    nonvisual = validate_ui(manager, task)
+    if role == "design" and not nonvisual and not any(Path(a["path"]).is_relative_to(base / "prototype") and a["path"].endswith(".html") for a in refs):
         raise ValueError("design submission requires actual prototype")
     book = registry(state, folder)
     if book.get("feature_id", task["feature_id"]) != task["feature_id"]:

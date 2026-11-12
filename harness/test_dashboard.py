@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from harness.dashboard import snapshot, safe_file, usage_view
-from harness.dashboard_fixture import write_fixture
+from harness.test_support.dashboard import write_fixture
 
 
 class DashboardTest(unittest.TestCase):
@@ -64,7 +64,7 @@ class DashboardTest(unittest.TestCase):
     def test_canonical_response_binding_without_event_task(self):
         p=self.root/'.harness/tasks/tasks.yaml';state=json.loads(p.read_text());state['tasks']['normal-work']['executions'][0]['usage_bindings']=[{'session_id':'fixture','response_id':'normal0'}];p.write_text(json.dumps(state))
         p=self.root/'.harness/logs/events.jsonl';events=[json.loads(l) for l in p.read_text().splitlines()];events[0]['agent_run_id']='UNKNOWN';events[0]['task_id']='UNKNOWN';p.write_text(''.join(json.dumps(e)+'\n' for e in events))
-        d=snapshot(self.root,'normal');self.assertEqual(len(d['usage']['rows']),2);self.assertEqual(d['usage']['rows'][0]['task'],'저장 상태 화면 구현')
+        d=snapshot(self.root,'normal');self.assertEqual(len(d['usage']['rows']),2);self.assertEqual(d['usage']['rows'][0]['task'],'합성 계약 작업')
 
     def test_reported_success_not_overall_success(self):
         p=self.root/'.harness/dashboard-scopes.json';r=json.loads(p.read_text());r['scopes'][0]['outcome']={'status':'PASS'};p.write_text(json.dumps(r))

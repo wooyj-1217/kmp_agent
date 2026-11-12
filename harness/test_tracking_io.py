@@ -51,6 +51,86 @@ class InspectionTests(unittest.TestCase):
         with patch('harness.development_tracking.capture',side_effect=AssertionError('must not recertify invalid history')):
             d.refresh(self.m,state)
 
+    def test_warm_committed_objects_never_hide_working_index_or_head_changes(self):
+        self.fixture.task()
+        task=self.m.read()['tasks']['CLIENT']
+        first=d.capture(self.m,task)
+        self.fixture.write('src/new.txt','new content')
+        self.fixture.write('src/app.py','value=7')
+        self.fixture.git('add','src/app.py')
+        changed=d.capture(self.m,task)
+        self.assertNotEqual(first['state_sha256'],changed['state_sha256'])
+        self.assertEqual(changed['files']['src/new.txt'],d.digest(b'new content'))
+        self.assertNotEqual(first['index'],changed['index'])
+        self.assertEqual(changed['changed_files']['src/app.py']['head_sha256'],first['files']['src/app.py'])
+        self.fixture.commit('fresh committed source')
+        committed=d.capture(self.m,task)
+        self.assertNotEqual(committed['head'],first['head'])
+        self.assertTrue(committed['content_in_head'])
+        self.assertEqual(committed['files'],changed['files'])
+
+    def test_shared_refresh_rejects_names_changed_after_first_scope(self):
+        self.fixture.passed()
+        state=self.m.read()
+        second=copy.deepcopy(state['tasks']['CLIENT']);second['task_id']='SECOND'
+        state['tasks']['SECOND']=second
+        original=d.capture;seen=[]
+        def during(manager,task):
+            result=original(manager,task);seen.append(task['task_id'])
+            if len(seen)==1:self.fixture.write('src/new-during-refresh.txt','external edit')
+            return result
+        with patch.object(d,'capture',side_effect=during):d.refresh(self.m,state)
+        self.assertEqual(seen,['CLIENT','SECOND'])
+        for task in state['tasks'].values():
+            self.assertTrue(all(v['state']=='RECHECK_REQUIRED' for v in task['validation_status'].values()))
+
+    def test_single_scope_refresh_rejects_new_file_after_capture(self):
+        self.fixture.passed();state=self.m.read()
+        original=d.capture
+        def during(manager,task):
+            result=original(manager,task)
+            self.fixture.write('src/new-after-capture.txt','external edit')
+            return result
+        with patch.object(d,'capture',side_effect=during):d.refresh(self.m,state)
+        task=state['tasks']['CLIENT']
+        self.assertTrue(all(v['state']=='RECHECK_REQUIRED' for v in task['validation_status'].values()))
+
+    def test_shared_refresh_rejects_dirty_content_changed_after_first_scope(self):
+        self.fixture.passed()
+        state=self.m.read()
+        second=copy.deepcopy(state['tasks']['CLIENT']);second['task_id']='SECOND'
+        state['tasks']['SECOND']=second
+        original=d.capture;seen=[]
+        def during(manager,task):
+            result=original(manager,task);seen.append(task['task_id'])
+            if len(seen)==1:self.fixture.write('src/app.py','value=999')
+            return result
+        with patch.object(d,'capture',side_effect=during):d.refresh(self.m,state)
+        self.assertEqual(seen,['CLIENT','SECOND'])
+        for task in state['tasks'].values():
+            self.assertTrue(all(v['state']=='RECHECK_REQUIRED' for v in task['validation_status'].values()))
+
+    def test_warm_shared_capture_still_enforces_total_deadline(self):
+        self.fixture.task();task=self.m.read()['tasks']['CLIENT']
+        with d.capture_batch(self.root):
+            d.capture(self.m,task)
+            original=d.committed_hashes
+            def delayed(*args):
+                time.sleep(.03)
+                return original(*args)
+            with patch.object(io,'CAPTURE_TIMEOUT_SECONDS',.001), patch.object(d,'committed_hashes',side_effect=delayed):
+                with self.assertRaisesRegex(ValueError,'deadline'):d.capture(self.m,task)
+
+    def test_read_returns_post_refresh_invalidation_not_earlier_copy(self):
+        self.fixture.passed()
+        original=d.refresh;count=[]
+        def during(manager,state):
+            original(manager,state);count.append(1)
+            if len(count)==1:self.fixture.write('src/app.py','value=99')
+        with patch.object(d,'refresh',side_effect=during):state=self.m.read()
+        task=state['tasks']['CLIENT']
+        self.assertEqual(task['validation_status'][task['reviews'][-1]['agent_run_id']]['state'],'RECHECK_REQUIRED')
+
     def test_git_timeout_reaps_owned_process_and_preserves_state(self):
         original=subprocess.Popen;owned=[]
         def blocked(argv,**kwargs):
@@ -61,7 +141,7 @@ class InspectionTests(unittest.TestCase):
         self.assertEqual(io.run_git(self.root,'rev-parse','HEAD').returncode,0)
 
     def test_capture_total_deadline_not_per_file_multiplier(self):
-        with patch.object(io,'CAPTURE_TIMEOUT_SECONDS',.01):
+        with patch.object(io,'CAPTURE_TIMEOUT_SECONDS',.01), self.assertRaisesRegex(ValueError,'deadline exceeded'):
             with io.capture_budget(self.root,'deadline'):
                 time.sleep(.02)
                 with self.assertRaisesRegex(ValueError,'deadline exceeded'):io.run_git(self.root,'status')
@@ -71,7 +151,11 @@ class InspectionTests(unittest.TestCase):
         self.m.ready('ACTIVE');active=self.m.begin('ACTIVE','planning')
         entered=threading.Event();release=threading.Event();errors=[]
         def holder():
-            try:self.m._mutate('controlled_delay',lambda state:(entered.set(),release.wait(2)))
+            try:
+                # Contend on the ledger lock itself. _mutate also holds the
+                # preceding integration barrier, which has a separate budget.
+                with io.state_lock(self.root,self.m.directory/'state.lock','controlled_delay'):
+                    entered.set();release.wait(2)
             except Exception as error:errors.append(error)
         t=threading.Thread(target=holder);t.start();self.assertTrue(entered.wait(2))
         try:

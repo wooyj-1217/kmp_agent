@@ -22,7 +22,7 @@ class Connections(unittest.TestCase):
         self.roles.setup(tid, 'feature', p, design_version=d)
 
     def execute(self, tid, role):
-        return self.roles.execute(tid, role, [sys.executable, str(CODE/'harness/role_example_worker.py')])
+        return self.roles.execute(tid, role, [sys.executable, str(CODE/'harness/test_support/role_worker.py')])
 
     def report(self, tid, kind='structure', targets=None, issues=None):
         task=self.t.read()['tasks'][tid]

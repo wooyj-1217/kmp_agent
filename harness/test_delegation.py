@@ -70,19 +70,50 @@ class DelegationTests(unittest.TestCase):
         self.synthetic_authority = synthetic_authority(self, self.root)
     def configure(self):return self.dev.configure(**self.spec)
     def state(self):return self.manager.read()['tasks']
-    def test_missing_authority_blocks_without_masking_review_failure(self):
+    def test_missing_authority_allows_implementation_handoff_but_rejects_official_review(self):
+        # No synthetic certification: implementation and official review are distinct.
         self.synthetic_authority.stop()
         self.configure()
         result = self.dev.execute('PARENT', mock_worker)
-        self.assertEqual(result['state'], 'BLOCKED', result)
-        self.assertNotEqual(result.get('handoff'), 'READY_FOR_VERIFICATION')
-        tasks = self.state()
-        for task in tasks.values():
-            self.assertEqual(task['state'], 'BLOCKED', task['task_id'])
+        self.assertEqual(result['state'], 'DONE', result)
+        self.assertEqual(result['implementation_review'], 'DONE')
+        self.assertEqual(result['handoff'], 'READY_FOR_VERIFICATION')
+        self.assertEqual(result['official_verification']['result'], 'BLOCKED')
+        self.assertEqual(result['official_verification']['reason'], 'PROTECTED_AUTHORITY_UNAVAILABLE')
+        self.assertEqual(result['human_approval'], 'NOT_ESTABLISHED')
+        self.assertFalse(result['feature_complete'])
+        from harness.completion import execution_review
+        from harness.protected_verification import assess
+        tasks = self.manager.read()['tasks']
+        for tid in ('PARENT', 'CHILD-KMP', 'CHILD-WEB', 'CHILD-SERVER'):
+            task = tasks[tid]
+            self.assertEqual(task['state'], 'DONE', tid)
             self.assertTrue(all(run.get('ended_at') for run in task['executions']))
-        for tid in ('CHILD-KMP', 'CHILD-WEB', 'CHILD-SERVER'):
-            self.assertIn('PROTECTED_AUTHORITY_UNAVAILABLE', tasks[tid]['blocked_reason'])
-            self.assertNotIn('execution is not active', tasks[tid]['blocked_reason'])
+            self.assertTrue(execution_review(task, task['reviews'][-1]), tid)
+            self.assertEqual(task['execution_completion']['claim_scope'], 'IMPLEMENTATION_ONLY')
+            self.assertEqual(task['execution_completion']['human_approval'], 'NOT_ESTABLISHED')
+            self.assertFalse(any(review.get('protected_verification') for review in task['reviews']))
+            self.assertEqual(assess(self.root, task)['reason'], 'PROTECTED_AUTHORITY_UNAVAILABLE')
+
+        parent = copy.deepcopy(tasks['PARENT'])
+        official = self.manager.begin('PARENT', 'verification', review=True)
+        results = [{**row, 'evidence':row['evidence']['path']} for row in parent['reviews'][-1]['results']]
+        with self.assertRaisesRegex(ValueError, 'protected verification completion blocked: PROTECTED_AUTHORITY_UNAVAILABLE'):
+            # Omitted purpose intentionally exercises the public default official gate.
+            self.manager.review('PARENT', official['agent_run_id'], results, 'Attempt official certification without authority')
+        unchanged = self.manager.read()['tasks']['PARENT']
+        for key in ('outputs', 'reviews', 'execution_completion'):
+            self.assertEqual(unchanged[key], parent[key], key)
+        self.assertEqual(unchanged['executions'][:-1], parent['executions'])
+        self.assertIsNone(unchanged['executions'][-1]['ended_at'])
+        self.assertFalse(any(review.get('protected_verification') for review in unchanged['reviews']))
+        # Explicitly close the rejected official attempt; preserve scoped history.
+        self.manager.fail('PARENT', official['agent_run_id'], 'PROTECTED_AUTHORITY_UNAVAILABLE')
+        rejected = self.manager.read()['tasks']['PARENT']
+        self.assertEqual(rejected['state'], 'BLOCKED')
+        self.assertTrue(all(run.get('ended_at') for run in rejected['executions']))
+        self.assertEqual(rejected['execution_completion'], parent['execution_completion'])
+        self.assertEqual(rejected['reviews'], parent['reviews'])
 
     def test_three_areas_actual_diff_and_separate_integration(self):
         self.configure();result=self.dev.execute('PARENT',mock_worker)

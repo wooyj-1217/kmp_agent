@@ -1,7 +1,7 @@
 from pathlib import Path
 import tempfile
 import unittest
-from harness.dashboard_fixture import write_fixture
+from harness.test_support.dashboard import write_fixture
 from harness.dashboard import snapshot
 
 class ProjectProgressTests(unittest.TestCase):

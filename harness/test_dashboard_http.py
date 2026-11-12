@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-from harness.dashboard_fixture import write_fixture
+from harness.test_support.dashboard import write_fixture
 
 
 class DashboardHTTPTest(unittest.TestCase):
