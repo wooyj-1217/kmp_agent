@@ -149,6 +149,14 @@ class Tasks:
         from harness.verification import configure
         return configure(self, task_id, **configuration)
 
+    def configure_documents(self, task_id, paths, reason):
+        from harness.product_guard import configure_documents
+        return configure_documents(self, task_id, paths, reason)
+
+    def configure_verification_capabilities(self, task_id, definition):
+        from harness.verification_capabilities import configure
+        return configure(self, task_id, definition)
+
     def configure_completion(self, task_id, context_paths, usage_required=True, context_required=True, exception_reason=None):
         from harness.completion import configure
         return configure(self, task_id, context_paths, usage_required, context_required, exception_reason)
@@ -996,7 +1004,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "configure-verification", "configure-completion", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "configure-verification", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)

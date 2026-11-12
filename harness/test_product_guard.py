@@ -50,14 +50,16 @@ class InstalledProductGuard(unittest.TestCase):
         self.ledger()
         self.denied(self.tool('apply_patch','*** Begin Patch\n*** Add File: shared/App.kt\n+fun App() {}\n*** End Patch'))
         result=guard.evaluate(self.root,dict(hook_event_name='Stop',session_id='synthetic-session',cwd=str(self.root)))
-        self.assertEqual('block',result['decision'])
-        self.denied(self.tool(command='git push origin feature'))
-        self.denied(self.tool(command='git commit -m feature'))
+        self.assertEqual({},result)
+        self.assertEqual({},self.tool(command='git push --no-follow-tags origin feature'))
+        self.assertEqual({},self.tool(command='git commit -m feature'))
+        with self.assertRaisesRegex(ValueError,'not officially DONE'):
+            guard.complete(self.root,guard._state(self.root),{'RUN'})
 
     def test_readonly_and_planning_are_available_before_configuration(self):
         for command in ('rtk proxy git status --short','rtk proxy cat README.md','rtk proxy rg Compose docs'):
             self.assertEqual({},self.tool(command=command))
-        self.assertEqual({},self.tool('apply_patch','*** Begin Patch\n*** Add File: docs/settings.json\n+{}\n*** End Patch'))
+        self.assertEqual({},self.tool('apply_patch','*** Begin Patch\n*** Add File: docs/guard-inputs/settings.json\n+{}\n*** End Patch'))
         self.assertEqual({},self.tool(command='rtk proxy python3 .kmp-agent/agent.py task --operation register --data docs/task.json'))
 
     def test_readonly_impersonation_shell_wrappers_and_unknown_mutators_are_denied(self):
@@ -117,17 +119,19 @@ class InstalledProductGuard(unittest.TestCase):
 
     def test_docs_only_done_plan_cannot_certify_product(self):
         self.ledger({'CODE':{'task_id':'CODE','role':'planning','execution_scope':'documentation','work_type':'PRODUCT','state':'DONE','executions':[]}})
-        self.denied(self.tool(command='git push origin feature'))
+        self.assertEqual({},self.tool(command='git push --no-follow-tags origin feature'))
+        with self.assertRaisesRegex(ValueError,'documentation-only'):
+            guard.complete(self.root,guard._state(self.root),{'RUN'})
 
     def test_stop_with_no_product_plan_allows_readonly_conversation(self):
         self.assertEqual({},guard.evaluate(self.root,dict(hook_event_name='Stop',session_id='synthetic-session',cwd=str(self.root))))
 
-    def test_malformed_pending_question_cannot_authorize_stopping(self):
+    def test_malformed_pending_question_does_not_trap_stopping(self):
         state=self.ledger()
         state['required_questions']={'BROKEN':{'id':'BROKEN','status':'OPEN','affected_task_ids':['CODE']}}
         (self.root/'.harness/tasks/tasks.yaml').write_text(json.dumps(state))
         result=guard.evaluate(self.root,dict(hook_event_name='Stop',session_id='synthetic-session',cwd=str(self.root)))
-        self.assertEqual('block',result['decision'])
+        self.assertEqual({},result)
 
     def test_explicit_task_selection_handles_active_parent_and_child(self):
         # Selection/unit wiring test; native authorizations are deliberately not
@@ -141,7 +145,7 @@ class InstalledProductGuard(unittest.TestCase):
             _,selected=guard.active(self.root,state,'synthetic-session',task_id='CHILD')
             self.assertEqual('CHILD',selected['task_id'])
             self.assertEqual(selected['executions'][0],ensure.call_args.kwargs['run'])
-            with self.assertRaisesRegex(ValueError,'exactly one'):
+            with self.assertRaisesRegex(ValueError,'ambiguous active tasks'):
                 guard.active(self.root,state,'synthetic-session')
 
     def test_complete_requires_current_validation_even_for_done_task(self):

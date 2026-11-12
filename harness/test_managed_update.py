@@ -150,10 +150,10 @@ class ManagedUpdateTests(unittest.TestCase):
                 self.assertEqual(ledger.read_text(), content)
                 self.denied(self.guard('python3 -c "write()"'))
                 if content != json.dumps({'tasks':{'CODE':{'state':'BLOCKED','work_type':'PRODUCT'}}}):
-                    self.assertEqual(self.guard(event='Stop')['decision'], 'block')
+                    self.assertEqual(self.guard(event='Stop'), {})
         ledger.write_text('{broken')
         self.denied(self.guard('python3 -c "write()"'))
-        self.assertEqual(self.guard(event='Stop')['decision'], 'block')
+        self.assertEqual(self.guard(event='Stop'), {})
 
     def test_manifest_corruption_and_deep_json_return_supported_update_denial(self):
         self.install(self.first)
