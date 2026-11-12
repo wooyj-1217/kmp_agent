@@ -12,6 +12,7 @@
 | `v0.4.2` / VERSION `0.4.2` | [0.4.2 지원 범위](v0.4.2.md) · [본문 원본](v0.4.2-notes.md) | v0.4.1 이후 KMP·DB·UI 비해당·예제 분리와 guard 개선을 포함. 최종 SHA·원격 검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.2)에서 확정 |
 | `v0.4.3` / VERSION `0.4.3` | [0.4.3 지원 범위](v0.4.3.md) · [본문 원본](v0.4.3-notes.md) | 설치본의 제한된 관리 update 지원. 기존 v0.4.2 guard의 첫 전환은 사용자 터미널 새 bootstrap 필요. 최종 SHA·검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.3)에서 확정 |
 | `v0.4.4` / VERSION `0.4.4` | [0.4.4 지원 범위](v0.4.4.md) · [본문 원본](v0.4.4-notes.md) | PR #18의 저장·공유·종료·독립 검증 경계 개선. 최종 SHA·원격 검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)에서 확정 |
+| `v0.4.5` / VERSION `0.4.5` | [0.4.5 지원 범위](v0.4.5.md) · [본문 원본](v0.4.5-notes.md) | PR #20의 지침 원문 조회·공식 help·새 프로젝트 준비 경로 복구. 최종 SHA·원격 검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.5)에서 확정 |
 | `v0.5.0` 철회 완료 | [당시 지원 범위](v0.5.0.md) · [당시 본문 원본](v0.5.0-notes.md) | 2026-11-12 사용자 명시 요청으로 태그·Release 삭제 확인. 기존 커밋 이력·검증 원본 보존. 변경 사항은 v0.4.2에 포함하며 최종 배포 결과는 해당 Release에서 확인 |
 | 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 배포 식별·게시 여부는 위 버전별 행 참조 |
 

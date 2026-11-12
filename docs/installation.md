@@ -1,8 +1,8 @@
 # 버전 고정 설치·init·update
 
-아래 v0.4.4 명령은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)의 게시와 최종 검증 결과를 확인한 뒤 사용한다. 기존 v0.4.2 이하 guard에서의 첫 전환과 v0.4.3 설치본의 관리 update를 아래에서 구분한다. 태그 존재·설치 성공과 실제 제품 적용 성공을 구분한다.
+아래 v0.4.5 명령은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.5)의 게시와 최종 검증 결과를 확인한 뒤 사용한다. 기존 v0.4.2 이하 guard에서의 첫 전환과 v0.4.3·v0.4.4 설치본의 관리 update를 아래에서 구분한다. 태그 존재·설치 성공과 실제 제품 적용 성공을 구분한다.
 
-일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.4.4의 [지원 범위](releases/v0.4.4.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.4)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
+일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.4.5의 [지원 범위](releases/v0.4.5.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.5)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
 
 ## 공통 도구와 프로젝트 데이터의 경계
 
@@ -24,13 +24,13 @@ rtk proxy python3 --version
 rtk proxy git --version
 ```
 
-아래 명령은 게시된 `v0.4.4`를 명시적으로 선택한다([지원 범위](releases/v0.4.4.md)). 태그 존재·설치 성공은 설치본의 실제 Codex 세션 검증을 뜻하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
+아래 명령은 게시된 `v0.4.5`를 명시적으로 선택한다([지원 범위](releases/v0.4.5.md)). 태그 존재·설치 성공은 설치본의 실제 Codex 세션 검증을 뜻하지 않는다. `/path/to/product`는 기존 Git 저장소 루트로 바꾸고, 새 폴더라면 먼저 `rtk proxy git init /path/to/product`를 실행한다. `/tmp/kmp-agent-bootstrap`은 아직 없는 빈 경로를 선택한다. SSH 저장소 접근 권한이 필요하며 HTTPS 접근을 사용할 때는 clone과 --source의 URL을 함께 바꾼다.
 
 ```sh
 rtk proxy git clone --no-checkout git@github.com:wooyj-1217/kmp_agent.git /tmp/kmp-agent-bootstrap
-rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.4.4
+rtk proxy git -C /tmp/kmp-agent-bootstrap fetch origin refs/tags/v0.4.5
 rtk proxy git -C /tmp/kmp-agent-bootstrap checkout --detach FETCH_HEAD
-rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.4.4 --target /path/to/product
+rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py install --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.4.5 --target /path/to/product
 ```
 
 전체 커밋 SHA도 --ref에 지정할 수 있다. Git 인증은 기존 SSH/credential helper를 사용하고 인증값을 URL·설정에 넣지 않는다. 설치 시 태그를 커밋으로 해석해 SHA를 기록한다. 같은 source/ref의 install 재실행은 이미 고정한 정상 설치를 재사용하고 init을 반복하며, 이동한 태그를 조용히 다시 선택하지 않는다. 다른 버전은 update로 명시한다.
@@ -70,12 +70,14 @@ update의 태그는 실제 게시된 버전으로 바꾸며 --ref를 생략하�
 
 최초 init 뒤 대상의 `/hooks`에서 수신·Stop 수집 및 PreToolUse·Stop 제품 검사 정의를 검토·신뢰하고 새 Codex 세션에서 일반 요청을 보낸다. [제품 도구 검사](product-tool-enforcement.md)는 이 변경을 포함한 버전을 선택한 설치 프로젝트에 적용한다. 업데이트의 공용 훅 명령은 같은 프로젝트 진입 파일을 사용하지만 지침·스킬·시작 설정은 새 세션에서 검증한다. 파일 갱신만으로 적용 완료라 하지 않는다. 내부 테스트·모의 훅 성공과 실제 Codex 세션 PASS는 별개다.
 
-## v0.4.3 설치본에서 v0.4.4 선택
+<a id="v043-설치본에서-v044-선택"></a>
 
-v0.4.3에서 도입한 공식 관리 update 경로로 게시된 v0.4.4를 선택한다. 프로젝트 루트에서 다음 명령을 사용하며 태그 게시 전에는 실행하지 않는다.
+## v0.4.3·v0.4.4 설치본에서 v0.4.5 선택
+
+v0.4.3에서 도입한 공식 관리 update 경로를 v0.4.3·v0.4.4 설치본에서 사용해 게시된 v0.4.5를 선택한다. 프로젝트 루트에서 다음 명령을 사용하며 태그 게시 전에는 실행하지 않는다.
 
 ```sh
-rtk proxy python3 .kmp-agent/agent.py update --ref v0.4.4
+rtk proxy python3 .kmp-agent/agent.py update --ref v0.4.5
 ```
 
 기존 설치 source를 재사용한다. 변경 후 설치 정보의 VERSION·선택 SHA·runtime과 새 세션의 훅 신뢰·활성 상태를 확인한다. 실제 관리 update와 guard 요청 허용·차단, 원래 제품 작업의 재검증은 각각 별도다.
@@ -84,10 +86,10 @@ rtk proxy python3 .kmp-agent/agent.py update --ref v0.4.4
 
 ## 기존 v0.4.2 이하 guard에서 첫 전환
 
-공식 관리 update 지원은 v0.4.3에서 도입됐으며 기존 v0.4.2 이하 guard에는 소급 반영되지 않는다. 처음 지원 버전으로 전환할 때는 사용자 터미널에서 선택한 새 버전의 bootstrap을 확보해 명시적으로 update한다. v0.4.4를 선택한다면 위 최초 설치의 clone·fetch·checkout으로 게시된 v0.4.4 bootstrap을 확보하고 마지막 install 대신 다음을 실행한다. 과거 v0.4.3 첫 전환 기록은 [v0.4.3 지원 범위](releases/v0.4.3.md#설치첫-전환후속-업데이트)에 보존한다.
+공식 관리 update 지원은 v0.4.3에서 도입됐으며 기존 v0.4.2 이하 guard에는 소급 반영되지 않는다. 처음 지원 버전으로 전환할 때는 사용자 터미널에서 선택한 새 버전의 bootstrap을 확보해 명시적으로 update한다. v0.4.5를 선택한다면 위 최초 설치의 clone·fetch·checkout으로 게시된 v0.4.5 bootstrap을 확보하고 마지막 install 대신 다음을 실행한다. 과거 v0.4.3 첫 전환 기록은 [v0.4.3 지원 범위](releases/v0.4.3.md#설치첫-전환후속-업데이트)에 보존한다.
 
 ```sh
-rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py update --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.4.4 --target /path/to/product
+rtk proxy python3 /tmp/kmp-agent-bootstrap/bootstrap.py update --source git@github.com:wooyj-1217/kmp_agent.git --ref v0.4.5 --target /path/to/product
 ```
 
 이 사용자 터미널 bootstrap의 `--source`·`--target`은 guard 내부 관리 update의 허용 옵션이 아니다. v0.4.3 이상 설치 후의 다음 명시적 update부터 공식 `.kmp-agent/agent.py update --ref <게시된 태그|40자리 SHA>` 경로를 사용할 수 있다. 기존 guard 차단을 다른 도구·복합 셸·훅 비활성화·설치 사본 편집으로 우회하지 않는다. 설치 후 새 세션의 훅 신뢰·활성 상태와 실제 허용/거부, 원래 제품 작업 재개 검증은 각각 별도다.
@@ -142,6 +144,8 @@ rtk proxy python3 -B -m harness.run_tests
 
 <a id="043-검증-근거-확인"></a>
 
-## 0.4.4 검증 근거 확인
+<a id="044-검증-근거-확인"></a>
 
-태그는 `v0.4.4`, VERSION은 `0.4.4`이다. [지원 범위](releases/v0.4.4.md)와 게시 후 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다. 실제 Codex 훅 전달·UI 연결·제품 전체 인수는 후보의 단위·설치 시험과 구분한다.
+## 0.4.5 검증 근거 확인
+
+태그는 `v0.4.5`, VERSION은 `0.4.5`이다. [지원 범위](releases/v0.4.5.md)와 게시 후 해당 GitHub Release에서 최종 SHA·원격 설치 및 업데이트 결과를 확인한다. 이전 배포의 준비서·검증 기록은 당시 버전에만 적용한다. VERSION 문자열만 바꾸어 기존 설치에 자동 전파하지 않는다. 실제 Codex 훅 전달·UI 연결·제품 전체 인수는 후보의 단위·설치 시험과 구분한다.
