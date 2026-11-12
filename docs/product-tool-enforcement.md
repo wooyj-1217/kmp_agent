@@ -25,6 +25,7 @@
 PreToolUse는 기존 Tasks의 native 세션 바인딩·전체/담당 계획·활성 구현·단계 검토·동결 기술 계약·기준 버전·코드 소유 경로를 읽는다. 이 검사 자체는 원장을 갱신하거나 승인 상태를 만들지 않는다.
 
 - 일반 읽기, 기획용 Markdown·`docs/`의 JSON·lineage 입력 작성, 선택된 프로젝트 진입점의 메타데이터 API는 준비 단계에서 허용한다.
+- 설치된 공식 `.kmp-agent/agent.py update --ref <태그|40자리 SHA>`는 [관리 업데이트 계약](guard-capabilities.md#설치본의-명시적-관리-업데이트)으로 분류한다. 기존 설치 source와 검증된 launcher/runtime을 사용하며, 제품 작업의 차단·미완료 원장을 완료로 바꾸지 않는다. 임의 source·개발 모드·target 덮어쓰기·직접 bootstrap/clone 실행은 이 허용에 포함되지 않는다.
 - Git 읽기 명령도 프로그램 실행·파일 출력 옵션을 검사하며, `--upload-pack`/`-u`, `--filters`, `--output`·`--ext-diff`·`--textconv`와 그 긴 옵션 축약형은 거절한다. `ls-remote`의 명시적 remote-helper(`scheme::`)와 허용 목록에 없는 URL scheme도 거절한다.
 - 지원하는 apply_patch 입력은 쓰기 전에 현재 파일로 미리 대조한다. 제어 파일·프로젝트 탈출·symlink·코드 소유 범위 밖 수정과 승인된 금지 패턴은 명시적 deny로 거절한다. 불명확한 patch 형식은 허용으로 추정하지 않는다.
 - 직접 인터프리터·복합 셸·알 수 없는 로컬 도구는 거절한다. 읽기 명령 이름을 가진 임의 실행 경로도 허용하지 않는다. 모델은 검사 실패를 우회할 새 실행 경로를 찾지 말고 입력·계약을 보완해야 한다.
