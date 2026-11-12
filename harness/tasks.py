@@ -139,6 +139,10 @@ class Tasks:
         from harness.decisions import answer_question
         return answer_question(self, question_id, **configuration)
 
+    def recover_question(self, question_id, **configuration):
+        from harness.decision_recovery import recover_question
+        return recover_question(self, question_id, **configuration)
+
     def question_status(self):
         return copy.deepcopy(self.read().get('required_questions', {}))
 
@@ -1005,7 +1009,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=logging.ROOT)
     parser.add_argument("--run-id", default=UNKNOWN)
-    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "question-status", "register", "register-execution-plan", "revise-execution-plan", "configure-verification", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
+    parser.add_argument("action", choices=["bind-execution-session", "configure-execution-policy", "configure-task-plan", "open-question", "answer-question", "recover-question", "question-status", "register", "register-execution-plan", "revise-execution-plan", "configure-verification", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-development", "refresh-validation", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "collection-report", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "issue", "route-issue", "resolve-issue", "intervention", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     args = parser.parse_args()
     tasks = Tasks(args.root, args.run_id)
