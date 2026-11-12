@@ -481,6 +481,11 @@ class Tasks:
                 raise ValueError('only question-checkpointed reviews can be resumed')
             if task["state"] != "BLOCKED" or not self._valid_artifact(run.get("checkpoint", {})):
                 raise ValueError("resume requires a valid checkpoint")
+            from harness.stage_readiness import gate as readiness_gate
+            # Resume keeps the existing attempt; only a fresh begin spends budget.
+            reason = readiness_gate(self, state, task, [])
+            if reason:
+                raise ValueError(reason)
             from harness.development_tracking import ensure
             ensure(self, state, task, "resume", run)
             if task.get('verification_contract') or any(t.get('verification_contract') and any(not r.get('ended_at') for r in t['executions']) for t in state['tasks'].values()):

@@ -58,7 +58,16 @@ def _current(root,a):
 
 def assess(root,state,feature_id):
     root=Path(root).resolve();flow=state.get('stage_workflows',{}).get(feature_id)
-    if not flow:return {'status':'UNKNOWN','stages':[],'reason':'독립 기획·디자인·개발계획 검토 계약 미등록; 승인 추정 금지'}
+    if not flow:
+        return {'status':'UNKNOWN','stages':[],
+                'reason':'독립 기획·디자인·개발계획 검토 계약 미등록; 승인 추정 금지',
+                'next_actions':[
+                    {'operation':'configure-stage-workflow','feature_id':feature_id,
+                     'required_stages':list(STAGES),
+                     'reason':'각 단계의 별도 documentation 작업과 기존 필수 criterion을 checks에 연결'},
+                    {'operation':'review','reason':'계약 등록 후 ready → begin → submit → 독립 review로 현재 입력·산출물 검토'},
+                    {'operation':'bind-stage-inputs','reason':'구현 task에 검토된 세 단계 산출물의 현재 버전을 명시적으로 연결'}],
+                'help':'docs/stage-readiness.md'}
     output=[];basis={}
     for name in STAGES:
         c=flow['stages'][name];t=state['tasks'][c['task_id']];reviews=t.get('reviews',[]);review=reviews[-1] if reviews else {}
@@ -112,7 +121,13 @@ def gate(manager,state,task,review_results=None):
     from harness.development_tracking import execution_scope
     flow=state.get('stage_workflows',{}).get(task['feature_id']);code=execution_scope(task)=='code_implementation'
     if not flow:
-        return '독립 개발계획 검토 계약 없음; 기획·디자인 통과로 구현 시작 불가' if code and task.get('work_type')=='PRODUCT' else None
+        if code and task.get('work_type')=='PRODUCT':
+            return ('독립 개발계획 검토 계약 없음; 기획·디자인 통과로 구현 시작 불가. '
+                    '같은 feature_id에 configure-stage-workflow로 세 단계 documentation 작업·필수 checks를 등록하고, '
+                    '현재 입력으로 각 단계 ready → begin → submit → 독립 review 후 '
+                    '구현 task에 bind-stage-inputs로 검토된 산출물 버전을 연결해야 함 '
+                    '(docs/stage-readiness.md). 기존 Markdown·과거 PASS 자동 승계 금지')
+        return None
     target=next((n for n,c in flow['stages'].items() if c['task_id']==task['task_id']),None)
     if not code and target is None:return None
     origin=state['tasks'][flow['stages']['planning']['task_id']]
@@ -123,11 +138,13 @@ def gate(manager,state,task,review_results=None):
     if review_results is not None and any(r['result']!='PASS' for r in review_results):return None
     assessment=assess(manager.root,state,task['feature_id'])
     required=STAGES if code else STAGES[:STAGES.index(target)]
-    failed=[s['stage'] for s in assessment['stages'] if s['stage'] in required and s['status']!='PASS']
-    if failed:return '선행 단계 보완·재검토 필요: '+', '.join(failed)
+    failed=[s for s in assessment['stages'] if s['stage'] in required and s['status']!='PASS']
+    if failed:
+        return '선행 단계 보완·재검토 필요: '+'; '.join(
+            s['stage']+' ('+s['task_id']+', '+s['status']+'): '+', '.join(s['reasons']) for s in failed)
     expected={p:h for n in required for p,h in assessment['basis'][n]['outputs'].items()}
     applied={a['path']:a['sha256'] for a in task.get('inputs',[])}
-    if any(applied.get(p)!=h for p,h in expected.items()):return '현재 승인된 선행 버전을 입력에 명시적으로 다시 연결해야 함'
+    if any(applied.get(p)!=h for p,h in expected.items()):return '현재 승인된 선행 버전을 bind-stage-inputs로 입력에 명시적으로 다시 연결해야 함; 기존 입력·검토 이력 보존'
     return None
 
 

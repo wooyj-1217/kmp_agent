@@ -24,6 +24,34 @@
 
 대시보드의 단계 준비 상태는 구현 완료·제품 인수·사용자 승인과 별개다. 기존 메모앱에는 이 새 계약을 소급 등록하지 않았고 UNKNOWN을 유지한다. 개발계획 검토 통과도 구현/기능 회귀의 대체 근거가 아니다.
 
+## 착수·재개 시 계약 누락 진단
+
+PRODUCT 구현의 `ready`, `begin`, 체크포인트 `resume`은 같은 단계 준비 게이트를 적용한다. 계약이 없으면 단계 작업·필수 검토 등록 → 현재 버전 독립 검토 → 구현 입력 연결 순서를 안내하며 차단한다. `assess()`의 `UNKNOWN` 응답은 `next_actions`와 이 문서 경로를 함께 반환한다. 등록된 계약의 미통과 단계는 task ID·상태·차단 이유로 표시한다. 기존 개발계획 Markdown이나 소스 검토만으로 계약·PASS를 생성하지 않는다.
+
+선택한 설치본의 기존 task 진입점을 사용한다. JSON에는 실제 feature/task/criterion ID와 현재 파일 경로를 넣는다.
+
+```sh
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation configure-stage-workflow --data workflow.json
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation bind-stage-inputs --data inputs.json
+```
+
+`workflow.json`은 `feature_id`와 `stages`를 지정한다. `stages`는 위 표의 `planning`, `design`, `development_plan`별 `task_id`, `checks`(검토 영역 → 기존 필수 criterion ID)다. 각 단계는 같은 프로젝트·feature·작업 종류의 별도 `documentation` 작업이어야 한다. 계약 등록 뒤 각 단계에 기존 `ready → begin → submit → review`를 실제 수행한다. 과거 PASS에 당시 계약 버전 연결이 없으면 현재 입력으로 재검토한다. `inputs.json`은 `task_id`, `inputs`(기존 원본 입력을 포함한 전체 입력 목록), `reason`을 지정한다. 현재 검토된 세 단계 산출물을 구현 task에 명시적으로 연결한다.
+
+다음은 합성 ID를 쓴 입력 형태이며 실제 작업의 ID로 바꿔야 한다. UI 비해당 디자인 계약을 등록한 작업은 디자인 `checks`에 기존 계약의 `interfaces`, `inputs_outputs`, `errors`를 사용한다.
+
+```json
+{
+  "feature_id": "FEATURE",
+  "stages": {
+    "planning": {"task_id": "PLAN", "checks": {"requirements": "P1", "scope_policy": "P2", "acceptance": "P3"}},
+    "design": {"task_id": "DESIGN", "checks": {"screens": "D1", "states": "D2", "interactions": "D3"}},
+    "development_plan": {"task_id": "DEV-PLAN", "checks": {"modules": "V1", "task_dependencies": "V2", "verification_commands": "V3"}}
+  }
+}
+```
+
+체크포인트가 살아 있는 작업은 입력을 덮어 재연결하지 않는다. 재개 게이트가 단계 보완이나 새 입력 연결을 요구하면 체크포인트를 보존하고 기존 `fail`로 해당 시도를 종료한 뒤 `bind-stage-inputs`, `ready`, 새 `begin`을 수행한다. 종료되지 않은 실행의 입력 변경을 허용하거나 과거 시작 근거를 재구성하지 않는다.
+
 ## 검증 범위
 
 합성 임시 프로젝트에서 기획·디자인 PASS 뒤 개발계획 NOT_RUN 차단, 계약 미등록 구현 차단, 정확한 상위 입력 요구, 필수 검토 누락→보완→재검토, 디자인에서 기획 반환, 입력 변경의 후속 재검토, 보완 간 횟수 보존과 한도 차단, 과거 PASS 비승계, 입력 수신증 거절을 시험한다. 실제 메모앱 승인 근거로 사용하지 않는다. 브라우저 사례는 합성 기획 반환임을 별도로 표시한다.

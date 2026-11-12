@@ -9,10 +9,11 @@
 | `v0.3.0` / VERSION `0.3.0` | [0.3.0 지원 범위](v0.3.0.md) · [본문 원본](v0.3.0-notes.md) | 개발 위임·독립 QA·요구사항 추적·대시보드 확장. 최종 SHA·원격 검증은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.3.0) 확인 |
 | `v0.4.0` / VERSION `0.4.0` | [0.4.0 지원 범위](v0.4.0.md) · [본문 원본](v0.4.0-notes.md) | foreground 연쇄 실행·승인·복구·완료 계약. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.0) 확인. 실제 모델 E2E NOT_RUN |
 | `v0.4.1` / VERSION `0.4.1` | [0.4.1 지원 범위](v0.4.1.md) · [본문 원본](v0.4.1-notes.md) | 제품 기술 계약의 도구·종료 검사와 Git 실행 우회 차단. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.1) 확인 |
-| `v0.5.0` / VERSION `0.5.0` | [0.5.0 지원 범위](v0.5.0.md) · [본문 원본](v0.5.0-notes.md) | KMP·DB 기준, UI 비해당 계약, 예제 분리와 추적·설치 CLI 수정. 최종 SHA·원격 태그 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.5.0) 확인 |
+| `v0.4.2` / VERSION `0.4.2` 후보 | [0.4.2 지원 범위](v0.4.2.md) · [본문 원본](v0.4.2-notes.md) | v0.4.1 이후 KMP·DB·UI 비해당·예제 분리와 guard 개선을 포함. 최종 SHA·원격 검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.2)에서 확정 |
+| `v0.5.0` 철회·대체 대상 | [당시 지원 범위](v0.5.0.md) · [당시 본문 원본](v0.5.0-notes.md) | 2026-11-12 사용자 명시 요청으로 태그·Release 삭제 후 v0.4.2로 대체. 기존 커밋 이력·검증 원본은 보존하며 실제 삭제·재게시 완료와 준비 상태를 구분 |
 | 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 배포 식별·게시 여부는 위 버전별 행 참조 |
 
-v0.5.0의 변경 범위는 해당 지원 현황에 고정한다. 이후 변경은 [미배포 변경](unreleased.md)에 기록한다. 태그·게시 완료 여부는 실제 GitHub Release로 확인한다.
+v0.4.1 이후 누적 변경과 이번 guard 개선은 v0.4.2 후보에 연결한다. v0.5.0 철회는 이번 사용자 요청에 한정한 예외이며, 일반적인 태그 이동·삭제 정책으로 확대하지 않는다. 이후 변경은 [미배포 변경](unreleased.md)에 기록한다. 태그·게시 완료 여부는 실제 GitHub Release로 확인한다.
 
 ## 범위와 판정
 

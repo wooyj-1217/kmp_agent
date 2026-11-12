@@ -261,10 +261,26 @@ def _shell(root, state, session, command):
         return
     if program == 'git':
         args = argv[1:]
+        # Permit only this fixed configuration, never arbitrary -c/alias overrides.
+        safe_status = args[:4] == ['--no-pager', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+        if safe_status:
+            args = args[4:]
+        target = Path(root).resolve()
         if args[:1] == ['-C']:
-            if len(args) < 3 or (Path(root)/args[1]).resolve() != Path(root).resolve():
-                raise ValueError('Git mutation must target this project root')
+            if len(args) < 3:
+                raise ValueError('explicit Git target and command required')
+            target = (Path(root)/args[1]).resolve()
             args = args[2:]
+        if target != Path(root).resolve():
+            # External repository configuration may execute fsmonitor, diff or
+            # textconv programs. Support a narrow status handoff, not executors.
+            if safe_status and args and args[0] == 'status' and all(
+                    a in {'--short', '--branch', '--porcelain', '--porcelain=v1',
+                          '--porcelain=v2', '-s', '-b'} for a in args[1:]):
+                return
+            raise ValueError('external Git supports status observation only: git --no-pager --no-optional-locks '
+                             '-c core.fsmonitor=false -C <root> status --short --branch; '
+                             'mutations require a separate session rooted in that repository')
         if _git_read(args):
             return
         if args and args[0] == 'add':
@@ -373,6 +389,12 @@ def evaluate(root, payload):
             complete(root,state,runs)
         elif event == 'PreToolUse':
             tool, args = payload.get('tool_name',''), payload.get('tool_input',{})
+            if tool in {'mcp__cua_repl__js', 'mcp__cua_repl.js'}:
+                from harness.cua_guard import observation
+                observation(args)
+                return {}
+            if tool == 'mcp__codex_tui__list_threads':
+                return {}  # Discovery only; thread creation does not switch cwd.
             if tool in READ_TOOLS or tool.startswith('mcp__serena__') and tool.rsplit('__',1)[-1] in SERENA_READ:
                 return {}
             command = args.get('command',args.get('cmd')) if isinstance(args,dict) else args
