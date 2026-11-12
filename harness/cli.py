@@ -51,9 +51,18 @@ def main():
                               "recovery": "Run the project entry point recover before validating this installation."}))
             return 1
         if args.action == "update":
-            if not args.ref:
-                raise ValueError("Update requires an explicit --ref; no automatic latest update")
-            result = bootstrap.install(target, args.source, args.ref, update=True)
+            from harness.managed_update import execute_cli, read_manifest
+            manifest = read_manifest(target)
+            if manifest.get('mode') == 'installed':
+                result = execute_cli(target, sys.argv[1:], runtime=ROOT)
+            elif manifest.get('mode') == 'development':
+                # An explicit developer/admin terminal may still migrate a
+                # development connection through the existing installer path.
+                if not args.ref:
+                    raise ValueError("Update requires an explicit --ref; no automatic latest update")
+                result = bootstrap.install(target, args.source, args.ref, update=True)
+            else:
+                raise ValueError('Update requires a known installed or development connection; use bootstrap recovery')
         elif args.action == "recover":
             with bootstrap.acquire(target):
                 result = bootstrap.recover(target)
@@ -155,7 +164,13 @@ def main():
             return 0 if result["connection"]["state"] == "VERIFIED" else 1
         return command_exit if command_exit is not None else 0
     except (OSError, ValueError, SyntaxError, KeyError) as error:
-        context = bootstrap.load(ROOT / "harness/context.py", "failed_tool_context").identify(target)
+        if args.action == 'update':
+            # A rejected control FIFO/symlink must not be opened again by the
+            # failure reporter. Do not infer identity from unverified metadata.
+            context = {'project_id':'UNKNOWN', 'project_id_reason':'update_failed_without_control_reread',
+                       'verification_scope':'target_project', 'identity_source':None}
+        else:
+            context = bootstrap.load(ROOT / "harness/context.py", "failed_tool_context").identify(target)
         print(json.dumps({**context, "result": "FAIL", "error_type": type(error).__name__,
                           "cause": str(error) if isinstance(error, ValueError) else "Tool configuration operation failed",
                           "recovery": "Use recover for an interrupted update; inspect source/ref, preserved settings and hook diagnostics."}, ensure_ascii=False))

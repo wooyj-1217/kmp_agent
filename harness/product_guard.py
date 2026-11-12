@@ -28,7 +28,9 @@ MANAGEMENT = {'task', 'start', 'planning', 'design', 'development', 'verificatio
 
 
 def installed(root):
-    return (Path(root) / '.kmp-agent/installation.json').is_file()
+    path = Path(root) / '.kmp-agent/installation.json'
+    # Invalid selection metadata must not silently turn off an installed guard.
+    return path.exists() or path.is_symlink()
 
 
 def _state(root):
@@ -250,8 +252,26 @@ def _git_read(args):
     return True
 
 
+def _managed_update_command(root, argv):
+    if len(argv) < 3 or argv[0] not in {'python', 'python3'} or argv[2] != 'update':
+        return False
+    root = Path(root).resolve()
+    script = Path(argv[1])
+    script = script if script.is_absolute() else root / script
+    expected = root / '.kmp-agent/agent.py'
+    if script.resolve() != expected.resolve():
+        return False
+    if script.absolute() != expected:
+        raise ValueError('managed update cannot use an alias for the official project launcher')
+    from harness.managed_update import authorize
+    authorize(root, argv[2:], runtime=Path(__file__).resolve().parents[1])
+    return True
+
+
 def _shell(root, state, session, command):
     argv = _argv(command)
+    if _managed_update_command(root, argv):
+        return
     program = Path(argv[0]).name
     if argv[0] != program:
         raise ValueError('executable paths cannot impersonate read-only command names')
@@ -368,6 +388,21 @@ def evaluate(root, payload):
     try:
         if Path(payload.get('cwd','')).resolve() != root:
             raise ValueError('hook cwd differs from target project root')
+        # A harness repair must remain possible when the product ledger is
+        # blocked or malformed. Only this separately verified management
+        # capability may bypass reading product state; no product work is allowed.
+        if event == 'PreToolUse' and payload.get('tool_name') in {'Bash', 'exec_command'}:
+            args = payload.get('tool_input', {})
+            if isinstance(args, dict):
+                if 'cmd' in args and 'command' in args:
+                    raise ValueError('guarded shell tools cannot supply both cmd and command')
+                if args.get('shell') is not None:
+                    raise ValueError('guarded tools require the default shell; explicit shell overrides are unsupported')
+            command = args.get('command', args.get('cmd')) if isinstance(args, dict) else args
+            workdir = args.get('workdir', str(root)) if isinstance(args, dict) else str(root)
+            argv = _argv(command)
+            if Path(workdir).resolve() == root and _managed_update_command(root, argv):
+                return {}
         state = _state(root)
         session = payload.get('session_id')
         if event == 'Stop':
@@ -409,7 +444,7 @@ def evaluate(root, payload):
         else:
             raise ValueError('unsupported product guard event')
         return {}
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError) as error:
         # Explicit supported denial is essential: hook errors alone may fail open.
         reason = 'Product contract guard: '+str(error)
         if event == 'PreToolUse':
