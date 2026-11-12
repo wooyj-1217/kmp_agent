@@ -25,6 +25,8 @@ GIT_READ = {'status', 'diff', 'show', 'log', 'ls-files', 'ls-tree', 'cat-file',
             'rev-parse', 'ls-remote', 'check-ignore', 'merge-base'}
 MANAGEMENT = {'task', 'start', 'planning', 'design', 'development', 'verification',
               'qa', 'usage-register', 'usage-poll', 'collection-report', 'status'}
+HELP_ACTIONS = MANAGEMENT | {'init','update','recover','hook','guard','finish','command'}
+CONTENT_READ_TOOLS = {'mcp__headroom__headroom_retrieve', 'mcp__headroom.headroom_retrieve'}
 
 
 def installed(root):
@@ -248,7 +250,7 @@ def _argv(command):
             continue
         if char in "'\"": quote = char
         elif char in ';&|<>`$(){}':
-            raise ValueError('compound/dynamic shell commands require an approved managed command')
+            raise ValueError('compound/dynamic shell commands require an approved managed command; run one simple command per exec_command for reads')
     argv = shlex.split(command)
     if argv[:2] == ['rtk','proxy']: argv = argv[2:]
     elif argv[:1] == ['rtk']: argv = argv[1:]
@@ -345,6 +347,14 @@ def document_patch(root, state, session, changes):
     return True
 
 
+def _content_read(args):
+    # This service restores previously stored tool output, not project files.
+    if (not isinstance(args,dict) or set(args) != {'hash'}
+            or not isinstance(args['hash'],str)
+            or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',args['hash'])):
+        raise ValueError('headroom_retrieve requires exactly one literal hash string')
+
+
 def _option(argv, name):
     if argv.count(name) != 1 or argv.index(name)+1 >= len(argv):
         raise ValueError('explicit '+name+' required')
@@ -389,6 +399,21 @@ def _managed_update_command(root, argv):
         raise ValueError('managed update cannot use an alias for the official project launcher')
     from harness.managed_update import authorize
     authorize(root, argv[2:], runtime=Path(__file__).resolve().parents[1])
+    return True
+
+
+def _help_command(root, argv):
+    if not (argv[2:] in (['--help'], ['-h'])
+            or argv[2] in HELP_ACTIONS and argv[3:] in (['--help'], ['-h'])):
+        return False
+    root = Path(root).resolve()
+    expected = root / '.kmp-agent/agent.py'
+    script = Path(argv[1])
+    script = script if script.is_absolute() else root / script
+    from bootstrap import LAUNCHER
+    if (script.absolute() != expected or expected.is_symlink() or expected.parent.is_symlink()
+            or not expected.is_file() or expected.read_bytes() != LAUNCHER.encode()):
+        raise ValueError('help requires the unchanged official project launcher without aliases; inspect control files with read tools')
     return True
 
 
@@ -439,6 +464,8 @@ def _shell(root, state, session, command):
         if any(x == '--worker' or x.startswith('--worker=') for x in argv[2:]):
             raise ValueError('installed role execution cannot inject an arbitrary worker')
         action = argv[2]
+        if _help_command(root,argv):
+            return  # argparse help is diagnostic, independent of product state.
         state = state if state is not None else _state(root)
         if action in MANAGEMENT:
             if action in {'planning','design','development','verification','qa'}:
@@ -551,6 +578,9 @@ def evaluate(root, payload):
                 tool = tool.split('.',1)[1]
             if tool.startswith('functions.') and tool.split('.',1)[1] in READ_TOOLS | {'exec_command','apply_patch'}:
                 tool = tool.split('.',1)[1]
+            if tool in CONTENT_READ_TOOLS:
+                _content_read(args)
+                return {}
             if tool in {'mcp__cua_repl__js', 'mcp__cua_repl.js'}:
                 from harness.cua_guard import observation
                 observation(args)
@@ -567,8 +597,11 @@ def evaluate(root, payload):
                 if Path(workdir).resolve() != root: raise ValueError('command workdir must be the project root')
                 _shell(root,None,session,command)
             else:
-                from harness.verification_capabilities import authorize_tool
-                authorize_tool(root,_state(root),session,tool,args)
+                from harness.verification_capabilities import UI_ACTIONS, authorize_tool
+                if tool.startswith('mcp__') and tool.rsplit('__',1)[-1] in UI_ACTIONS:
+                    authorize_tool(root,_state(root),session,tool,args)
+                else:
+                    raise ValueError('unsupported tool capability '+repr(tool)+'; use supported read tools or the official project entrypoint --help; no product mutation authorized')
         else:
             raise ValueError('unsupported product guard event')
         return {}

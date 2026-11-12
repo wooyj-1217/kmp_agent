@@ -28,11 +28,11 @@
 
 PRODUCT 구현의 `ready`, `begin`, 체크포인트 `resume`은 같은 단계 준비 게이트를 적용한다. 계약이 없으면 단계 작업·필수 검토 등록 → 현재 버전 독립 검토 → 구현 입력 연결 순서를 안내하며 차단한다. `assess()`의 `UNKNOWN` 응답은 `next_actions`와 이 문서 경로를 함께 반환한다. 등록된 계약의 미통과 단계는 task ID·상태·차단 이유로 표시한다. 기존 개발계획 Markdown이나 소스 검토만으로 계약·PASS를 생성하지 않는다.
 
-선택한 설치본의 기존 task 진입점을 사용한다. JSON에는 실제 feature/task/criterion ID와 현재 파일 경로를 넣는다.
+선택한 설치본의 기존 task 진입점을 사용한다. 원장이 비어 있으면 먼저 [설치용 작업 명령](task-management.md#cli와-역할-실행-범위)으로 새 계획·기획/문서 작업을 준비한다. 등록 인자 초안은 `docs/guard-inputs/`에 두고 제품 소스 작성 허가와 구분한다. JSON에는 실제 feature/task/criterion ID와 현재 파일 경로를 넣는다.
 
 ```sh
-rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation configure-stage-workflow --data workflow.json
-rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation bind-stage-inputs --data inputs.json
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation configure-stage-workflow --data docs/guard-inputs/workflow.json
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation bind-stage-inputs --data docs/guard-inputs/inputs.json
 ```
 
 `workflow.json`은 `feature_id`와 `stages`를 지정한다. `stages`는 위 표의 `planning`, `design`, `development_plan`별 `task_id`, `checks`(검토 영역 → 기존 필수 criterion ID)다. 각 단계는 같은 프로젝트·feature·작업 종류의 별도 `documentation` 작업이어야 한다. 계약 등록 뒤 각 단계에 기존 `ready → begin → submit → review`를 실제 수행한다. 과거 PASS에 당시 계약 버전 연결이 없으면 현재 입력으로 재검토한다. `inputs.json`은 `task_id`, `inputs`(기존 원본 입력을 포함한 전체 입력 목록), `reason`을 지정한다. 현재 검토된 세 단계 산출물을 구현 task에 명시적으로 연결한다.

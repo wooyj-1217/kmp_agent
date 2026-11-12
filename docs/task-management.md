@@ -124,6 +124,19 @@ show/report는 귀속한 응답의 실제 증분만 집계한다. 캐시 입력�
 
 ## CLI와 역할 실행 범위
 
+설치 프로젝트는 선택된 공식 진입점을 사용한다. 다음 명령은 각각 별도로 실행한다. 원장·앱 소스가 없는 상태에서도 도움말 조회와 등록 인자 준비부터 시작할 수 있다.
+
+```sh
+rtk proxy python3 .kmp-agent/agent.py --help
+rtk proxy python3 .kmp-agent/agent.py task --help
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation register --data docs/guard-inputs/task.json
+rtk proxy python3 .kmp-agent/agent.py task --operation show
+```
+
+`RUN`과 JSON의 task/feature ID는 현재 작업에서 얻은 실제 값으로 지정한다. 등록 전 실행 ID가 필요하면 공식 `start --work-type PRODUCT --role planning --request "현재 요청 요약"`의 반환 run_id를 사용한다. JSON에는 기존 register 메서드 인자를 넣고, 새 기획/문서 작업은 `execution_scope: documentation`으로 제품 구현과 구분한다. 문서 patch 경로도 `configure-documents`로 동결한다. native 계획·필수 질문·검토·기술 승인 등 해당 작업의 생명주기 조건은 그대로 적용된다. 작업 등록이나 도움말 성공을 구현 착수·완료로 해석하지 않는다.
+
+아래는 **하네스 개발 원본 checkout용 CLI**다. 설치 프로젝트 루트에 `harness/tasks.py`가 있다고 가정하거나 설치 guard 안에서 이 직접 실행을 시도하지 않는다. 설치 경로에서는 지원 operation을 `task --operation <이름> --data docs/guard-inputs/<파일>.json`으로 전달하며, 사용 가능한 operation은 위 공식 도움말로 확인한다.
+
 ```sh
 rtk proxy python3 harness/tasks.py --run-id <run_id> register --data <등록.json>
 rtk proxy python3 harness/tasks.py --run-id <run_id> ready --data <작업.json>

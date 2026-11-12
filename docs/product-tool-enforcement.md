@@ -18,6 +18,12 @@
 
 설치 진입점의 `task --operation`은 기존 API의 `register-execution-plan`, `configure-execution-policy`, `bind-execution-session`, `configure-task-plan`, `open-question`, `answer-question`도 제공한다. JSON 인자 파일은 `docs/guard-inputs/` 아래 준비할 수 있다. `.harness` 원장이나 설치·훅 파일을 raw 편집해 상태를 만들어 넣지 않는다.
 
+## 소스·원장이 없는 새 프로젝트의 준비
+
+빈 작업 원장은 구현 허가가 없다는 뜻이지 기획·준비를 중단해야 한다는 뜻이 아니다. 현재 프로젝트의 원본 요구·설정과 설치 지침을 읽고, 새 전체 계획·기획/문서 작업과 필요한 계약을 공식 task 진입점으로 준비한다. 필요한 플랫폼·정책·기술 결정이 없으면 구체적인 질문과 영향 범위를 제시하며, 미응답을 승인으로 만들지 않는다. 이전 구현을 참조하지 않는 요청도 현재 설치 지침의 KMP 등 기술 요구를 폐기하지 않는다.
+
+[설치용 작업 명령](task-management.md#cli와-역할-실행-범위)의 도움말과 `docs/guard-inputs/` JSON 객체를 사용한다. 정상 원문 조회·도움말에 구현 작업이나 UI 검증 계약을 요구하지 않는다. 압축 원문 복원·조회 오류가 나면 막힌 도구/명령과 다음 복구 동작을 특정하며, ‘소스 없음·원장 비어 있음’만으로 전체 준비를 중단하지 않는다. 실제 제품 소스는 기존 승인 계약·단계 검토와 ready/begin을 통과한 뒤 작성한다.
+
 ## 설치된 도구 검사
 
 이 변경을 포함한 버전을 명시적으로 설치/update하고 init하면 기존 수신·Stop 수집 훅을 보존하면서 PreToolUse와 별도 Stop guard를 추가한다. 다른 제품 훅은 보존하며 같은 guard 중복이나 PreToolUse 범위 축소는 거절한다. 설치 파일 갱신은 신뢰·활성화 성공이 아니다. `/hooks` 검토·신뢰, 새 세션, 실제 허용/거부 요청을 별도로 확인한다.
