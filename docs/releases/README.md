@@ -9,10 +9,11 @@
 | `v0.3.0` / VERSION `0.3.0` | [0.3.0 지원 범위](v0.3.0.md) · [본문 원본](v0.3.0-notes.md) | 개발 위임·독립 QA·요구사항 추적·대시보드 확장. 최종 SHA·원격 검증은 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.3.0) 확인 |
 | `v0.4.0` / VERSION `0.4.0` | [0.4.0 지원 범위](v0.4.0.md) · [본문 원본](v0.4.0-notes.md) | foreground 연쇄 실행·승인·복구·완료 계약. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.0) 확인. 실제 모델 E2E NOT_RUN |
 | `v0.4.1` / VERSION `0.4.1` | [0.4.1 지원 범위](v0.4.1.md) · [본문 원본](v0.4.1-notes.md) | 제품 기술 계약의 도구·종료 검사와 Git 실행 우회 차단. 최종 SHA·원격 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.1) 확인 |
-| `v0.5.0` / VERSION `0.5.0` | [0.5.0 지원 범위](v0.5.0.md) · [본문 원본](v0.5.0-notes.md) | KMP·DB 기준, UI 비해당 계약, 예제 분리와 추적·설치 CLI 수정. 최종 SHA·원격 태그 검증·게시 여부는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.5.0) 확인 |
+| `v0.4.2` / VERSION `0.4.2` | [0.4.2 지원 범위](v0.4.2.md) · [본문 원본](v0.4.2-notes.md) | v0.4.1 이후 KMP·DB·UI 비해당·예제 분리와 guard 개선을 포함. 최종 SHA·원격 검증·게시 결과는 [GitHub Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.2)에서 확정 |
+| `v0.5.0` 철회 완료 | [당시 지원 범위](v0.5.0.md) · [당시 본문 원본](v0.5.0-notes.md) | 2026-11-12 사용자 명시 요청으로 태그·Release 삭제 확인. 기존 커밋 이력·검증 원본 보존. 변경 사항은 v0.4.2에 포함하며 최종 배포 결과는 해당 Release에서 확인 |
 | 최초 작업본 조사(과거 기록) | [작업본](working-tree.md) | VERSION 0.1.0이던 최초 조사와 당시 해시를 보존. 배포 식별·게시 여부는 위 버전별 행 참조 |
 
-v0.5.0의 변경 범위는 해당 지원 현황에 고정한다. 이후 변경은 [미배포 변경](unreleased.md)에 기록한다. 태그·게시 완료 여부는 실제 GitHub Release로 확인한다.
+v0.4.1 이후 누적 변경과 이번 guard 개선은 v0.4.2에 연결한다. v0.5.0 철회는 이번 사용자 요청에 한정한 예외이며, 일반적인 태그 이동·삭제 정책으로 확대하지 않는다. 이후 변경은 [미배포 변경](unreleased.md)에 기록한다. 태그·게시 완료 여부는 실제 GitHub Release로 확인한다.
 
 ## 범위와 판정
 
@@ -28,7 +29,7 @@ kmp_agent는 공통 기능·실행 방식·사용 전제·제약을 관리한다
 
 1. 적용 프로젝트의 `.kmp-agent/installation.json`에서 `version`, `requested_ref`, `commit`, `mode`를 확인한다. [status](../installation.md#프로젝트-명령)의 실제 runtime_identity와 선택 SHA/dirty도 대조한다. status는 읽기 점검 명령이며 VERIFIED는 해당 연결·수집 범위이지 제품 개발 PASS가 아니다.
 2. 이 목록에서 해당 태그의 문서를 찾고 **커밋까지 일치하는지** 확인한다. VERSION 문자열만 같은 개발 작업본을 정식 배포판으로 간주하지 않는다. 설치 코드가 dirty하거나 개발 모드이면 해당 변경은 별도 근거로 관리한다.
-3. 앞으로 게시하는 버전은 해당 태그의 `docs/releases/<태그>.md`를 함께 제공한다. `v0.1.0` 태그에는 이 새 경로가 없으므로, 원본 저장소의 현재 지원 목록에서 이 사후 기록을 찾는다. 이번 작성물은 아직 미커밋·미게시이므로 원격에 문서가 있다고 가정하지 않는다. 전체 SHA 설치가 목록의 태그 SHA와 다르면 정확한 버전의 현황은 확인 불가로 두고 해당 소스를 점검한다.
+3. 앞으로 게시하는 버전은 해당 태그의 `docs/releases/<태그>.md`를 함께 제공한다. `v0.1.0` 태그에는 이 새 경로가 없으므로, 원본 저장소의 현재 지원 목록에서 이 사후 기록을 찾는다. 사후 기록이 과거 태그에 추가되었다고 가정하지 않는다. 전체 SHA 설치가 목록의 태그 SHA와 다르면 정확한 버전의 현황은 확인 불가로 두고 해당 소스를 점검한다.
 4. 제품에서 확인한 실행 결과는 제품 저장소에 보관하고 하네스 버전·SHA와 연결한다. 지원 현황은 설치 가능성과 제공 계약을 설명하며, 프로젝트의 검증 결과를 대체하거나 자동 업로드하지 않는다.
 
 ## 릴리스 준비·보존·정정
