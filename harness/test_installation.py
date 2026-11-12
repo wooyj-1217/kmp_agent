@@ -137,6 +137,42 @@ class InstallationTests(unittest.TestCase):
         return subprocess.run(["rtk", "proxy", sys.executable, str(self.target / ".kmp-agent/agent.py"), *args],
                               cwd=target or self.target, text=True, input=input, capture_output=True, env=environment)
 
+    def test_installed_empty_project_read_help_and_document_preparation(self):
+        self.install()
+        ledger=self.target/'.harness/tasks/tasks.yaml'
+        self.assertFalse(ledger.exists())
+        def guarded(tool,args):
+            payload=dict(hook_event_name='PreToolUse',cwd=str(self.target),session_id='synthetic-preparation',
+                         tool_name=tool,tool_input=args)
+            result=self.cli('guard',input=json.dumps(payload))
+            self.assertEqual(0,result.returncode,result.stderr)
+            return json.loads(result.stdout)
+        for arguments in (['--help'],['task','--help']):
+            command='python3 .kmp-agent/agent.py '+' '.join(arguments)
+            self.assertEqual({},guarded('exec_command',{'cmd':command}))
+            result=self.cli(*arguments)
+            self.assertEqual(0,result.returncode,result.stderr)
+            self.assertIn('configure-stage',result.stdout)
+        self.assertEqual({},guarded('mcp__headroom__headroom_retrieve',{'hash':'abc123def456'}))
+        self.assertEqual({},guarded('apply_patch','*** Begin Patch\n*** Add File: docs/guard-inputs/task.json\n+{}\n*** End Patch'))
+        self.assertEqual({},guarded('exec_command',{'cmd':'python3 .kmp-agent/agent.py task --operation register --data docs/guard-inputs/task.json'}))
+        denied=guarded('apply_patch','*** Begin Patch\n*** Add File: shared/App.kt\n+fun App() {}\n*** End Patch')
+        self.assertEqual('deny',denied['hookSpecificOutput']['permissionDecision'])
+        self.assertFalse(ledger.exists())
+        data=self.target/'docs/guard-inputs/task.json'
+        data.parent.mkdir(parents=True,exist_ok=True)
+        data.write_text(json.dumps(dict(feature_id='FRESH',task_id='PLAN',role='planning',
+            title='Current synthetic request',scope='planning only',criteria=[dict(id='P1',required=True)],
+            inputs=[],work_type='PRODUCT',execution_scope='documentation')))
+        command='python3 .kmp-agent/agent.py task --run-id SYNTHETIC --operation register --data docs/guard-inputs/task.json'
+        self.assertEqual({},guarded('exec_command',{'cmd':command}))
+        result=self.cli('task','--run-id','SYNTHETIC','--operation','register','--data','docs/guard-inputs/task.json')
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        task=json.loads(result.stdout)
+        self.assertEqual('TODO',task['state'])
+        self.assertEqual('documentation',task['execution_scope'])
+        self.assertFalse((self.target/'shared/App.kt').exists())
+
     def test_install_init_idempotent_preserves_product_and_trackable_metadata(self):
         result = self.install()
         self.assertEqual(result["installation"]["commit"], self.first)
