@@ -1,5 +1,7 @@
 # 버전 고정 설치·init·update
 
+v0.4.2는 Draft PR 머지 후 배포할 후보이며 아직 태그·Release를 생성하지 않았다. 아래 v0.4.2 명령은 게시 확인 후 사용한다. v0.5.0은 사용자 요청으로 철회했다.
+
 일반 제품은 원격의 **명시한 태그 또는 전체 커밋 SHA**를 설치해 사용한다. 버전 원본은 루트 [VERSION](../VERSION) 한 곳이다. v0.4.2의 [지원 범위](releases/v0.4.2.md)와 [Release](https://github.com/wooyj-1217/kmp_agent/releases/tag/v0.4.2)에서 실제 배포 SHA·원격 검증·게시 여부를 확인한다. 이전 배포는 [지원 목록](releases/README.md)에 보존한다. 브랜치·최신 HEAD를 자동 추적하지 않는다. 로컬 원본 참조는 하네스 개발용 선택 모드다. 구현은 [bootstrap.py](../bootstrap.py), 프로젝트 명령은 [cli.py](../harness/cli.py)다. Python 3.10 이상·Git·rtk가 필요하다.
 
 ## 공통 도구와 프로젝트 데이터의 경계
