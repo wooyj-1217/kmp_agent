@@ -69,6 +69,16 @@ class ProjectTests(unittest.TestCase):
                  "observed": {"role": "user", "message_id": "synthetic-message", "content": [{"text": "synthetic request"}]}}
         (log / "events.jsonl").write_text((json.dumps(event) + "\n") * message_count)
 
+    def test_first_call_hint_precedes_the_shared_instruction_link(self):
+        self.apply()
+        text=(self.target/'AGENTS.md').read_text()
+        managed=text.split(module.BEGIN,1)[1].split(module.END,1)[0]
+        self.assertLess(managed.index('exec_command'),managed.index('공통 하네스 진입'))
+        self.assertLess(managed.index('{"hash":'),managed.index('공통 하네스 진입'))
+        self.assertIn('id',managed)
+        self.assertIn('Keep product policy.',text)
+        self.assertEqual([],self.apply()['changes'])
+
     def test_apply_preserves_product_config_and_is_idempotent(self):
         config = (self.target / ".codex/config.toml").read_bytes()
         first = self.apply()

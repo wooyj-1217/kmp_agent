@@ -139,6 +139,9 @@ class InstallationTests(unittest.TestCase):
 
     def test_installed_empty_project_read_help_and_document_preparation(self):
         self.install()
+        startup=(self.target/'AGENTS.md').read_text().split('<!-- kmp-agent:begin -->',1)[1]
+        self.assertLess(startup.index('exec_command'),startup.index('공통 하네스 진입'))
+        self.assertLess(startup.index('{"hash":'),startup.index('공통 하네스 진입'))
         ledger=self.target/'.harness/tasks/tasks.yaml'
         self.assertFalse(ledger.exists())
         def guarded(tool,args):
