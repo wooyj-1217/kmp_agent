@@ -17,7 +17,7 @@ CONTROL = {'.git', '.kmp-agent', '.harness', '.codex', '.agents', '.githooks'}
 READ_TOOLS = {'read_file', 'list_dir', 'search', 'view_image', 'update_plan',
               'request_user_input', 'request_user_input_async', 'wait', 'wait_agent',
               'spawn_agent', 'Agent', 'send_message', 'followup_task', 'list_agents',
-              'exec', 'get_goal', 'clock__curr_time'}
+              'get_goal', 'clock__curr_time', 'interrupt_agent'}
 SERENA_READ = {'initial_instructions', 'get_current_config', 'get_symbols_overview',
                'find_symbol', 'find_referencing_symbols', 'search_for_pattern',
                'list_dir', 'find_file', 'read_file', 'list_memories', 'read_memory'}
@@ -59,14 +59,19 @@ def _members(state, runs):
 
 def active(root, state, session_id, task_id=None):
     runs = _runs(state, session_id)
+    if not runs:
+        raise ValueError('native session has no bound execution plan; use task --operation bind-execution-session')
     candidates = []
+    rejected = []
     for task in _members(state, runs):
         if task_id is not None and task['task_id'] != task_id:
             continue
         if task.get('state') != 'IN_PROGRESS' or development_tracking.execution_scope(task) != 'code_implementation':
+            rejected.append(task['task_id']+': state='+str(task.get('state'))+', scope='+development_tracking.execution_scope(task)+'; use task ready/begin after configuring development')
             continue
         works = [r for r in task.get('executions', []) if r.get('kind') == 'work' and not r.get('ended_at') and r.get('run_id') in runs]
         if len(works) != 1:
+            rejected.append(task['task_id']+': expected one open work execution in the bound run; use task begin or resume')
             continue
         manager = Tasks(root, works[0]['run_id'])
         if not state.get('execution_policy'):
@@ -83,7 +88,7 @@ def active(root, state, session_id, task_id=None):
         development_tracking.ensure(manager, state, task, 'dispatch', run=works[0])
         candidates.append((manager, task))
     if len(candidates) != 1:
-        raise ValueError('exactly one active, planned PRODUCT implementation with frozen technology constraints is required')
+        raise ValueError('expected one planned PRODUCT implementation; '+('; '.join(rejected) if not candidates else 'ambiguous active tasks: '+', '.join(t['task_id'] for _, t in candidates)+'; select --task-id for commands')+('; requested task is absent from bound plan; use register-execution-plan' if task_id and not any(t['task_id']==task_id for t in _members(state,runs)) else ''))
     return candidates[0]
 
 
@@ -192,10 +197,17 @@ def patch_files(root, patch):
 
 def _patch(root, state, session, patch):
     changes = patch_files(root, patch)
-    # Planning documents and the existing lineage input may be prepared before code.
-    setup = all(name.endswith('.md') or name == 'requirement-lineage.json'
-                or name.startswith('docs/') and name.endswith('.json') for name in changes)
-    if setup:
+    # Metadata preparation has its own named namespace, never arbitrary docs JSON.
+    if all(name.startswith('docs/guard-inputs/') and name.endswith('.json')
+           and content is not None for name, content in changes.items()):
+        code_paths = [p for t in state.get('tasks',{}).values() for p in t.get('development_tracking',{}).get('code_paths',[])]
+        if any(name == p or name.startswith(p+'/') for name in changes for p in code_paths):
+            raise ValueError('metadata preparation overlaps registered implementation code paths')
+        for content in changes.values():
+            if not isinstance(json.loads(content), dict):
+                raise ValueError('guard-inputs must contain a JSON object')
+        return
+    if document_patch(root, state, session, changes):
         return
     manager, task = active(root, state, session)
     paths = task['development_tracking']['code_paths']
@@ -203,7 +215,7 @@ def _patch(root, state, session, patch):
         if not paths or not any(name == p or name.startswith(p+'/') for p in paths):
             raise ValueError('patch is outside the active implementation code paths')
         if content is None:
-            continue  # Required files/patterns are checked on submit/commit/publication.
+            continue  # Required files/patterns are checked on submit and product certification.
         policy = development_constraints.load(manager, task)['policy']
         for rule in policy['source_rules']:
             if fnmatch.fnmatch(name, rule['glob']):
@@ -212,13 +224,125 @@ def _patch(root, state, session, patch):
 
 
 def _argv(command):
-    if not isinstance(command, str) or any(c in command for c in '\n\r;&|<>`$'):
-        raise ValueError('compound/dynamic shell commands require an approved managed command')
+    if not isinstance(command, str):
+        raise ValueError('shell command must be a string')
+    # Inspect shell syntax before removing quotes. Single quotes are entirely
+    # literal; double quotes still expand substitutions. No shell evaluation.
+    quote, escaped = None, False
+    for char in command:
+        if char in '\n\r':
+            raise ValueError('multiline shell commands require an approved managed command')
+        if escaped:
+            escaped = False
+            continue
+        if quote == "'":
+            if char == "'": quote = None
+            continue
+        if char == '\\':
+            escaped = True
+            continue
+        if quote == '"':
+            if char == '"': quote = None
+            elif char in '$`':
+                raise ValueError('shell substitution requires an approved managed command')
+            continue
+        if char in "'\"": quote = char
+        elif char in ';&|<>`$(){}':
+            raise ValueError('compound/dynamic shell commands require an approved managed command')
     argv = shlex.split(command)
     if argv[:2] == ['rtk','proxy']: argv = argv[2:]
     elif argv[:1] == ['rtk']: argv = argv[1:]
     if not argv: raise ValueError('empty tool command')
     return argv
+
+
+def _save_or_share(args):
+    if not args: return False
+    if args[0] == 'add':
+        for arg in args[1:]:
+            if arg == '--': break
+            if arg.startswith('-') and arg not in {'-A','--all','-u','--update','-f','--force','-N','--intent-to-add','-v','--verbose','-n','--dry-run'}:
+                raise ValueError('unsupported staging option; use git add [--all|--update] -- <paths>')
+        return True
+    if args[0] == 'commit':
+        i, message = 1, False
+        while i < len(args):
+            arg = args[i]
+            if arg == '--': break
+            if arg in {'-m','--message','-F','--file'}:
+                if i+1 >= len(args): raise ValueError('commit message argument required')
+                message = True
+                i += 2
+                continue
+            if arg.startswith(('--message=', '--file=')):
+                message = True
+            elif arg.startswith('-') and arg not in {'-a','--all','-q','--quiet','-v','--verbose','--allow-empty','--allow-empty-message','-s','--signoff'}:
+                raise ValueError('unsupported commit option; save with git commit -m <message> or -F <file>; hook bypass/rewrite is forbidden')
+            i += 1
+        if not message:
+            raise ValueError('work saving requires explicit git commit -m <message> or -F <file>')
+        return True
+    if args[0] != 'push': return False
+    # A push shares a named development branch; tags, deletes, force/mirror,
+    # configured default refspecs and protected deployment refs stay denied.
+    if args.count('--no-follow-tags') != 1:
+        raise ValueError('work sharing requires git push --no-follow-tags [-u] <remote> <branch>; prevent configured automatic tag publication')
+    values = [a for a in args[1:] if a not in {'-u', '--set-upstream', '--no-follow-tags'}]
+    if len(values) != 2 or not re.fullmatch(r'[A-Za-z0-9_.-]+', values[0]) or values[0].startswith('-'):
+        raise ValueError('share with git push [-u] <remote-name> <branch>:refs/heads/<branch>')
+    ref = values[1]
+    if ref.count(':') > 1:
+        raise ValueError('one explicit development branch required')
+    source, destination = ref.split(':') if ':' in ref else (ref, ref)
+    if destination.startswith('refs/') and not destination.startswith('refs/heads/'):
+        raise ValueError('work sharing supports refs/heads only, never tags or other namespaces')
+    destination = destination.removeprefix('refs/heads/')
+    if (source != 'HEAD' and not re.fullmatch(r'(?:refs/heads/)?[A-Za-z0-9_][A-Za-z0-9_./-]*', source)
+            or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*', destination)
+            or ref == 'HEAD' or '..' in ref or '@{' in ref
+            or source.startswith(('refs/tags/', '-'))
+            or any(p.lower() in {'main','master','release','releases','production','prod','deploy','deployment','staging'} for p in destination.split('/'))):
+        raise ValueError('push supports development branches only; release/protected refs require an external approved publication path')
+    return True
+
+
+def _sed_read(argv):
+    # No -e/-f, writes, e-command or substitutions. Only numeric line viewing.
+    return (len(argv) >= 4 and argv[1] == '-n'
+            and re.fullmatch(r'\d+(?:,\d+|,\$)?p', argv[2]) is not None
+            and all(not p.startswith('-') for p in argv[3:]))
+
+
+def configure_documents(manager, task_id, paths, reason):
+    if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)) or not isinstance(reason,str) or not reason.strip():
+        raise ValueError('explicit unique document paths and reason required')
+    names = [relative(manager.root, path) for path in paths]
+    if any(not (name.endswith('.md') or name == 'requirement-lineage.json' or name.startswith('docs/') and name.endswith('.json')) for name in names):
+        raise ValueError('document scope requires document/metadata paths')
+    def operation(state):
+        task = state['tasks'][task_id]
+        if task.get('state') not in {'TODO','READY'} or task.get('executions') or task.get('document_scope'):
+            raise ValueError('document scope must be frozen once before execution')
+        task['document_scope'] = {'paths':names, 'reason':reason}
+        manager._event(state,'document_scope_configured',task,observed=task['document_scope'])
+        return task['document_scope']
+    return manager._mutate('configure_documents',operation,task_id)
+
+
+def document_patch(root, state, session, changes):
+    runs = _runs(state, session)
+    matches = [t for t in _members(state,runs)
+               if t.get('state') == 'IN_PROGRESS' and t.get('execution_scope') == 'documentation'
+               and set(changes).issubset(t.get('document_scope',{}).get('paths',[]))
+               and len([r for r in t.get('executions',[]) if r.get('kind')=='work' and not r.get('ended_at') and r.get('run_id') in runs]) == 1]
+    if len(matches) != 1: return False
+    task = matches[0]
+    execution_policy.gate(Tasks(root,next(r['run_id'] for r in task['executions'] if not r.get('ended_at'))),state,task['task_id'],'dispatch')
+    # A Markdown/JSON file inside any implementation scope remains product code.
+    code_paths = [p for t in state.get('tasks',{}).values() for p in t.get('development_tracking',{}).get('code_paths',[])]
+    if any(name == p or name.startswith(p+'/') for name in changes for p in code_paths):
+        raise ValueError('document patch overlaps registered implementation code paths')
+    return True
 
 
 def _option(argv, name):
@@ -277,6 +401,8 @@ def _shell(root, state, session, command):
         raise ValueError('executable paths cannot impersonate read-only command names')
     if program in {'pwd','ls','cat','head','tail','wc'}:
         return
+    if program == 'sed' and _sed_read(argv):
+        return
     if program == 'rg' and not any(x.startswith(('--pre','--hostname-bin')) for x in argv[1:]):
         return
     if program == 'git':
@@ -301,21 +427,19 @@ def _shell(root, state, session, command):
             raise ValueError('external Git supports status observation only: git --no-pager --no-optional-locks '
                              '-c core.fsmonitor=false -C <root> status --short --branch; '
                              'mutations require a separate session rooted in that repository')
+        if args in (['remote','-v'], ['remote','--verbose'], ['remote']):
+            return
         if _git_read(args):
             return
-        if args and args[0] == 'add':
-            active(root,state,session); return
-        if args and args[0] == 'commit':
-            manager, task = active(root,state,session)
-            development_constraints.check_code(manager,task); return
-        if args and args[0] == 'push':
-            complete(root,state,_runs(state,session)); return
+        if _save_or_share(args):
+            return
     if program in {'python','python3'} and len(argv) > 2 and (Path(root)/argv[1]).resolve() == (Path(root)/'.kmp-agent/agent.py').resolve():
         if any(x == '--target' or x.startswith('--target=') for x in argv[2:]):
             raise ValueError('selected project entrypoint cannot override its target')
         if any(x == '--worker' or x.startswith('--worker=') for x in argv[2:]):
             raise ValueError('installed role execution cannot inject an arbitrary worker')
         action = argv[2]
+        state = state if state is not None else _state(root)
         if action in MANAGEMENT:
             if action in {'planning','design','development','verification','qa'}:
                 task = state.get('tasks',{}).get(_option(argv,'--task-id'),{})
@@ -325,15 +449,17 @@ def _shell(root, state, session, command):
         if action == 'finish':
             run = _option(argv,'--run-id')
             if run not in _runs(state,session): raise ValueError('finish belongs to a different native session')
-            complete(root,state,{run}); return
+            reason = _option(argv,'--end-reason') if '--end-reason' in argv else 'completed'
+            if reason == 'completed': complete(root,state,{run})
+            elif reason not in {'blocked','handoff','user_stopped','paused'}: raise ValueError('unsupported run end reason')
+            return
         if action == 'command':
             run, task_id = _option(argv,'--run-id'), _option(argv,'--task-id')
-            manager, task = active(root,state,session,task_id=task_id)
-            if manager.run_id != run or task['task_id'] != task_id:
-                raise ValueError('command belongs to a different active task/run')
+            if run not in _runs(state,session):
+                raise ValueError('command belongs to a different native session; bind-execution-session for the actual run')
             if '--argv-json' not in argv:
                 raise ValueError('guarded product command requires explicit approved argv')
-            authorize_command(root,state,task_id,json.loads(_option(argv,'--argv-json')))
+            authorize_command(root,state,task_id,json.loads(_option(argv,'--argv-json')),run_id=run)
             return
     raise ValueError('unclassified executable tool path; use approved task commands instead of direct execution')
 
@@ -344,6 +470,12 @@ def authorize_command(root, state, task_id, argv, run_id=None):
     task = state.get('tasks',{}).get(task_id)
     if not task or task.get('work_type') != 'PRODUCT':
         raise ValueError('installed product command requires an explicit PRODUCT task')
+    opened = [r for r in task.get('executions',[]) if not r.get('ended_at')]
+    if len(opened) == 1 and (opened[0].get('kind') == 'review' or task.get('role') == 'verification'):
+        from harness.verification_capabilities import authorize_command as verify_command
+        session = state.get('execution_policy_bindings',{}).get(opened[0]['run_id'],{}).get('root_session_id')
+        verify_command(root,state,session,task_id,argv,run_id=run_id)
+        return
     works = [r for r in task.get('executions',[]) if r.get('kind') == 'work' and not r.get('ended_at')]
     if task.get('state') != 'IN_PROGRESS' or len(works) != 1:
         raise ValueError('installed product command requires one active implementation execution')
@@ -360,8 +492,13 @@ def authorize_command(root, state, task_id, argv, run_id=None):
         raise ValueError('command argv is not in authoritative target_commands')
 
 
-def finish(root, run_id):
-    if installed(root):
+END_REASONS = {'completed','blocked','handoff','user_stopped','paused'}
+
+
+def finish(root, run_id, end_reason='completed'):
+    if end_reason not in END_REASONS:
+        raise ValueError('unsupported run end reason')
+    if installed(root) and end_reason == 'completed':
         complete(root,_state(root),{run_id})
 
 
@@ -391,7 +528,7 @@ def evaluate(root, payload):
         # A harness repair must remain possible when the product ledger is
         # blocked or malformed. Only this separately verified management
         # capability may bypass reading product state; no product work is allowed.
-        if event == 'PreToolUse' and payload.get('tool_name') in {'Bash', 'exec_command'}:
+        if event == 'PreToolUse' and payload.get('tool_name') in {'Bash', 'exec_command', 'functions.exec_command'}:
             args = payload.get('tool_input', {})
             if isinstance(args, dict):
                 if 'cmd' in args and 'command' in args:
@@ -403,27 +540,17 @@ def evaluate(root, payload):
             argv = _argv(command)
             if Path(workdir).resolve() == root and _managed_update_command(root, argv):
                 return {}
-        state = _state(root)
-        session = payload.get('session_id')
+        # Ending a conversational turn never certifies product completion.
         if event == 'Stop':
-            runs = _runs(state,session)
-            tasks = _members(state,runs)
-            if not tasks: return {}
-            unfinished = [t for t in tasks if t.get('state') != 'DONE']
-            from harness.decisions import _contract_current
-            def waiting(task):
-                for qid in execution_policy.pending(state,task['task_id']):
-                    question = state['required_questions'][qid]
-                    if (question.get('status') == 'OPEN' and question.get('run_id') in runs
-                            and question.get('decision_contract') and question.get('checkpoint')
-                            and _contract_current(state,question,root)):
-                        return True
-                return False
-            if unfinished and all(waiting(t) for t in unfinished):
-                return {}  # Only current, bound required questions permit a waiting turn.
-            complete(root,state,runs)
-        elif event == 'PreToolUse':
+            return {}
+        session = payload.get('session_id')
+        state = None
+        if event == 'PreToolUse':
             tool, args = payload.get('tool_name',''), payload.get('tool_input',{})
+            if tool.startswith('collaboration.') and tool.split('.',1)[1] in READ_TOOLS:
+                tool = tool.split('.',1)[1]
+            if tool.startswith('functions.') and tool.split('.',1)[1] in READ_TOOLS | {'exec_command','apply_patch'}:
+                tool = tool.split('.',1)[1]
             if tool in {'mcp__cua_repl__js', 'mcp__cua_repl.js'}:
                 from harness.cua_guard import observation
                 observation(args)
@@ -434,13 +561,14 @@ def evaluate(root, payload):
                 return {}
             command = args.get('command',args.get('cmd')) if isinstance(args,dict) else args
             if tool in {'apply_patch','Edit','Write'}:
-                _patch(root,state,session,command)
+                _patch(root,_state(root),session,command)
             elif tool in {'Bash','exec_command'}:
                 workdir = args.get('workdir',str(root)) if isinstance(args,dict) else str(root)
                 if Path(workdir).resolve() != root: raise ValueError('command workdir must be the project root')
-                _shell(root,state,session,command)
+                _shell(root,None,session,command)
             else:
-                raise ValueError('unknown local tool capability; product mutation is not implicitly authorized')
+                from harness.verification_capabilities import authorize_tool
+                authorize_tool(root,_state(root),session,tool,args)
         else:
             raise ValueError('unsupported product guard event')
         return {}

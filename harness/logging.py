@@ -345,11 +345,11 @@ class Logger:
             raise ValueError("unknown run_id")
         return found[0]
 
-    def checkpoint(self, run_id, result, finish=False):
+    def checkpoint(self, run_id, result, finish=False, end_reason="completed"):
         start = self.run(run_id)
         if finish and start['work_type'] == 'PRODUCT':
             from harness.product_guard import finish as guard_finish
-            guard_finish(self.root,run_id)
+            guard_finish(self.root,run_id,end_reason=end_reason)
         if any(e["run_id"] == run_id and e["event_type"] == "run_finished" for e in self.read()):
             raise ValueError("run already finished")
         observed = {"changed_files": changes(start["observed"]["files"], snapshot(self.root)),
@@ -357,7 +357,7 @@ class Logger:
         if finish:
             observed["ended_at"] = now()
         return self.append("run_finished" if finish else "checkpoint", run_id,
-                           start["work_type"], observed=observed, summary={"result": result})
+                           start["work_type"], observed=observed, summary={"result": result, **({"end_reason": end_reason} if finish else {})})
 
     def command(self, run_id, command=None, task_id=UNKNOWN, agent_run_id=UNKNOWN,
                 attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None):
@@ -668,6 +668,7 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("run_id")
         p.add_argument("--result", required=True)
+        p.add_argument("--end-reason", choices=["completed","blocked","handoff","user_stopped","paused"], default="completed")
     sync = sub.add_parser("sync")
     sync.add_argument("session_path", type=Path)
     audit = sub.add_parser("audit")
@@ -698,7 +699,7 @@ def main():
     if args.action == "start":
         print(logger.start(args.work_type, args.role, args.request))
     elif args.action in ("checkpoint", "finish"):
-        print(json.dumps(logger.checkpoint(args.run_id, args.result, args.action == "finish"), ensure_ascii=False))
+        print(json.dumps(logger.checkpoint(args.run_id, args.result, args.action == "finish", end_reason=args.end_reason), ensure_ascii=False))
     elif args.action == "sync":
         print(json.dumps({"imported": logger.sync(args.session_path), "path": str(logger.path)}))
     elif args.action == "audit":

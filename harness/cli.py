@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--task-id")
     parser.add_argument("--run-id", default="UNKNOWN")
     parser.add_argument("--tracking-settings", type=Path, help="One-time project modules/commands JSON, reused after init")
-    parser.add_argument("--operation", choices=["register", "register-execution-plan", "configure-execution-policy", "bind-execution-session", "configure-task-plan", "open-question", "answer-question", "question-status", "configure-completion", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
+    parser.add_argument("--operation", choices=["register", "register-execution-plan", "configure-execution-policy", "bind-execution-session", "configure-task-plan", "open-question", "answer-question", "question-status", "configure-completion", "configure-documents", "configure-verification-capabilities", "record-context-maintenance", "configure-usage-context", "configure-development", "configure-stage", "configure-stage-workflow", "bind-stage-inputs", "return-to-stage", "configure-delegation", "configure-runtime-limits", "configure-qa", "configure-collection", "integration", "ready", "begin", "submit", "review", "handoff", "checkpoint", "resume", "fail", "bind-usage", "show"])
     parser.add_argument("--data", type=Path)
     parser.add_argument("--agent-run-id", default="UNKNOWN")
     parser.add_argument("--attempt-id", default="UNKNOWN")
@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--role", default="orchestrator")
     parser.add_argument("--request")
     parser.add_argument("--result")
+    parser.add_argument("--end-reason", choices=["completed","blocked","handoff","user_stopped","paused"], default="completed")
     parser.add_argument("--worker", help="Trusted local argv encoded as JSON")
     parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args()
@@ -130,7 +131,7 @@ def main():
             elif args.action == "finish":
                 if not args.result:
                     raise ValueError("finish requires --result")
-                result = logger.checkpoint(args.run_id, args.result, finish=True)
+                result = logger.checkpoint(args.run_id, args.result, finish=True, end_reason=args.end_reason)
             else:
                 command_exit = logger.command(args.run_id, json.loads(args.argv_json) if args.argv_json else None,
                     args.task_id or "UNKNOWN", args.agent_run_id, args.attempt_id, args.command_kind, args.command_name)
