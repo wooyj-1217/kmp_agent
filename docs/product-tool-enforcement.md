@@ -16,7 +16,7 @@
 4. `ready`와 `begin`을 통과한 정확한 PRODUCT 구현 실행에서만 소스를 작성한다. TODO 등록·별도 Markdown 체크리스트·테스트 숫자는 착수 허가가 아니다.
 5. 제출·검토는 동일 코드 상태와 모든 선택 플랫폼의 실제 명령 증거를 사용한다. 미실행·구식 검증·미완료 원장을 제품 완료나 정식 릴리스 허가로 표시하지 않는다. 미완료 작업의 저장·개발 브랜치 공유는 별도 경로다.
 
-설치 진입점의 `task --operation`은 기존 API의 `register-execution-plan`, `revise-execution-plan`, `configure-execution-policy`, `bind-execution-session`, `configure-task-plan`, `open-question`, `answer-question`도 제공한다. 최초 정책 설정→전체 계획 등록→담당 상세 계획→단계 계약→ready/begin 순서를 따른다. 다음 실행은 기존 정책을 바꾸지 않고 세션을 바인딩한다. 추가 단계는 [전체 계획 확장](execution-policy.md#이미-시작한-전체-계획에-단계-추가)으로 연결한 뒤 상세 계획을 등록한다. JSON 인자 파일은 `docs/guard-inputs/` 아래 준비할 수 있다. `.harness` 원장이나 설치·훅 파일을 raw 편집해 상태를 만들어 넣지 않는다. 새 revise CLI는 미배포 보완이며 기존 v0.4.5 설치본에 소급 적용되지 않는다.
+설치 진입점의 `task --operation`은 기존 API의 `register-execution-plan`, `revise-execution-plan`, `configure-execution-policy`, `bind-execution-session`, `configure-task-plan`, `open-question`, `answer-question`도 제공한다. 최초 정책 설정→전체 계획 등록→담당 상세 계획→단계 계약→ready/begin 순서를 따른다. 다음 실행은 기존 정책을 바꾸지 않고 세션을 바인딩한다. 추가 단계는 [전체 계획 확장](execution-policy.md#이미-시작한-전체-계획에-단계-추가)으로 연결한 뒤 상세 계획을 등록한다. JSON 인자 파일은 `docs/guard-inputs/` 아래 준비할 수 있다. `.harness` 원장이나 설치·훅 파일을 raw 편집해 상태를 만들어 넣지 않는다. 새 revise CLI는 v0.4.6에서 추가했으며 기존 v0.4.5 설치본에 소급 적용되지 않는다.
 
 ## 소스·원장이 없는 새 프로젝트의 준비
 
