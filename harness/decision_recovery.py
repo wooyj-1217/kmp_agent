@@ -39,8 +39,10 @@ def recover_question(manager, question_id, reason, expected_contract_sha256,
         elif before != 'ANSWERED':
             raise ValueError('recovery requires an OPEN or valid ANSWERED question')
         answer = q.get('answer') or {}
-        structured = answer.get('structured_prompt') or {}
-        if answer.get('source') != expected_source or structured.get('question_item_id') != question_item_id:
+        structured = answer.get('structured_prompt')
+        text_prompt = answer.get('text_prompt')
+        prompt = structured or text_prompt or {}
+        if answer.get('source') != expected_source or prompt.get('question_item_id') != question_item_id:
             raise ValueError('recovery native answer/item differs; existing claims are not replaced')
         receipt = validate_answer(state, q, root=manager.root)
         if not receipt:
@@ -62,6 +64,8 @@ def recover_question(manager, question_id, reason, expected_contract_sha256,
             structured_prompt=copy.deepcopy(structured),
             validation=copy.deepcopy(answer['validation']),
             approval_consumable=bool(receipt.get('purpose') and receipt['option_id'] == 'approve'))
+        if text_prompt:
+            record['text_prompt'] = copy.deepcopy(text_prompt)
         history.append(record)
         q['recovery_history'] = history
         manager._event(state, 'required_question_answer_recovered',

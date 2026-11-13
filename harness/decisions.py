@@ -341,6 +341,9 @@ def structured_choice(text, records, boundary, reply_ordinal, question):
                            'prompt_record_ordinal': ordinal, 'prompt_payload_sha256': digest(call)})
     if len(candidates) != 1:
         raise ValueError('one unambiguous structured reply for this full native question required')
+    if (question.get('decision_contract') or {}).get('purpose') or (question.get('decision_contract') or {}).get('supersedes'):
+        from harness.decision_text import ensure_unique_reply
+        ensure_unique_reply(records, boundary, question, reply_ordinal)
     return candidates[0]
 
 
@@ -390,7 +393,23 @@ def _contract_current(state, q, root=None):
     return True
 
 
-def _answer_source(q, policy, source):
+def _native_text_choice(state, q, records, reply_ordinal):
+    from harness.decision_text import choice
+    result = choice(records, q['opened_source_boundary'], reply_ordinal, q)
+    if result:
+        root_session = state['execution_policy_bindings'][q['run_id']]['root_session_id']
+        for other in state.get('required_questions', {}).values():
+            other_session = state.get('execution_policy_bindings', {}).get(other.get('run_id'), {}).get('root_session_id')
+            if (other.get('id') != q['id'] and other_session == root_session
+                    and other.get('status') in {'OPEN', 'ANSWERED'}
+                    and other.get('answer_mode') == 'EXPLICIT_CHOICE'
+                    and other.get('decision_contract')
+                    and choice(records, other['opened_source_boundary'], reply_ordinal, other, check_unique=False)):
+                raise ValueError('native text choice matches multiple questions; present an unambiguous full question')
+    return result
+
+
+def _answer_source(q, policy, source, state):
     records, raw = native_records(policy['root_session_path'], policy['root_session_id'])
     if source['session_id'] != policy['root_session_id']:
         raise ValueError('answer root session mismatch')
@@ -413,7 +432,9 @@ def _answer_source(q, policy, source):
     if any(marker in text.lower() for marker in ('<subagent', '<environment', '<notification', 'message type: new_task', 'message type: message')):
         raise ValueError('injected messages are not human answers')
     structured = structured_choice(text, records, boundary, min(indexes), q)
-    return text, structured, raw
+    typed = (q.get('decision_contract') or {}).get('purpose') or (q.get('decision_contract') or {}).get('supersedes')
+    text_prompt = _native_text_choice(state, q, records, min(indexes)) if typed and not structured else None
+    return text, structured, text_prompt, raw
 
 
 def validate_answer(state, question, root=None):
@@ -421,7 +442,7 @@ def validate_answer(state, question, root=None):
 
     This detects stale/forged ledger claims, not an attacker rewriting both the
     OS user's native session and ledger. Typed approval always requires a real
-    structured prompt binding; an ordinary answer cannot acquire a purpose.
+    authenticated full-question binding; an ordinary answer cannot acquire a purpose.
     """
     try:
         q = state['required_questions'][question] if isinstance(question, str) else question
@@ -429,10 +450,12 @@ def validate_answer(state, question, root=None):
             return None
         answer = q['answer']
         policy = state['execution_policy_bindings'][q['run_id']]
-        text, structured, raw = _answer_source(q, policy, answer['source'])
-        if text != answer['text'] or structured != answer.get('structured_prompt'):
+        text, structured, text_prompt, raw = _answer_source(q, policy, answer['source'], state)
+        if (text != answer['text'] or structured != answer.get('structured_prompt')
+                or text_prompt != answer.get('text_prompt')):
             return None
-        selected = structured['text'] if structured else text
+        choice = structured or text_prompt
+        selected = choice['text'] if choice else text
         matches = [o for o in q['options'] if selected in (o['id'], o['label'])]
         if len(matches) != 1 or answer.get('option') != matches[0]:
             return None
@@ -445,7 +468,7 @@ def validate_answer(state, question, root=None):
             boundary = receipt['native_boundary']
             if type(boundary['bytes']) is not int or len(raw) < boundary['bytes'] or hashlib.sha256(raw[:boundary['bytes']]).hexdigest() != boundary['sha256']:
                 return None
-        if (purpose or contract.get('supersedes')) and not structured:
+        if (purpose or contract.get('supersedes')) and not choice:
             return None
         # Native record reuse is permitted only for distinct structured items.
         for other in state.get('required_questions', {}).values():
@@ -454,8 +477,8 @@ def validate_answer(state, question, root=None):
             previous = other.get('answer') or {}
             source = previous.get('source') or {}
             if (source.get('session_id'), source.get('record_ordinal')) == (answer['source']['session_id'], answer['source']['record_ordinal']):
-                old_item = (previous.get('structured_prompt') or {}).get('question_item_id')
-                if not structured or not old_item or old_item == structured['question_item_id']:
+                old_item = (previous.get('structured_prompt') or previous.get('text_prompt') or {}).get('question_item_id')
+                if not choice or not old_item or old_item == choice['question_item_id']:
                     return None
         return {'authority': 'NATIVE_USER_INPUT', 'question_id': q['id'],
                 'purpose': purpose, 'subject': copy.deepcopy(contract.get('subject')),
@@ -546,22 +569,25 @@ def _answer_question(manager, state, question_id, record_ordinal, payload_sha256
         structured = structured_choice(text, records, boundary, min(indexes), q) if q['answer_mode'] == 'EXPLICIT_CHOICE' else None
     except (TypeError, KeyError, IndexError, AttributeError) as error:
         raise ValueError('invalid native structured choice; keep waiting') from error
-    if ((q.get('decision_contract') or {}).get('purpose') or (q.get('decision_contract') or {}).get('supersedes')) and not structured:
-        raise ValueError('typed human approval requires a native structured prompt')
+    typed = (q.get('decision_contract') or {}).get('purpose') or (q.get('decision_contract') or {}).get('supersedes')
+    text_prompt = _native_text_choice(state, q, records, min(indexes)) if typed and not structured else None
+    choice = structured or text_prompt
+    if typed and not choice:
+        raise ValueError('typed human approval requires an authenticated full question and exact native choice; use question-status text_fallback_prompt when UI is unavailable')
     for other in state['required_questions'].values():
         previous = other.get('answer') or {}
         previous_source = previous.get('source', {})
         if (previous_source.get('session_id'), previous_source.get('record_ordinal')) != (locator['session_id'], record_ordinal):
             continue
-        old_item = (previous.get('structured_prompt') or {}).get('question_item_id')
-        if not structured or not old_item or old_item == structured['question_item_id']:
+        old_item = (previous.get('structured_prompt') or previous.get('text_prompt') or {}).get('question_item_id')
+        if not choice or not old_item or old_item == choice['question_item_id']:
             raise ValueError('native answer already used')
-    selected_text = structured['text'] if structured else text
+    selected_text = choice['text'] if choice else text
     matching = []
     for qid, other in state['required_questions'].items():
         if other['status'] != 'OPEN' or other['run_id'] != manager.run_id or other['answer_mode'] != 'EXPLICIT_CHOICE':
             continue
-        if structured and qid != question_id:
+        if choice and qid != question_id:
             continue
         for option in other['options']:
             if selected_text in (option['id'], option['label']):
@@ -575,6 +601,8 @@ def _answer_question(manager, state, question_id, record_ordinal, payload_sha256
     from harness.logging import now
     q.update(status='ANSWERED', answer={'source': locator, 'text': text, 'option': matching[0][1],
                                       'structured_prompt': structured, 'issued_at': now()})
+    if text_prompt:
+        q['answer']['text_prompt'] = text_prompt
     if q.get('decision_contract'):
         q['answer']['validation'] = {'contract_sha256': digest(q['decision_contract']),
             'native_boundary': {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}}

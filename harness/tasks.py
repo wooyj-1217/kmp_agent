@@ -144,7 +144,19 @@ class Tasks:
         return recover_question(self, question_id, **configuration)
 
     def question_status(self):
-        return copy.deepcopy(self.read().get('required_questions', {}))
+        questions = copy.deepcopy(self.read().get('required_questions', {}))
+        from harness.decision_text import render_prompt
+        for question in questions.values():
+            contract = question.get('decision_contract') or {}
+            if (question.get('status') == 'OPEN' and question.get('answer_mode') == 'EXPLICIT_CHOICE'
+                    and (contract.get('purpose') or contract.get('supersedes'))):
+                if question.get('question_item_id'):
+                    question['text_fallback_unavailable_reason'] = (
+                        'Question is pinned to a native UI item; exact text replies to that full UI call '
+                        'are supported, but a separate text presentation cannot change the pinned identity')
+                else:
+                    question['text_fallback_prompt'] = render_prompt(question)
+        return questions
 
     def require_dispatch(self, task_id, preflight=False):
         return self._mutate('dispatch_preflight' if preflight else 'dispatch', lambda state: None, task_id)
