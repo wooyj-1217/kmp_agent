@@ -11,9 +11,9 @@
 
 ## native 인간 승인
 
-`decisions.open_question()`의 새 `decision_contract.version=1`은 질문·선택지·대상 task 범위와 실제 입력 bytes를 고정한다. 출력 산출물은 `approval_artifacts`에 명시한 파일만 고정하며 일반 질문에 새 출력 생성을 금지하지 않는다. typed 승인은 `approval_purpose`, `approval_subject`, `approval_artifacts`를 지정한다. 본문에 추가하는 `Approval scope` suffix를 포함해 같은 질문 항목을 native structured prompt로 제시해야 한다.
+`decisions.open_question()`의 새 `decision_contract.version=1`은 질문·선택지·대상 task 범위와 실제 입력 bytes를 고정한다. 출력 산출물은 `approval_artifacts`에 명시한 파일만 고정하며 일반 질문에 새 출력 생성을 금지하지 않는다. typed 승인은 `approval_purpose`, `approval_subject`, `approval_artifacts`를 지정한다. 본문에 추가하는 `Approval scope` suffix를 포함해 같은 질문 항목을 native prompt로 제시해야 한다. 구조화 UI 응답과 아래의 엄격한 네이티브 텍스트 선택 경로를 구분한다.
 
-`answer_question()`은 고정 root native 세션 원본·질문 이후 경계·인접 사용자 메시지와 입력·structured 선택을 확인한다. `approvals.human_approval()`은 소비 시에도 `decisions.resolved_answer()`로 명시적인 유효 대체 체인을 해석하고 `validate_answer()`로 원본·현재 질문·대상 입력·산출물을 재검사한다. purpose/subject/artifacts/task가 일치하며 선택 ID가 `approve`일 때만 `HUMAN_APPROVAL`을 반환한다. 답변 당시 통과 이력만으로 재사용하지 않는다. 자유문, 다른 질문, 오래된 입력, 로컬 승인 라벨, 역할 검토와 QA PASS는 이 근거가 아니다.
+`answer_question()`은 고정 root native 세션 원본·질문 이후 경계·인접 사용자 메시지와 입력·인증된 선택 전송 근거를 확인한다. `approvals.human_approval()`은 소비 시에도 `decisions.resolved_answer()`로 명시적인 유효 대체 체인을 해석하고 `validate_answer()`로 원본·현재 질문·대상 입력·산출물을 재검사한다. purpose/subject/artifacts/task가 일치하며 선택 ID가 `approve`일 때만 `HUMAN_APPROVAL`을 반환한다. 답변 당시 통과 이력만으로 재사용하지 않는다. 선택지와 무관한 자유로운 진행 요청, 다른 질문, 오래된 입력, 로컬 승인 라벨, 역할 검토와 QA PASS는 이 근거가 아니다.
 
 typed 승인 질문은 등록 시 정확한 선택지 ID `approve`를 포함해야 한다. 라벨이 승인처럼 보여도 `APPROVE-T1`·`yes`를 대신 사용할 수 없으며 잘못된 질문은 checkpoint·사용자 표시 전에 거절한다. UI에 전달할 질문은 등록 결과의 `Approval scope` suffix까지 포함한 전체 문자열과 같은 순서의 선택지 라벨을 사용한다.
 
@@ -24,6 +24,26 @@ typed 승인 질문은 등록 시 정확한 선택지 ID `approve`를 포함해�
 서로 다른 시점에 열린 질문의 batch 응답은 각 항목의 원래 호출과 그 질문의 개설 경계로 따로 검증한다. 같은 call/item을 가리키는 별도 사용자 응답이 여러 개면 승인 locator 하나를 골라 소비할 수 없다. 등록·복구뿐 아니라 소비 시점의 현재 native 원문 끝까지 재검사하며, 나중에 충돌 응답이 추가돼도 기존 승인은 유효하지 않다. 인접한 event/response_item 한 쌍은 한 사용자 사건으로 취급한다.
 
 이 보완은 [v0.4.7 지원 범위](releases/v0.4.7.md)에 포함되며 기존 v0.4.6 설치본에는 소급 적용되지 않는다. 합성 protocol 시험과 실제 Codex UI의 질문→선택→typed 소비를 별도로 검증한다. 실제 UI 시험은 임시 시험 계약에만 적용하며 제품의 기존 승인이나 제품 전체 인수를 대신하지 않는다.
+
+### 선택 UI가 응답하지 않을 때의 네이티브 텍스트 선택
+
+이 경로는 v0.4.7 이후의 **미배포 수정**이다. v0.4.7 설치본은 typed 승인에 구조화 응답을 요구하므로 이 텍스트 경로를 제공하지 않는다. `accepted:true`는 질문 표시 요청의 접수이며 사용자가 클릭하거나 선택했다는 증거가 아니다. 구조화 응답이 없으면 같은 UI 선택을 반복 요구하거나 승인됐다고 안내하지 않는다.
+
+이미 전체 동결 질문·선택지를 native UI 호출로 제시한 경우, 그 직후 실제 사용자가 보낸 **선택지 라벨 하나**를 검증할 수 있다. 앞뒤 공백과 한 개의 `- ` 또는 `* ` 불릿만 허용하며 원문은 그대로 보존한다. 불릿을 문구로 읽는 경우와 표식으로 읽는 경우가 다른 선택지라면 거절한다. 일반적인 “진행해”, 선택지 ID만 있는 메시지, 여러 선택지, 인용문·요약·추정은 선택 근거가 아니다. 등록 라벨 자체가 같은 단어인 경우에도 전체 질문·직접 응답·범위 검사를 생략하지 않는다.
+
+새로 텍스트로 제시해야 한다면 공식 상태 명령을 사용한다.
+
+```sh
+rtk proxy python3 .kmp-agent/agent.py task --run-id RUN --operation question-status
+```
+
+대상 질문의 `text_fallback_prompt` 전체를 assistant 일반 텍스트로 그대로 표시한다. 여기에는 전체 `Approval scope`·선택지·당시 계약 digest가 포함된다. 사용자에게 선택지 문구 하나만 답하도록 안내한다. UI 도구 호출이나 클릭은 필요하지 않다. 새 질문을 만들거나 기존 선택지·계약을 바꾸는 경로가 아니다. 특정 UI item에 고정된 질문은 독립 텍스트 제시로 그 식별자를 바꾸지 않는다. 이 경우 상태 명령은 text_fallback_unavailable_reason을 제공하며 원래 전체 UI 호출에 대한 정확한 텍스트 응답만 검증할 수 있다.
+
+원래 `answer-question` 또는 아래의 `recover-question`을 그대로 사용한다. 질문 이후 고정 root 원본의 인접 사용자 쌍, 실제 전체 prompt/선택지와 최근 제시 순서, 현재 계약·입력 bytes를 검증한다. 다른 질문이 나중에 제시됐거나 중간 사용자 대화로 직접 응답임을 확인할 수 없거나 여러 질문·batch 항목에 일치하면 거절한다. 별도 root/subagent·도구·assistant·알림 텍스트를 사용자 선택으로 취급하지 않는다.
+
+네이티브 텍스트 선택의 `text_prompt`에는 전송 유형·원래 prompt ordinal/hash·질문 항목과 계약 digest를 남긴다. `structured_prompt`를 위조해 채우지 않는다. 텍스트와 UI의 중복·상충 응답은 현재 원문 끝까지 재검사하며, 나중에 정확한 거절이 오면 재표시가 없어도 이전 승인을 소비하지 못한다. 원문·계약·파일·승인 범위 검사는 소비 시에도 반복한다. typed purpose나 잘못된 기존 ID를 새로 만들어 승격하지 않는다.
+
+UI 호출에 대한 텍스트 응답을 복구할 때 `question_item_id`는 원래 UI call/item이다. `text_fallback_prompt`만 제시한 경우에는 `["native_text","<original decision_contract digest>"]`이며 제시된 전체 텍스트와 native assistant payload의 hash로 검증한다. 실제 제품의 복구·재개는 수정 버전의 명시 설치와 원문·현재 범위 검증 뒤 별도로 수행한다. 같은 원문으로 검증 가능하면 사용자에게 다시 선택하도록 요구하지 않는다. 아직 설치·검증하지 않았는데 승인 연결이 완료됐다고 보고하지 않는다.
 
 ### 이미 받은 응답의 명시적 복구
 
@@ -56,7 +76,7 @@ digest는 `harness.decisions.digest`의 canonical JSON SHA-256이다. event/resp
 
 ## 변경 후 재승인과 명시적 대체
 
-`open_question(..., supersedes_question_id=...)`은 같은 root/run/purpose/직접 대상 task ID 집합과 이전 `decision_contract` digest를 고정해 새 질문을 만든다. typed 여부와 관계없이 대체 질문에는 native structured prompt와 `approve` 선택이 필요하다. 새 질문이 OPEN·무효·거절이면 기존 대기는 유지한다. `decisions.resolved_answer()`만 합법적인 대체 체인을 따라 새 receipt를 반환하며, 서로 모호한 대체 분기는 거부한다. 소비자는 고정된 옛 질문 ID에서 이 체인을 따라도 현재 purpose/subject/artifacts/task를 정확히 다시 비교한다. 과거 질문·답변을 덮어쓰거나 옛 근거 자체를 유효하게 복원하지 않는다.
+`open_question(..., supersedes_question_id=...)`은 같은 root/run/purpose/직접 대상 task ID 집합과 이전 `decision_contract` digest를 고정해 새 질문을 만든다. typed 여부와 관계없이 대체 질문에는 전체 동결 질문에 연결된 native 선택 근거와 `approve` 선택이 필요하다. 구조화 UI 또는 아래의 검증된 텍스트 경로만 사용한다. 새 질문이 OPEN·무효·거절이면 기존 대기는 유지한다. `decisions.resolved_answer()`만 합법적인 대체 체인을 따라 새 receipt를 반환하며, 서로 모호한 대체 분기는 거부한다. 소비자는 고정된 옛 질문 ID에서 이 체인을 따라도 현재 purpose/subject/artifacts/task를 정확히 다시 비교한다. 과거 질문·답변을 덮어쓰거나 옛 근거 자체를 유효하게 복원하지 않는다.
 
 일반 untyped 질문은 입력 bytes를 고정하며 출력은 명시한 artifact만 포함한다. typed 질문의 대상에 `development_tracking`이 있으면 `capture()`의 `code_state_sha256`도 정확히 고정한다. 내용·파일 모드·범위·HEAD 변경은 재승인이 필요하며 prompt의 `task_basis_sha256`가 해당 대상을 묶는다. 과거 일반 질문의 native 출처를 typed purpose나 `HUMAN_APPROVAL`로 승격하지 않는다.
 

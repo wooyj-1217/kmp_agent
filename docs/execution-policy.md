@@ -88,3 +88,7 @@ CLI는 `tasks configure-execution-policy`, `tasks configure-task-plan`, `tasks o
 원장의 착수·재개·제출·검토 및 관리되는 역할 호출 경로가 집행 범위다. 관리되는 실행 중 질문이 열리면 해당 소유 프로세스의 중단·상태 처리를 확인한다. 이미 발생한 외부 부수 효과를 되돌리는 기능이나 임의의 셸·운영체제 전체를 차단하는 기능으로 표현하지 않는다.
 
 대시보드와 CMD는 같은 작업 원장과 질문 상태를 읽는다. 계획 등록, 착수 허용 여부, 필요한 답변, 차단 이유를 별도 진행표로 추측하지 않는다. 완료 판정에는 기존 [완료 점검](completion-checks.md)도 그대로 적용한다.
+
+### UI 없는 필수 질문 선택
+
+v0.4.7 이후 미배포 수정은 native 전체 질문 제시와 실제 인접 사용자 원문에 연결된 정확한 선택지 라벨을 지원한다. question-status의 text_fallback_prompt를 일반 텍스트로 제시할 수 있으며, accepted:true나 일반 진행 요청을 승인으로 추정하지 않는다. 원래 answer-question/recover-question과 소비 시 현재 범위·중복 검사를 유지한다. [텍스트 선택 경계](approval-authority.md#선택-ui가-응답하지-않을-때의-네이티브-텍스트-선택)를 따른다.
