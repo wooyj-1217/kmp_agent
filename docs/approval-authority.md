@@ -27,7 +27,7 @@ typed 승인 질문은 등록 시 정확한 선택지 ID `approve`를 포함해�
 
 ### 선택 UI가 응답하지 않을 때의 네이티브 텍스트 선택
 
-이 경로는 v0.4.7 이후의 **미배포 수정**이다. v0.4.7 설치본은 typed 승인에 구조화 응답을 요구하므로 이 텍스트 경로를 제공하지 않는다. `accepted:true`는 질문 표시 요청의 접수이며 사용자가 클릭하거나 선택했다는 증거가 아니다. 구조화 응답이 없으면 같은 UI 선택을 반복 요구하거나 승인됐다고 안내하지 않는다.
+이 경로는 [v0.4.8 지원 범위](releases/v0.4.8.md)에 포함된다. v0.4.7 설치본은 typed 승인에 구조화 응답을 요구하므로 이 텍스트 경로를 제공하지 않는다. `accepted:true`는 질문 표시 요청의 접수이며 사용자가 클릭하거나 선택했다는 증거가 아니다. 구조화 응답이 없으면 같은 UI 선택을 반복 요구하거나 승인됐다고 안내하지 않는다.
 
 이미 전체 동결 질문·선택지를 native UI 호출로 제시한 경우, 그 직후 실제 사용자가 보낸 **선택지 라벨 하나**를 검증할 수 있다. 앞뒤 공백과 한 개의 `- ` 또는 `* ` 불릿만 허용하며 원문은 그대로 보존한다. 불릿을 문구로 읽는 경우와 표식으로 읽는 경우가 다른 선택지라면 거절한다. 일반적인 “진행해”, 선택지 ID만 있는 메시지, 여러 선택지, 인용문·요약·추정은 선택 근거가 아니다. 등록 라벨 자체가 같은 단어인 경우에도 전체 질문·직접 응답·범위 검사를 생략하지 않는다.
 
@@ -76,7 +76,7 @@ digest는 `harness.decisions.digest`의 canonical JSON SHA-256이다. event/resp
 
 ## 변경 후 재승인과 명시적 대체
 
-`open_question(..., supersedes_question_id=...)`은 같은 root/run/purpose/직접 대상 task ID 집합과 이전 `decision_contract` digest를 고정해 새 질문을 만든다. typed 여부와 관계없이 대체 질문에는 전체 동결 질문에 연결된 native 선택 근거와 `approve` 선택이 필요하다. 구조화 UI 또는 아래의 검증된 텍스트 경로만 사용한다. 새 질문이 OPEN·무효·거절이면 기존 대기는 유지한다. `decisions.resolved_answer()`만 합법적인 대체 체인을 따라 새 receipt를 반환하며, 서로 모호한 대체 분기는 거부한다. 소비자는 고정된 옛 질문 ID에서 이 체인을 따라도 현재 purpose/subject/artifacts/task를 정확히 다시 비교한다. 과거 질문·답변을 덮어쓰거나 옛 근거 자체를 유효하게 복원하지 않는다.
+`open_question(..., supersedes_question_id=...)`은 같은 root/run/purpose/직접 대상 task ID 집합과 이전 `decision_contract` digest를 고정해 새 질문을 만든다. typed 여부와 관계없이 대체 질문에는 전체 동결 질문에 연결된 native 선택 근거와 `approve` 선택이 필요하다. 구조화 UI 또는 [검증된 텍스트 경로](#선택-ui가-응답하지-않을-때의-네이티브-텍스트-선택)만 사용한다. 새 질문이 OPEN·무효·거절이면 기존 대기는 유지한다. `decisions.resolved_answer()`만 합법적인 대체 체인을 따라 새 receipt를 반환하며, 서로 모호한 대체 분기는 거부한다. 소비자는 고정된 옛 질문 ID에서 이 체인을 따라도 현재 purpose/subject/artifacts/task를 정확히 다시 비교한다. 과거 질문·답변을 덮어쓰거나 옛 근거 자체를 유효하게 복원하지 않는다.
 
 일반 untyped 질문은 입력 bytes를 고정하며 출력은 명시한 artifact만 포함한다. typed 질문의 대상에 `development_tracking`이 있으면 `capture()`의 `code_state_sha256`도 정확히 고정한다. 내용·파일 모드·범위·HEAD 변경은 재승인이 필요하며 prompt의 `task_basis_sha256`가 해당 대상을 묶는다. 과거 일반 질문의 native 출처를 typed purpose나 `HUMAN_APPROVAL`로 승격하지 않는다.
 
