@@ -91,4 +91,4 @@ CLI는 `tasks configure-execution-policy`, `tasks configure-task-plan`, `tasks o
 
 ### UI 없는 필수 질문 선택
 
-v0.4.7 이후 미배포 수정은 native 전체 질문 제시와 실제 인접 사용자 원문에 연결된 정확한 선택지 라벨을 지원한다. question-status의 text_fallback_prompt를 일반 텍스트로 제시할 수 있으며, accepted:true나 일반 진행 요청을 승인으로 추정하지 않는다. 원래 answer-question/recover-question과 소비 시 현재 범위·중복 검사를 유지한다. [텍스트 선택 경계](approval-authority.md#선택-ui가-응답하지-않을-때의-네이티브-텍스트-선택)를 따른다.
+[v0.4.8](releases/v0.4.8.md)은 native 전체 질문 제시와 실제 인접 사용자 원문에 연결된 정확한 선택지 라벨을 지원한다. question-status의 text_fallback_prompt를 일반 텍스트로 제시할 수 있으며, accepted:true나 일반 진행 요청을 승인으로 추정하지 않는다. 원래 answer-question/recover-question과 소비 시 현재 범위·중복 검사를 유지한다. [텍스트 선택 경계](approval-authority.md#선택-ui가-응답하지-않을-때의-네이티브-텍스트-선택)를 따른다.
