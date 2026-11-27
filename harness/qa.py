@@ -54,7 +54,9 @@ _finding_text_requirements = {
     'baseline_ref': 'Cite the authoritative requirement, approval or baseline location.',
 }
 for _field, _description in _finding_text_requirements.items():
-    _finding_properties[_field]['description'] = 'Required non-blank text. ' + _description
+    _finding_properties[_field].update(
+        pattern=r'\S', description='Required non-blank text. ' + _description,
+    )
 
 
 def validate_result(value):
@@ -408,6 +410,8 @@ class QA:
                     from harness.delegation_runtime import run_codex
                     runtime=run_codex(self.tasks,task_id,aid,workspace,packet,base/'runtime',executable,timeout,result_schema=RESULT_SCHEMA,result_validator=validate_result,sandbox='workspace-write',image_paths=[r['path'] for r in packet['image_materializations']])
                     if runtime['returncode']!=0:raise ValueError('QA runtime failed: '+str(runtime['returncode']))
+                    if runtime['result'] is None and runtime.get('result_error') not in {None, '', 'UNKNOWN'}:
+                        raise ValueError('QA result rejected: ' + runtime['result_error'])
                     result=validate_result(runtime['result'])
                 else:result=validate_result(worker(workspace,packet))
             except Exception as exc:error=type(exc).__name__+': '+str(exc)

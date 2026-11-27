@@ -1,8 +1,10 @@
 import json
+import re
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from harness.qa import QA,validate_result,target_scope,scoped_manifest,RESULT_SCHEMA,KINDS,finding_return_stage
 from harness.tasks import Tasks
 
@@ -120,6 +122,25 @@ class QATest(unittest.TestCase):
     def test_unavailable_runtime_is_blocked_and_run_is_closed(self):
         self.configure();a=self.qa.execute('QA',None,executable='/no-such-codex')
         self.assertEqual(a['outcome'],'BLOCKED');self.assertTrue(all(r['ended_at'] for r in self.m.read()['tasks']['QA']['executions']))
+    def test_native_result_rejection_keeps_field_diagnostic(self):
+        self.configure()
+        runtime = {
+            'returncode': 0,
+            'result': None,
+            'result_error': 'QA finding requires non-blank fields: code_ref',
+        }
+        with (
+            patch('harness.execution_plan.require'),
+            patch('harness.delegation_runtime.run_codex', return_value=runtime),
+        ):
+            attempt = self.qa.execute('QA')
+        self.assertEqual(attempt['outcome'], 'BLOCKED')
+        report = json.loads((self.root / attempt['report']['path']).read_text())
+        self.assertIn(
+            'ValueError: QA result rejected: QA finding requires non-blank fields: code_ref',
+            report['problems'],
+        )
+
     def test_verified_retest_closes_only_explicitly_reviewed_qa_issue(self):
         self.configure()
         count=[0]
@@ -212,6 +233,9 @@ class QATest(unittest.TestCase):
         self.assertEqual(validate_result(result), result)
         fields = RESULT_SCHEMA['properties']['findings']['items']['properties']
         self.assertIn('inspected document', fields['code_ref']['description'])
+        pattern = fields['code_ref']['pattern']
+        self.assertIsNone(re.search(pattern, ' \t\n'))
+        self.assertIsNotNone(re.search(pattern, finding['code_ref']))
 
     def test_implementation_defect_does_not_return_to_development_plan(self):
         workflow={'stages':{'development_plan':{'task_id':'DP','task_history':['DP']}}}
