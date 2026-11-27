@@ -485,8 +485,11 @@ runpy.run_path(entry, run_name='__main__')
                 session_id=session, tool_name='apply_patch', tool_input=outside))
             self.assertEqual(denied['hookSpecificOutput']['permissionDecision'], 'deny')
             self.assertFalse((root / 'outside/App.kt').exists())
+            if command_run_id != run_id:
+                with self.assertRaisesRegex(ValueError, 'run differs from active execution'):
+                    authorize_command(root, manager.read(), 'T', ['rtk', 'proxy', 'git', 'status'], run_id=run_id)
             with self.assertRaisesRegex(ValueError, 'target_commands'):
-                authorize_command(root, manager.read(), 'T', ['unapproved-command'], run_id=run_id)
+                authorize_command(root, manager.read(), 'T', ['unapproved-command'], run_id=command_run_id)
             settings_path = root / seq.SETTINGS
             settings_bytes = settings_path.read_bytes()
             changed = json.loads(settings_bytes)
