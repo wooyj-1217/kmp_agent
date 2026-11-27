@@ -63,6 +63,21 @@ class CommandOwnershipTests(unittest.TestCase):
         self.assertEqual(self.command().returncode, 0)
         self.assertEqual([p['returncode'] for p in self.active()['command_owner_completions']], [7, 0])
 
+    def test_foreground_interrupt_allows_next_command_after_child_exits(self):
+        original = subprocess.Popen.communicate
+
+        def communicate(child, *args, **kwargs):
+            if kwargs.get('timeout') == .2:
+                raise KeyboardInterrupt
+            return original(child, *args, **kwargs)
+
+        with patch.object(subprocess.Popen, 'communicate', communicate):
+            result = managed_command(self.m, 'T', [sys.executable, '-c',
+                'import time; time.sleep(10)'], self.root)
+        self.assertLess(result.returncode, 0)
+        self.assertEqual(self.command().returncode, 0)
+        self.assertEqual(self.active()['command_owner_completions'][0]['returncode'], result.returncode)
+
     def test_thrown_timeout_is_not_clean_command_completion(self):
         with self.assertRaises(subprocess.TimeoutExpired):
             managed_command(self.m, 'T', [sys.executable, '-c',

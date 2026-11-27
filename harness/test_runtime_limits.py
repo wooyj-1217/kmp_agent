@@ -25,7 +25,7 @@ class RuntimeLimitsTests(unittest.TestCase):
         self.root=Path(temp.name);(self.root/'input.md').write_text('synthetic runtime admission fixture\n')
         run_id=Logger(self.root).start('HARNESS_BUILD','orchestrator','Isolated runtime limit tests, no model calls')
         self.manager=Tasks(self.root,run_id)
-        configure(self.manager,2,20)
+        configure(self.manager)
         self.runs={}
     def begin(self,role):
         tid='RUNTIME-'+role.upper()
@@ -67,6 +67,26 @@ class RuntimeLimitsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'budget exhausted'):
                 with model_slot(self.manager,*pair):self.fail('over budget')
         self.assertEqual(len(self.admissions()),1)
+    def test_default_does_not_stop_after_twenty_admissions(self):
+        pair = self.begin('development')
+        for _ in range(21):
+            with model_slot(self.manager, *pair):
+                pass
+        self.assertEqual(len(self.admissions()), 21)
+
+    def test_active_run_recovers_after_explicit_cap_is_removed(self):
+        configure(self.manager, 2, 1)
+        pair = self.begin('development')
+        with model_slot(self.manager, *pair):
+            pass
+        with self.assertRaisesRegex(ValueError, 'budget exhausted'):
+            with model_slot(self.manager, *pair):
+                self.fail('over budget')
+        configure(self.manager, 2, None)
+        with model_slot(self.manager, *pair):
+            pass
+        self.assertEqual(len(self.admissions()), 2)
+
     def test_exception_releases_slot(self):
         configure(self.manager,1,20);pair=self.begin('development')
         with self.assertRaisesRegex(RuntimeError,'fixture failure'):
@@ -77,7 +97,7 @@ class RuntimeLimitsTests(unittest.TestCase):
     def test_limits_cannot_change_with_active_task(self):
         self.begin('development')
         with self.assertRaisesRegex(ValueError,'tasks are active'):configure(self.manager,1,3)
-        self.assertEqual(self.manager.read()['runtime_limits'],{'max_parallel':2,'max_executions':20})
+        self.assertEqual(self.manager.read()['runtime_limits'],{'max_parallel':2,'max_executions':None})
     def test_same_agent_repeated_admission_consumes_budget(self):
         configure(self.manager,1,2);pair=self.begin('development')
         for _ in range(2):
@@ -114,7 +134,7 @@ class RuntimeLimitsTests(unittest.TestCase):
     def test_invalid_configuration_rejected_without_state_change(self):
         for parallel,budget in ((0,2),(9,2),(True,2),(2,0),(2,1001),(2,False)):
             with self.assertRaises(ValueError):configure(self.manager,parallel,budget)
-        self.assertEqual(self.manager.read()['runtime_limits'],{'max_parallel':2,'max_executions':20})
+        self.assertEqual(self.manager.read()['runtime_limits'],{'max_parallel':2,'max_executions':None})
     def synthetic_adapter(self, body):
         path=self.root/'synthetic-adapter.py'
         path.write_text('#!'+sys.executable+'\n'+body)

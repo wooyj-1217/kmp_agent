@@ -297,7 +297,7 @@ from harness.command_preflight import bounded, current as current_preflight, sta
 @bounded
 @owned_command
 def managed_command(manager, task_id, argv, cwd, timeout=None, text=True,
-                    preflight_timeout=60, on_spawn=None):
+                    preflight_timeout=60, on_spawn=None, while_running=None):
     """Poll and terminate only this owned process; no arbitrary historical PIDs."""
     # The ownership wrapper already performs a fresh dispatch check. Keep the
     # final claim/spawn-intent checks rather than replaying that whole gate here.
@@ -312,11 +312,15 @@ def managed_command(manager, task_id, argv, cwd, timeout=None, text=True,
     # A Popen interrupted before returning can lose the only safe child handle.
     # Bound all checks, then explicitly cross the process-creation boundary.
     child = None
+    from tempfile import TemporaryFile
+    service_output = TemporaryFile() if while_running is not None else None
     try:
         with preflight_stage('process_launch'):
             budget.before_spawn()
             try:
-                child = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text,
+                child = subprocess.Popen(argv, cwd=cwd,
+                                         stdout=service_output if service_output else subprocess.PIPE,
+                                         stderr=subprocess.STDOUT if service_output else subprocess.PIPE, text=text,
                                          start_new_session=True)
             except OSError:
                 cancel_spawn(manager,task_id,intent)
@@ -329,6 +333,20 @@ def managed_command(manager, task_id, argv, cwd, timeout=None, text=True,
                 on_spawn(child)
         with preflight_stage('process_registration'):
             register_process(manager,task_id,child,intent)
+        if while_running is not None:
+            verification_result = while_running(child, watch)
+            watch.check()
+            exited_early = child.poll() is not None
+            if exited_early:
+                verification_result = child.returncode or 1
+            stop_owned_group(child, lambda owned, timeout: owned.communicate(timeout=timeout))
+            service_output.seek(0)
+            output = service_output.read()
+            stdout = output.decode(errors='replace') if text else output
+            suffix = ('\nManaged service exited before verification completed.\n' if exited_early
+                      else '\nManaged service stopped after verification.\n')
+            stderr = suffix if text else suffix.encode()
+            return subprocess.CompletedProcess(argv, verification_result, stdout, stderr)
         deadline = time.monotonic() + timeout if timeout is not None else None
         while True:
             watch.check()
@@ -341,7 +359,20 @@ def managed_command(manager, task_id, argv, cwd, timeout=None, text=True,
                 return subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
             except subprocess.TimeoutExpired:
                 continue
+            except KeyboardInterrupt:
+                # A foreground cancellation with a reaped child is an observed
+                # nonzero command result. Earlier launch/registration interrupts
+                # still require explicit recovery.
+                stdout, stderr = stop_owned_group(
+                    child, lambda owned, timeout: owned.communicate(timeout=timeout))
+                if not child.returncode:
+                    raise
+                watch.check()
+                return subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
     except BaseException:
         if child is not None:
             stop_owned_group(child, lambda owned, timeout: owned.communicate(timeout=timeout))
         raise
+    finally:
+        if service_output is not None:
+            service_output.close()

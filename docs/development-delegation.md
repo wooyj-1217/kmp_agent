@@ -34,7 +34,7 @@ rtk proxy python3 -B -m harness.cli --target /absolute/project development --run
 
 실제 Codex exec 독립 프로세스와 구조화 결과를 사용한다. 스폰·PID·종료·스레드 ID를 native agent_run에 연결한다. 역할 문서를 읽은 것을 서브에이전트 실행으로 세지 않는다. 각 작업은 로컬 Git 복제본과 분리된 빌드 캐시를 사용하고, 부모만 직렬 통합한다. 파일 겹침·소스 드리프트·범위 밖 변경·계약 변경은 사전 차단/반환한다. 선행 실패 시 후속 작업을 실행하지 않는다.
 
-별도 프로세스 실행과 병렬 실행은 구분한다. 프로젝트 공유 `Tasks.configure_runtime_limits(max_parallel=2,max_executions=20)`은 모든 역할에 같은 슬롯·실행 admission 예산을 적용한다. CLI 한 번 안의 모델 응답 횟수나 토큰/달러 예산은 아니다. timeout은 각 호출에 적용한다. 재시도는 기존 이력과 최대 시도를 보존한다.
+별도 프로세스 실행과 병렬 실행은 구분한다. 프로젝트 공유 `Tasks.configure_runtime_limits(max_parallel=2,max_executions=None)`은 역할 간 두 슬롯을 공유한다. 전체 실행 상한은 기본적으로 없고, 명시적으로 설정한 상한은 열린 실행을 보존하면서 조정하거나 해제할 수 있다. CLI 한 번 안의 모델 응답 횟수나 토큰/달러 예산은 아니다. timeout은 각 호출에 적용한다. 재시도는 기존 이력과 최대 시도를 보존한다.
 
 영역 검증과 별도 통합 검증을 모두 통과해도 READY_FOR_VERIFICATION이다. 독립 QA 및 제품 필수 인수 조건은 별도다. 과거 PASS는 기준/코드 변경 뒤 CURRENT인지 확인한다.
 

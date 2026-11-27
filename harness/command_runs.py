@@ -45,11 +45,22 @@ def require_open(root, run_id, *, task=None, records=None):
     raise CommandRunFinished(message)
 
 
+def _missing_initial_log(records, previous, execution, task_id):
+    return previous == execution["run_id"] and not any(
+        event.get('run_id') == previous
+        and (event.get('event_type') in {'run_started', 'run_finished'}
+             or (event.get('event_type', '').startswith('command_')
+                 and event.get('task_id') == task_id
+                 and event.get('agent_run_id') == execution['agent_run_id']))
+        for event in records
+    )
+
+
 def linked(root, state, task, execution, command_run_id, *, historical=False, records=None, include_previous=False):
     """A new log run grants command logging only, never task lifecycle ownership."""
-    if command_run_id == execution['run_id']:
-        return True
     links = execution.get('command_run_continuations', [])
+    if command_run_id == execution['run_id']:
+        return historical or include_previous or not links
     if not isinstance(links, list) or not links:
         return False
     candidates = links if historical or include_previous else links[-1:]
@@ -62,15 +73,22 @@ def linked(root, state, task, execution, command_run_id, *, historical=False, re
                 or link.get('agent_run_id') != execution['agent_run_id']
                 or link.get('attempt_id') != execution.get('attempt_id')):
             continue
-        proof = next((e for e in records if e.get('event_id') == link.get('event_id')), None)
+        proof_index = next((i for i, e in enumerate(records) if e.get('event_id') == link.get('event_id')), None)
+        proof = records[proof_index] if proof_index is not None else None
         closed = next((e for e in records if e.get('event_id') == link.get('previous_finished_event_id')), None)
         if (not proof or proof.get('event_type') != 'command_run_continued'
                 or proof.get('run_id') != command_run_id
                 or proof.get('task_id') != task['task_id']
                 or proof.get('agent_run_id') != execution['agent_run_id']
-                or proof.get('observed') != {k:v for k,v in link.items() if k != 'event_id'}
-                or not closed or closed.get('event_type') != 'run_finished'
-                or closed.get('run_id') != link.get('previous_run_id')):
+                or proof.get('observed') != {k:v for k,v in link.items() if k != 'event_id'}):
+            continue
+        previous = link.get('previous_run_id')
+        if link.get('previous_log_missing') is True:
+            if (link is not links[0] or link.get('previous_finished_event_id') is not None
+                    or not _missing_initial_log(records[:proof_index], previous, execution, task['task_id'])):
+                continue
+        elif (not closed or closed.get('event_type') != 'run_finished'
+              or closed.get('run_id') != previous):
             continue
         if not historical:
             bindings = state.get('execution_policy_bindings', {})
@@ -137,16 +155,20 @@ def continue_run(manager, task_id, agent_run_id, previous_run_id, reason, eviden
             if previous_run_id != current:
                 raise ValueError('explicit predecessor must be the latest command run for this attempt')
             finished = [e for e in events if e['event_type']=='run_finished' and e['run_id']==previous_run_id]
-            start = manager.logger.run(previous_run_id)
-            if len(finished) != 1 or start['work_type'] != task['work_type']:
-                raise ValueError('continuation requires one finished predecessor of the same work type')
+            missing = not links and _missing_initial_log(events, previous_run_id, run, task_id)
+            if not missing:
+                start = manager.logger.run(previous_run_id, records=events)
+                if len(finished) != 1 or start['work_type'] != task['work_type']:
+                    raise ValueError('continuation requires one finished predecessor of the same work type')
             command_run = manager.logger.start(task['work_type'],task['role'],reason)
             link = {'version':1,'id':str(uuid.uuid4()),'execution_run_id':run['run_id'],
                     'command_run_id':command_run,'previous_run_id':previous_run_id,
-                    'previous_finished_event_id':finished[0]['event_id'],
+                    'previous_finished_event_id':None if missing else finished[0]['event_id'],
                     'task_id':task_id,'agent_run_id':agent_run_id,'attempt_id':run['attempt_id'],
                     'root_binding':copy.deepcopy(binding),'scope_sha256':digest(_scope(manager.root,state,task)),
                     'reason':reason,'evidence':ref}
+            if missing:
+                link['previous_log_missing'] = True
             event = manager.logger.append('command_run_continued',command_run,task['work_type'],
                 task_id=task_id,agent_run_id=agent_run_id,feature_id=task['feature_id'],observed=link)
             link['event_id'] = event['event_id']

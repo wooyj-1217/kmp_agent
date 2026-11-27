@@ -136,7 +136,8 @@ def main():
                 result = logger.checkpoint(args.run_id, args.result, finish=True, end_reason=args.end_reason)
             else:
                 command_exit = logger.command(args.run_id, json.loads(args.argv_json) if args.argv_json else None,
-                    args.task_id or "UNKNOWN", args.agent_run_id, args.attempt_id, args.command_kind, args.command_name, preflight_timeout=args.preflight_timeout)
+                    args.task_id or "UNKNOWN", args.agent_run_id, args.attempt_id, args.command_kind, args.command_name, preflight_timeout=args.preflight_timeout,
+                    verification=json.loads(args.data.read_text()) if args.data else None)
                 result = {"returncode": command_exit}
         elif args.action in {"planning", "design", "development", "verification", "qa"}:
             manifest = bootstrap.read(target / bootstrap.MANIFEST)

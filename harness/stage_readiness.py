@@ -78,7 +78,7 @@ def assess(root,state,feature_id):
         missing=sorted(k for k in required if result.get(k,{}).get('result')!='PASS')
         open_issues=[i for i in state.get('issues',[]) if i.get('feature_id')==feature_id and is_blocking(i) and i.get('assigned_task_id',i.get('task_id')) in c['task_history']]
         attempts=sum(sum(r.get('kind')=='work' for r in state['tasks'][tid].get('executions',[])) for tid in c['task_history'])
-        limit=_stage_attempt_limit(state, c)
+        limit=t["max_attempts"]
         reasons=[];status='PASS'
         if t.get('role')!=ROLES[name] or t.get('execution_scope')!='documentation' or not set(c['checks'].values())<=required:status='UNKNOWN';reasons.append('이 단계의 목적·필수 검토 정의가 등록 계약과 다름')
         elif len(basis)!=STAGES.index(name):status='WAITING_UPSTREAM';reasons.append('선행 단계의 보완·재검토가 먼저 필요')
@@ -110,11 +110,11 @@ def assess(root,state,feature_id):
                 status='HUMAN_APPROVAL_REQUIRED';reasons.append('현재 작업·입력·산출물에 대한 인간 승인 근거 없음 또는 변경됨')
         if status=='PASS':
             basis[name]={'task_id':t['task_id'],'review_id':review['agent_run_id'],'outputs':{a['path']:a['sha256'] for a in t['outputs']}}
-        exhausted=status in {'REWORK_REQUIRED','RECHECK_REQUIRED'} and attempts>=limit
-        if exhausted:status='BLOCKED_RETRY_LIMIT';reasons.append('재시도 한도 도달; 범위·정책·예산 판단 필요')
-        output.append({'stage':name,'task_id':t['task_id'],'status':status,'reasons':reasons,'attempts':attempts,'limit':limit,
-            'checks':copy.deepcopy(c['checks']),'task_history':c['task_history'], 'requires_human':exhausted,
-            'next':'선행 보완 완료 후 이 단계 재검토' if status=='WAITING_UPSTREAM' else '보완 후 같은 단계 재검토' if status!='PASS' and not exhausted else '한도/범위 판단' if exhausted else '이 단계 검토 근거 유효'})
+        output.append({'stage':name,'task_id':t['task_id'],'status':status,'reasons':reasons,
+            'attempts':attempts,'limit':None,'task_attempt_limit':limit,
+            'checks':copy.deepcopy(c['checks']),'task_history':c['task_history'],
+            'requires_human':status=='HUMAN_APPROVAL_REQUIRED',
+            'next':'선행 보완 완료 후 이 단계 재검토' if status=='WAITING_UPSTREAM' else '보완 후 같은 단계 재검토' if status!='PASS' else '이 단계 검토 근거 유효'})
     return {'status':'PASS' if all(s['status']=='PASS' for s in output) else 'NOT_READY','stages':output,'basis':basis,
             'reason':'단계별 검토는 제품 구현 완료나 사용자 의사결정 승인과 별개'}
 
@@ -134,9 +134,6 @@ def gate(manager,state,task,review_results=None):
     if not code and target is None:return None
     origin=state['tasks'][flow['stages']['planning']['task_id']]
     if (task.get('project_id'),task['work_type'])!=(origin.get('project_id'),origin['work_type']):return '단계 승인 범위의 프로젝트·작업 종류와 불일치'
-    if target and review_results is None:
-        history=flow['stages'][target]['task_history'];attempts=sum(sum(r.get('kind')=='work' for r in state['tasks'][tid].get('executions',[])) for tid in history)
-        if attempts>=_stage_attempt_limit(state, flow['stages'][target]):return '단계 전체 재시도 한도 도달; 이전 검토를 덮거나 무한 재시도하지 않음'
     if review_results is not None and any(r['result']!='PASS' for r in review_results):return None
     assessment=assess(manager.root,state,task['feature_id'])
     required=STAGES if code else STAGES[:STAGES.index(target)]
@@ -227,9 +224,6 @@ def return_to_stage(manager,feature_id,stage,reason,evidence,source_task_id=None
             used.append({'question_id': receipt['question_id'],
                          'decision_contract_sha256': receipt['decision_contract_sha256'],
                          'subject': subject, 'evidence': proof})
-        if attempts>=_stage_attempt_limit(state, c):
-            manager._event(state,'stage_rework_limit_reached',old,observed={'stage':stage,'issue_id':issue_id},summary={'reason':reason})
-            return {'status':'BLOCKED_RETRY_LIMIT','issue_id':issue_id}
         # A revision preserves the accepted old task and evidence rather than reopening it as if unreviewed.
         tid=old['task_id']+'.R'+str(len(c['task_history']))
         if tid in state['tasks']:raise ValueError('revision task ID collision')

@@ -25,6 +25,8 @@ class CommandRunContinuationTests(unittest.TestCase):
     write_native = Native.write_native
     write_code = Authority.write_code
 
+    parent_has_log = True
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
@@ -42,7 +44,8 @@ class CommandRunContinuationTests(unittest.TestCase):
         self.git('-c','user.name=Synthetic','-c','user.email=synthetic@example.invalid',
                  'commit','-qm','Synthetic source basis')
         self.logger = Logger(self.root)
-        self.parent = self.logger.start('HARNESS_IMPROVEMENT', 'improvement', 'Synthetic lifecycle')
+        self.parent = (self.logger.start('HARNESS_IMPROVEMENT', 'improvement', 'Synthetic lifecycle')
+                       if self.parent_has_log else 'synthetic-plan-run')
         self.m = Tasks(self.root, self.parent)
         register(self.m, 'HARNESS_IMPROVEMENT', 'local_change_validation', 'Synthetic whole flow',
             [dict(feature_id='F',task_id='T',role='improvement',title='Synthetic',scope='src only',
@@ -110,6 +113,41 @@ class CommandRunContinuationTests(unittest.TestCase):
         self.assertTrue(all(c['link']['status']=='COLLECTED' for c in commands))
         self.assertTrue((self.root/'.harness/build.txt').exists())
         self.assertTrue((self.root/'.harness/test.txt').exists())
+
+    def test_service_and_integration_command_share_one_managed_lease(self):
+        service = ['rtk', 'proxy', sys.executable, '-c',
+                   'from pathlib import Path; import os,time; '
+                   'Path(".harness/service.pid").write_text(str(os.getpid())); time.sleep(60)']
+        probe = ['rtk', 'proxy', sys.executable, '-c',
+                 'from pathlib import Path; import os; '
+                 'pid=int(Path(".harness/service.pid").read_text()); os.kill(pid,0); '
+                 'Path(".harness/probe.txt").write_text("verified")']
+        result = self.logger.command(self.parent, service, 'T', self.run['agent_run_id'],
+                                     self.run['attempt_id'], 'integration',
+                                     verification={'startup_seconds': 1, 'commands': [probe]})
+        self.assertEqual(result, 0)
+        self.assertEqual((self.root/'.harness/probe.txt').read_text(), 'verified')
+        pid = int((self.root/'.harness/service.pid').read_text())
+        from harness.process_ownership import owner_identity
+        self.assertEqual(owner_identity(pid)['status'], 'DEAD')
+        commands = [e for e in self.logger.read() if e['event_type'] == 'command_finished']
+        self.assertEqual([e['observed']['returncode'] for e in commands], [0, 0])
+
+    def test_failed_service_probe_stops_service_and_skips_later_commands(self):
+        service = ['rtk', 'proxy', sys.executable, '-c',
+                   'from pathlib import Path; import os,time; '
+                   'Path(".harness/service.pid").write_text(str(os.getpid())); time.sleep(60)']
+        fail_probe = ['rtk', 'proxy', sys.executable, '-c', 'raise SystemExit(9)']
+        later = ['rtk', 'proxy', sys.executable, '-c',
+                 'from pathlib import Path; Path(".harness/late").touch()']
+        result = self.logger.command(self.parent, service, 'T', self.run['agent_run_id'],
+                                     self.run['attempt_id'], 'integration', verification={
+                                         'startup_seconds': 1, 'commands': [fail_probe, later]})
+        self.assertEqual(result, 9)
+        self.assertFalse((self.root/'.harness/late').exists())
+        pid = int((self.root/'.harness/service.pid').read_text())
+        from harness.process_ownership import owner_identity
+        self.assertEqual(owner_identity(pid)['status'], 'DEAD')
 
     def test_open_parent_cannot_be_replaced_and_failed_attempt_cannot_continue(self):
         with self.assertRaises(ValueError): self.continuation()
@@ -202,3 +240,64 @@ class CommandRunContinuationTests(unittest.TestCase):
 
 
 del Authority, Native
+
+
+class MissingCommandRunTests(unittest.TestCase):
+    setUp = CommandRunContinuationTests.setUp
+    parent_has_log = False
+    git = CommandRunContinuationTests.git
+    question = CommandRunContinuationTests.question
+    approve = CommandRunContinuationTests.approve
+    call = CommandRunContinuationTests.call
+    entry = CommandRunContinuationTests.entry
+    structured = CommandRunContinuationTests.structured
+    reply = CommandRunContinuationTests.reply
+    write_native = CommandRunContinuationTests.write_native
+    write_code = CommandRunContinuationTests.write_code
+    command = CommandRunContinuationTests.command
+    continuation = CommandRunContinuationTests.continuation
+
+    def test_missing_log_recovers_same_active_attempt(self):
+        with self.assertRaisesRegex(ValueError, 'unknown run_id'):
+            self.command(self.parent)
+        self.logger.append('command_started', self.parent, 'HARNESS_IMPROVEMENT',
+                           task_id='QA', agent_run_id='independent-qa-attempt')
+        before = self.m.read()
+        link = self.continuation()
+        self.assertTrue(link['previous_log_missing'])
+        self.assertIsNone(link['previous_finished_event_id'])
+        self.assertEqual(self.continuation(), link)
+        self.assertEqual(self.command(link['command_run_id']), 0)
+        after = self.m.read()
+        self.assertEqual(after['required_questions'], before['required_questions'])
+        execution, = after['tasks']['T']['executions']
+        self.assertEqual(execution['attempt_id'], self.run['attempt_id'])
+        self.assertEqual(execution['run_id'], self.parent)
+        with self.assertRaisesRegex(ValueError, 'unknown run_id'):
+            self.logger.run(self.parent)
+
+    def test_late_predecessor_log_preserves_recovered_command_evidence(self):
+        from harness.command_runs import linked
+        from harness.sequential import report
+
+        link = self.continuation()
+        command_run = link['command_run_id']
+        self.assertEqual(self.command(command_run), 0)
+        self.logger.append('run_started', self.parent, 'HARNESS_IMPROVEMENT')
+        with self.assertRaisesRegex(ValueError, 'explicitly link'):
+            self.command(self.parent)
+        self.logger.append('run_finished', self.parent, 'HARNESS_IMPROVEMENT')
+
+        state = self.m.read()
+        task = state['tasks']['T']
+        execution, = task['executions']
+        self.assertTrue(linked(self.root, state, task, execution, command_run, historical=True))
+        command, = [row for row in report(self.root)["commands"] if row["run_id"] == command_run]
+        self.assertEqual(command["link"]["status"], "COLLECTED")
+        self.assertEqual(self.continuation(), link)
+        self.assertEqual(self.command(command_run), 0)
+
+    def test_partial_predecessor_log_is_not_replaced(self):
+        self.logger.append('run_finished', self.parent, 'HARNESS_IMPROVEMENT')
+        with self.assertRaisesRegex(ValueError, 'unknown run_id'):
+            self.continuation()

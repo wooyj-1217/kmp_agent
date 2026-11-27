@@ -464,8 +464,8 @@ def _stage_action(manager, item, stage, resume):
         return None
     if assessment['status'] == 'HUMAN_APPROVAL_REQUIRED':
         return _result('WAITING_FOR_APPROVAL', stage, assessment['reasons'], question_id=flow['stages'][stage].get('human_approval_question_id'))
-    if assessment['status'] in {'RECHECK_REQUIRED', 'BLOCKED_RETRY_LIMIT', 'UNKNOWN'} or task['state'] == 'DONE':
-        return _result('RECHECK_REQUIRED' if assessment['status'] != 'BLOCKED_RETRY_LIMIT' else 'BLOCKED', stage, assessment['reasons'])
+    if assessment['status'] in {'RECHECK_REQUIRED', 'UNKNOWN'} or task['state'] == 'DONE':
+        return _result('RECHECK_REQUIRED', stage, assessment['reasons'])
     if task['state'] == 'IN_REVIEW':
         _record(manager, item['feature_id'], 'action', stage=stage, action='role_review', task_id=tid)
         _review(manager, tid, item['value']['reviewer'])

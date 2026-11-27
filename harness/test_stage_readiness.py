@@ -85,11 +85,14 @@ class StageReadinessTest(unittest.TestCase):
         self.assertEqual(status['stages'][0]['status'],'RECHECK_REQUIRED');self.assertEqual(status['stages'][1]['status'],'WAITING_UPSTREAM')
         self.assertEqual(before,json.dumps(self.t.read()['tasks']['design']['reviews'],sort_keys=True))
 
-    def test_budget_is_across_repairs_not_reset_by_new_task_ids(self):
-        for _ in range(3):self.approve('planning',fail='planning-acceptance')
-        status=assess(self.root,self.t.read(),'F')['stages'][0]
-        self.assertEqual(status['status'],'BLOCKED_RETRY_LIMIT');self.assertTrue(status['requires_human'])
-        with self.assertRaisesRegex(ValueError,'한도'):self.t.begin(self.t.read()['stage_workflows']['F']['stages']['planning']['task_id'],'planning')
+    def test_reviewed_repairs_continue_without_per_attempt_approval(self):
+        for _ in range(5):
+            self.approve('planning', fail='planning-acceptance')
+        status = assess(self.root, self.t.read(), 'F')['stages'][0]
+        self.assertEqual(status['attempts'], 5)
+        self.assertFalse(status['requires_human'])
+        self.assertEqual(len(status['task_history']), 6)
+        self.assertEqual(self.t.read()['tasks'][status['task_id']]['state'], 'READY')
 
     def test_legacy_one_attempt_stage_allows_one_correction(self):
         self.approve('planning')
@@ -105,8 +108,9 @@ class StageReadinessTest(unittest.TestCase):
         self.assertEqual(state['tasks']['development_plan.R1']['state'], 'READY')
         self.approve('development_plan', fail='development_plan-verification_commands')
         status = assess(self.root, self.t.read(), 'F')['stages'][-1]
-        self.assertEqual((status['status'], status['attempts'], status['limit']),
-                         ('BLOCKED_RETRY_LIMIT', 2, 2))
+        self.assertEqual(status['attempts'], 2)
+        self.assertEqual(len(status['task_history']), 3)
+        self.assertFalse(status['requires_human'])
 
     def test_existing_dependent_can_start_after_revised_plan_passes(self):
         self.approve('planning')
@@ -126,27 +130,10 @@ class StageReadinessTest(unittest.TestCase):
         state = self.t.read()
         self.assertEqual(state['tasks']['CODE']['dependencies'], ['development_plan'])
 
-    def test_approved_additional_correction_is_counted_once(self):
+    def test_explicit_legacy_retry_receipt_is_still_validated(self):
         for _ in range(3):
             self.approve('planning', fail='planning-acceptance')
-        stage = self.t.read()['stage_workflows']['F']['stages']['planning']
-        old = stage['task_id']
         with patch('harness.approvals.human_approval', return_value=None):
-            with self.assertRaisesRegex(ValueError, 'unused native'):
-                self.t.return_to_stage('F', 'planning', 'correct finding', 'req.md',
-                                       retry_approval_question_id='RETRY')
-        receipt = {'question_id': 'RETRY', 'task_ids': [old], 'decision_contract_sha256': 'contract'}
-        with patch('harness.approvals.human_approval', return_value=receipt) as approval:
-            result = self.t.return_to_stage('F', 'planning', 'correct finding', 'req.md',
-                                            retry_approval_question_id='RETRY')
-            self.assertEqual(result['status'], 'REPAIR_READY')
-            self.assertEqual(approval.call_args.args[4], 'stage_retry')
-            self.assertEqual(approval.call_args.args[5]['additional_attempts'], 1)
-        self.approve('planning', fail='planning-acceptance')
-        status = assess(self.root, self.t.read(), 'F')['stages'][0]
-        self.assertEqual((status['status'], status['attempts'], status['limit']),
-                         ('BLOCKED_RETRY_LIMIT', 4, 4))
-        with patch('harness.approvals.human_approval', return_value=receipt):
             with self.assertRaisesRegex(ValueError, 'unused native'):
                 self.t.return_to_stage('F', 'planning', 'correct finding', 'req.md',
                                        retry_approval_question_id='RETRY')

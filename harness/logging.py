@@ -372,15 +372,15 @@ class Logger:
 
     def command(self, run_id, command=None, task_id=UNKNOWN, agent_run_id=UNKNOWN,
                 attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None,
-                preflight_timeout=60):
+                preflight_timeout=60, verification=None):
         sys.path.insert(0, str(ROOT))
         from harness.command_preflight import Preflight
         with Preflight(self.root, preflight_timeout):
             return self._command(run_id, command, task_id, agent_run_id, attempt_id,
-                                 command_kind, command_name)
+                                 command_kind, command_name, verification)
 
     def _command(self, run_id, command=None, task_id=UNKNOWN, agent_run_id=UNKNOWN,
-                 attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None):
+                 attempt_id=UNKNOWN, command_kind=UNKNOWN, command_name=None, verification=None):
         from harness.command_preflight import current, stage, PreflightTimeout
         budget = current()
         state_path = self.root / '.harness/tasks/tasks.yaml'
@@ -427,6 +427,37 @@ class Logger:
         from harness.product_guard import authorize_command
         with stage('command_authorization'):
             authorize_command(self.root, policy_state, task_id, command, run_id=run_id)
+            if verification is not None:
+                if managed is None or not policy_state.get('execution_policy'):
+                    raise ValueError('service verification requires a managed task')
+                if not isinstance(verification, dict) or set(verification) != {'startup_seconds', 'commands'}:
+                    raise ValueError('service verification requires startup_seconds and commands')
+                delay = verification['startup_seconds']
+                if type(delay) is not int or not 0 <= delay <= 300:
+                    raise ValueError('startup_seconds must be an integer from 0 to 300')
+                steps = verification['commands']
+                if not isinstance(steps, list) or not steps:
+                    raise ValueError('service verification requires at least one command')
+                for argv in steps:
+                    if not isinstance(argv, list) or not argv or not all(isinstance(part, str) for part in argv) or argv[0] != 'rtk':
+                        raise ValueError('verification commands must be wrapped argv arrays')
+                    authorize_command(self.root, policy_state, task_id, argv, run_id=run_id)
+
+        def verify_while_running(child, watch):
+            deadline = time.monotonic() + delay
+            while time.monotonic() < deadline and child.poll() is None:
+                watch.check()
+                time.sleep(min(0.2, max(0, deadline - time.monotonic())))
+            for argv in steps:
+                if child.poll() is not None:
+                    return child.returncode or 1
+                watch.check()
+                result = self.command(run_id, argv, task_id, agent_run_id, attempt_id,
+                                      'integration', preflight_timeout=budget.timeout)
+                if result:
+                    return result
+            return 0
+
         with stage('snapshot_before'):
             before = snapshot(self.root, prune_generated=True, prune_root_build_caches=True)
         call_id = budget.call_id
@@ -456,7 +487,8 @@ class Logger:
         try:
             if managed is not None:
                 from harness.execution_policy import managed_command
-                proc = managed_command(managed, task_id, command, cwd, text=False, on_spawn=spawned)
+                proc = managed_command(managed, task_id, command, cwd, text=False, on_spawn=spawned,
+                                       while_running=verify_while_running if verification is not None else None)
             else:
                 with stage('process_launch'):
                     budget.before_spawn()
