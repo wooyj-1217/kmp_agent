@@ -195,6 +195,24 @@ class QATest(unittest.TestCase):
         self.assertEqual(set(props['severity']['enum']),{'BLOCKER','MAJOR','MINOR'})
         self.assertEqual(set(props['owner_role']['enum']),{'planning','design','development','verification','improvement','orchestrator'})
         self.assertNotIn('implementation_violation',props['kind']['enum']);self.assertNotIn('high',props['severity']['enum'])
+    def test_document_finding_requires_an_inspected_reference(self):
+        result = self.worker(self.root, {})
+        finding = {
+            'kind': 'baseline_gap', 'severity': 'MAJOR', 'owner_role': 'planning',
+            'requirement_ids': ['R1'], 'design_ids': [], 'contract_ids': [],
+            'expected': 'Approved scope is linked', 'actual': 'The link is missing',
+            'repro': [], 'evidence': 'qa-tools/proof.txt', 'blocking': True,
+            'reason_code': 'APPROVED_SCOPE_UNTRACED', 'code_ref': '  ',
+            'baseline_ref': 'request.md',
+        }
+        result['findings'] = [finding]
+        with self.assertRaisesRegex(ValueError, 'non-blank fields: code_ref'):
+            validate_result(result)
+        finding['code_ref'] = 'docs/requirements.md#platforms'
+        self.assertEqual(validate_result(result), result)
+        fields = RESULT_SCHEMA['properties']['findings']['items']['properties']
+        self.assertIn('inspected document', fields['code_ref']['description'])
+
     def test_implementation_defect_does_not_return_to_development_plan(self):
         workflow={'stages':{'development_plan':{'task_id':'DP','task_history':['DP']}}}
         f={'blocking':True,'owner_role':'development','kind':'specification_violation'}

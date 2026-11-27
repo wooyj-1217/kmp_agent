@@ -42,6 +42,20 @@ _finding_properties['kind']={'type':'string','enum':sorted(KINDS)}
 _finding_properties['severity']={'type':'string','enum':['BLOCKER','MAJOR','MINOR']}
 _finding_properties['owner_role']={'type':'string','enum':['planning','design','development','verification','improvement','orchestrator']}
 
+_finding_text_requirements = {
+    'expected': 'State the exact expected behavior or baseline requirement.',
+    'actual': 'State the exact observed behavior or baseline gap.',
+    'evidence': _finding_properties['evidence']['description'],
+    'reason_code': 'Provide a short stable reason code.',
+    'code_ref': (
+        'Cite the inspected source path and location. For a documentation or planning '
+        'finding, cite the inspected document or artifact where the gap is observed.'
+    ),
+    'baseline_ref': 'Cite the authoritative requirement, approval or baseline location.',
+}
+for _field, _description in _finding_text_requirements.items():
+    _finding_properties[_field]['description'] = 'Required non-blank text. ' + _description
+
 
 def validate_result(value):
     if not isinstance(value,dict) or not (set(RESULT_SCHEMA['required'])-{'reviewed_issue_ids'}).issubset(value) or set(value)-set(RESULT_SCHEMA['properties']):raise ValueError('invalid QA result contract')
@@ -65,7 +79,10 @@ def validate_result(value):
         if set(f)!=FINDING_FIELDS or f['kind'] not in KINDS or f['severity'] not in {'BLOCKER','MAJOR','MINOR'} or type(f['blocking']) is not bool:raise ValueError('invalid QA finding')
         if f['owner_role'] not in {'planning','design','development','verification','improvement','orchestrator'}:raise ValueError('invalid finding owner')
         if not all(isinstance(f[k],list) and all(isinstance(x,str) for x in f[k]) for k in ('requirement_ids','design_ids','contract_ids','repro')):raise ValueError('invalid finding IDs/repro')
-        if not all(isinstance(f[k],str) and f[k].strip() for k in ('expected','actual','evidence','reason_code','code_ref','baseline_ref')):raise ValueError('finding needs exact expectation, observation and evidence')
+        missing = [key for key in _finding_text_requirements
+                   if not isinstance(f[key], str) or not f[key].strip()]
+        if missing:
+            raise ValueError('QA finding requires non-blank fields: ' + ', '.join(missing))
     return value
 
 
@@ -360,7 +377,7 @@ class QA:
                 raise ValueError('QA isolation refuses product symlinks')
             current_state=self.tasks.read();current_target=current_state['tasks'][config['target_task_id']]
             previous_issues=[copy.deepcopy(i) for i in current_state.get('issues',[]) if i.get('task_id')==config['target_task_id']]
-            packet={'previous_findings':previous_issues,'previous_qa_attempts':copy.deepcopy(config.get('attempts',[])),'current_target':{'task_id':current_target['task_id'],'inputs':current_target['inputs'],'outputs':current_target['outputs'],'state':current_target['state'],'development_tracking':current_target.get('development_tracking',{})},'qa_stage':config['stage'],'qa_task_id':task_id,'target_task_id':config['target_task_id'],'criteria':task['criteria'],'original_requests':config['original_requests'],'inputs':task['inputs'],'baseline':config['target_baseline'],'code_manifest':before,'source_manifest_scope':config.get('manifest_scope',{'mode':'UNKNOWN'}),'source_target_manifest':source_before,'authorized_generated_paths':generated,'commands':config['commands'],'instructions':'Inspect original requests and frozen inputs. Do not modify product files. Write evidence only under qa-tools/. Findings must distinguish baseline errors, implementation violations, usability, suggestions. No approval from self-report alone. Return the exact supplied QA result schema.','result_schema':RESULT_SCHEMA}
+            packet={'previous_findings':previous_issues,'previous_qa_attempts':copy.deepcopy(config.get('attempts',[])),'current_target':{'task_id':current_target['task_id'],'inputs':current_target['inputs'],'outputs':current_target['outputs'],'state':current_target['state'],'development_tracking':current_target.get('development_tracking',{})},'qa_stage':config['stage'],'qa_task_id':task_id,'target_task_id':config['target_task_id'],'criteria':task['criteria'],'original_requests':config['original_requests'],'inputs':task['inputs'],'baseline':config['target_baseline'],'code_manifest':before,'source_manifest_scope':config.get('manifest_scope',{'mode':'UNKNOWN'}),'source_target_manifest':source_before,'authorized_generated_paths':generated,'commands':config['commands'],'instructions':'Inspect original requests and frozen inputs. Do not modify product files. Write evidence only under qa-tools/. Findings must distinguish baseline errors, implementation violations, usability, suggestions. For document-only findings, cite the inspected document in code_ref and the authoritative input in baseline_ref. No approval from self-report alone. Return the exact supplied QA result schema.','result_schema':RESULT_SCHEMA}
             from harness.human_progress import for_task, message
             progress=for_task(self.root,task_id,self.tasks.run_id)
             packet['human_progress']=progress
