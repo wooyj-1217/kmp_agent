@@ -122,24 +122,49 @@ class QATest(unittest.TestCase):
     def test_unavailable_runtime_is_blocked_and_run_is_closed(self):
         self.configure();a=self.qa.execute('QA',None,executable='/no-such-codex')
         self.assertEqual(a['outcome'],'BLOCKED');self.assertTrue(all(r['ended_at'] for r in self.m.read()['tasks']['QA']['executions']))
-    def test_native_result_rejection_keeps_field_diagnostic(self):
-        self.configure()
-        runtime = {
-            'returncode': 0,
-            'result': None,
-            'result_error': 'QA finding requires non-blank fields: code_ref',
-        }
-        with (
-            patch('harness.execution_plan.require'),
-            patch('harness.delegation_runtime.run_codex', return_value=runtime),
-        ):
-            attempt = self.qa.execute('QA')
-        self.assertEqual(attempt['outcome'], 'BLOCKED')
-        report = json.loads((self.root / attempt['report']['path']).read_text())
-        self.assertIn(
-            'ValueError: QA result rejected: QA finding requires non-blank fields: code_ref',
-            report['problems'],
+    def test_native_result_rejection_preserves_report_for_retest(self):
+        response = self.root.parent / (self.root.name + '-qa-response.json')
+        self.addCleanup(response.unlink, missing_ok=True)
+        findings = [{
+            'kind': 'baseline_gap', 'severity': 'MAJOR', 'owner_role': 'planning',
+            'requirement_ids': ['R1'], 'design_ids': [], 'contract_ids': [],
+            'expected': 'Approved scope is linked', 'actual': 'The link is missing',
+            'repro': [], 'evidence': 'qa-tools/proof.txt', 'blocking': True,
+            'reason_code': 'APPROVED_SCOPE_UNTRACED', 'code_ref': '',
+            'baseline_ref': 'request.md',
+        }]
+        adapter = self.root / 'synthetic-qa-adapter'
+        adapter.write_text(
+            f'#!{sys.executable}\n'
+            'import pathlib, sys\n'
+            'sys.stdin.read()\n'
+            'proof = pathlib.Path("qa-tools/proof.txt")\n'
+            'proof.parent.mkdir(exist_ok=True)\n'
+            'proof.write_text("Observed fixture evidence")\n'
+            f'pathlib.Path(sys.argv[sys.argv.index("-o") + 1]).write_bytes('
+            f'pathlib.Path({str(response)!r}).read_bytes())\n'
         )
+        adapter.chmod(0o700)
+        result = self.worker(self.root, {})
+        self.configure()
+        result.update(findings=findings, recommendation='REWORK')
+        response.write_text(json.dumps(result))
+        with patch('harness.execution_plan.require'):
+            first = self.qa.execute('QA', executable=str(adapter))
+            self.assertEqual(first['outcome'], 'BLOCKED')
+            first_report = self.root / first['report']['path']
+            original_report = first_report.read_bytes()
+            self.assertIn(
+                'ValueError: QA result rejected: QA finding requires non-blank fields: code_ref',
+                json.loads(original_report)['problems'],
+            )
+            result.update(findings=[], recommendation='PASS')
+            response.write_text(json.dumps(result))
+            second = self.qa.execute('QA', executable=str(adapter))
+        self.assertEqual(second['outcome'], 'PASS')
+        self.assertNotEqual(first['agent_run_id'], second['agent_run_id'])
+        self.assertEqual(first_report.read_bytes(), original_report)
+        self.assertEqual((self.root / 'product.txt').read_text(), 'hello')
 
     def test_verified_retest_closes_only_explicitly_reviewed_qa_issue(self):
         self.configure()
